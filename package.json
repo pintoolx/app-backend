@@ -1,0 +1,31 @@
+{
+  "name": "test",
+  "type": "module",
+  "scripts": {
+    "start": "tsx main.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^24.8.0",
+    "eslint": "^9.37.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@kamino-finance/klend-sdk": "^7.1.9",
+    "@shyft-to/js": "^0.2.40",
+    "@solana-program/address-lookup-table": "^0.9.0",
+    "@solana-program/compute-budget": "^0.10.0",
+    "@solana-program/token": "^0.7.0",
+    "@solana/kit": "^4.0.0",
+    "@solana/rpc-types": "^4.0.0",
+    "@solana/web3.js": "^1.98.4",
+    "bs58": "^6.0.0",
+    "decimal.js": "^10.6.0",
+    "dotenv": "^17.2.3",
+    "typescript-telegram-bot-api": "^0.10.0"
+  }
+}
