@@ -5,10 +5,13 @@ import {
   type Address, 
   type TransactionSigner, 
   type Rpc, 
-  type SolanaRpcApi
+  type SolanaRpcApi,
+  Signature
 } from '@solana/kit';  
 import { parseKeypairFile } from '@kamino-finance/klend-sdk/dist/utils/signer.js';  
 import Decimal from 'decimal.js';  
+import { sendAndConfirmTx } from './utils/tx';
+import { getConnectionPool } from './utils/connection';
   
 export interface KaminoClientConfig {  
   keypairPath: string;  
@@ -22,36 +25,27 @@ export interface VaultInfo {
 }  
   
 export class KaminoClient {  
-  private rpc: Rpc<SolanaRpcApi>;  
   private wallet: TransactionSigner;  
   private manager: KaminoManager;  
   private kvaultProgramId: Address;  
   private isMainnet: boolean;  
   
-  private constructor(  
-    rpc: Rpc<SolanaRpcApi>,  
+  private constructor(    
     wallet: TransactionSigner,  
     manager: KaminoManager,  
     kvaultProgramId: Address,  
     isMainnet: boolean  
-  ) {  
-    this.rpc = rpc;  
+  ) {    
     this.wallet = wallet;  
     this.manager = manager;  
     this.kvaultProgramId = kvaultProgramId;  
     this.isMainnet = isMainnet;  
-  }  
+  }
   
   /**  
    * 初始化 KaminoClient  
    */  
-  static async initialize(config: KaminoClientConfig): Promise<KaminoClient> {  
-
-    const rpcUrl = config.isMainnet   
-      ? 'https://api.mainnet-beta.solana.com'  
-      : 'https://api.devnet.solana.com';
-
-    const rpc = createSolanaRpc(rpcUrl);  
+  static async initialize(config: KaminoClientConfig): Promise<KaminoClient> {   
     const wallet = await parseKeypairFile(config.keypairPath);  
   
     const klendProgramId = config.isMainnet  
@@ -63,13 +57,13 @@ export class KaminoClient {
       : address('stKvQfwRsQiKnLtMNVLHKS3exFJmZFsgfzBPWHECUYK');    
   
     const manager = new KaminoManager(  
-      rpc as any,
+      getConnectionPool().rpc as any,
       400, // recentSlotDurationMs  
       klendProgramId,  
       kvaultProgramId  
     );  
   
-    return new KaminoClient(rpc, wallet, manager, kvaultProgramId, config.isMainnet);  
+    return new KaminoClient(wallet, manager, kvaultProgramId, config.isMainnet);  
   }  
   
   /**  
@@ -91,11 +85,11 @@ export class KaminoClient {
    */  
   async getVaultsAboveValue(minValueUSD: number): Promise<VaultInfo[]> {  
     const allVaults = await this.getAllVaults();  
-    const currentSlot = await this.rpc.getSlot({ commitment: 'confirmed' }).send();  
+    const currentSlot = await getConnectionPool().rpc.getSlot({ commitment: 'confirmed' }).send();  
     const vaultsAboveValue: VaultInfo[] = [];  
   
     for (const vault of allVaults) {  
-      const vaultState = await vault.getState(this.rpc as any);
+      const vaultState = await vault.getState(getConnectionPool().rpc as any);
         
       // 假設代幣價格為 1.0 (USDC)，實際應用中需要從 oracle 獲取  
       const tokenPrice = new Decimal(1.0);  
@@ -124,8 +118,8 @@ export class KaminoClient {
    */  
   async getVaultOverview(vaultAddress: Address, tokenPrice: Decimal = new Decimal(1.0)) {  
     const vault = new KaminoVault(vaultAddress, undefined, this.kvaultProgramId);  
-    const vaultState = await vault.getState(this.rpc as any);  
-    const currentSlot = await this.rpc.getSlot({ commitment: 'confirmed' }).send();  
+    const vaultState = await vault.getState(getConnectionPool().rpc as any);  
+    const currentSlot = await getConnectionPool().rpc.getSlot({ commitment: 'confirmed' }).send();  
   
     return await this.manager.getVaultOverview(  
       vaultState as any,  
@@ -137,23 +131,33 @@ export class KaminoClient {
   /**  
    * Deposit 到指定的 vault  
    */  
-  async deposit(vaultAddress: Address, amount: Decimal): Promise<DepositIxs> {  
+  async deposit(vaultAddress: Address, amount: Decimal): Promise<Signature> {  
     const vault = new KaminoVault(vaultAddress, undefined, this.kvaultProgramId);  
+    const vaultState = await vault.getState(getConnectionPool().rpc as any);  
     const depositIxs = await this.manager.depositToVaultIxs(  
       this.wallet as any,
       vault,  
       amount  
-    );  
+    );
+
+    const sig = await sendAndConfirmTx(
+      getConnectionPool(),
+      this.wallet,
+      [...depositIxs.depositIxs, ...depositIxs.stakeInFarmIfNeededIxs],
+      [],
+      [vaultState.vaultLookupTable],
+      'DepositToVault'
+    );
   
-    return depositIxs;  
+    return sig;  
   }  
   
   /**  
    * 從指定的 vault withdraw  
    */  
-  async withdraw(vaultAddress: Address, shareAmount: Decimal): Promise<WithdrawIxs> {  
+  async withdraw(vaultAddress: Address, shareAmount: Decimal): Promise<Signature> {  
     const vault = new KaminoVault(vaultAddress, undefined, this.kvaultProgramId);  
-    const currentSlot = await this.rpc.getSlot({ commitment: 'confirmed' }).send();  
+    const currentSlot = await getConnectionPool().rpc.getSlot({ commitment: 'confirmed' }).send();  
       
     const withdrawIxs = await this.manager.withdrawFromVaultIxs(  
       this.wallet as any,  
@@ -161,7 +165,17 @@ export class KaminoClient {
       shareAmount,  
       currentSlot  
     );  
+    const vaultState = await vault.getState(getConnectionPool().rpc as any);  
   
-    return withdrawIxs;  
+    const sig = await sendAndConfirmTx(
+      getConnectionPool(),
+      this.wallet,
+      [...withdrawIxs.withdrawIxs, ...withdrawIxs.unstakeFromFarmIfNeededIxs],
+      [],
+      [vaultState.vaultLookupTable],
+      'WithdrawFromVault'
+    );
+  
+    return sig;  
   }  
 }

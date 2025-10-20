@@ -1,10 +1,4 @@
-import { KaminoClient } from './client.ts';
-import Decimal from 'decimal.js'; 
+import { generateKeyPairSigner } from "@solana/kit";
 
-const client = await KaminoClient.initialize({  
-  keypairPath: 'wallet-keypair.json',  
-  isMainnet: false  
-});
+const signer = await generateKeyPairSigner();
 
-const allVaults = await client.getAllVaults();
-console.log('All vaults:', allVaults);

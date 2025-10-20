@@ -7,7 +7,7 @@ import {
   SwapIxsProvider,
   SwapQuoteProvider,
 } from '@kamino-finance/klend-sdk';
-import { KswapSdk, RouteOutput, RouteParams, RouterType } from '@kamino-finance/kswap-sdk/dist';
+import { KswapSdk, RouteOutput, RouteParams, RouterType } from '@kamino-finance/kswap-sdk';
 import Decimal from 'decimal.js';
 import { Address } from '@solana/kit';
 import { toLegacyPublicKey } from '@kamino-finance/klend-sdk/dist/utils/compat';
