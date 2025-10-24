@@ -1,15 +1,12 @@
-import { type DepositIxs, KaminoManager, KaminoVault, type WithdrawIxs } from '@kamino-finance/klend-sdk';  
-import { 
-  createSolanaRpc, 
-  address, 
-  type Address, 
-  type TransactionSigner, 
-  type Rpc, 
-  type SolanaRpcApi,
+import { KaminoManager, KaminoVault } from '@kamino-finance/klend-sdk';
+import {
+  address,
+  type Address,
+  type TransactionSigner,
   Signature
-} from '@solana/kit';  
-import { parseKeypairFile } from '@kamino-finance/klend-sdk/dist/utils/signer.js';  
-import Decimal from 'decimal.js';  
+} from '@solana/kit';
+import { parseKeypairFile } from '@kamino-finance/klend-sdk/dist/utils/signer.js';
+import Decimal from 'decimal.js';
 import { sendAndConfirmTx } from './utils/tx';
 import { getConnectionPool } from './utils/connection';
   
@@ -158,6 +155,8 @@ export class KaminoClient {
   async withdraw(vaultAddress: Address, shareAmount: Decimal): Promise<Signature> {  
     const vault = new KaminoVault(vaultAddress, undefined, this.kvaultProgramId);  
     const currentSlot = await getConnectionPool().rpc.getSlot({ commitment: 'confirmed' }).send();  
+
+    const vaultState = await vault.getState(getConnectionPool().rpc as any);  
       
     const withdrawIxs = await this.manager.withdrawFromVaultIxs(  
       this.wallet as any,  
@@ -165,17 +164,16 @@ export class KaminoClient {
       shareAmount,  
       currentSlot  
     );  
-    const vaultState = await vault.getState(getConnectionPool().rpc as any);  
   
     const sig = await sendAndConfirmTx(
       getConnectionPool(),
       this.wallet,
-      [...withdrawIxs.withdrawIxs, ...withdrawIxs.unstakeFromFarmIfNeededIxs],
+      [...withdrawIxs.unstakeFromFarmIfNeededIxs, ...withdrawIxs.withdrawIxs, ...withdrawIxs.postWithdrawIxs],
       [],
       [vaultState.vaultLookupTable],
       'WithdrawFromVault'
     );
-  
-    return sig;  
-  }  
+
+    return sig;
+  }
 }

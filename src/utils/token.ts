@@ -1,0 +1,47 @@
+import { Connection, PublicKey } from '@solana/web3.js';
+import { getMint } from '@solana/spl-token';
+
+// 常見代幣 decimals 緩存
+const DECIMALS_CACHE = new Map<string, number>();
+
+export async function getTokenDecimals(
+  connection: Connection,
+  mint: string
+): Promise<number> {
+  if (DECIMALS_CACHE.has(mint)) {
+    return DECIMALS_CACHE.get(mint)!;
+  }
+  
+  const mintInfo = await getMint(connection, new PublicKey(mint));
+  DECIMALS_CACHE.set(mint, mintInfo.decimals);
+  return mintInfo.decimals;
+}
+
+export async function toTokenAmount(
+  connection: Connection,
+  mint: string,
+  humanAmount: number
+): Promise<number> {
+  const decimals = await getTokenDecimals(connection, mint);
+  return Math.floor(humanAmount * Math.pow(10, decimals));
+}
+
+export async function fromTokenAmount(
+  connection: Connection,
+  mint: string,
+  baseAmount: number | string
+): Promise<number> {
+  const decimals = await getTokenDecimals(connection, mint);
+  const amount = typeof baseAmount === 'string' ? parseInt(baseAmount) : baseAmount;
+  return amount / Math.pow(10, decimals);
+}
+
+export async function formatTokenAmount(
+  connection: Connection,
+  mint: string,
+  baseAmount: number | string,
+  maxDecimals: number = 6
+): Promise<string> {
+  const humanAmount = await fromTokenAmount(connection, mint, baseAmount);
+  return humanAmount.toFixed(maxDecimals);
+}

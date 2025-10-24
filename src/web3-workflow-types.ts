@@ -25,6 +25,7 @@ export interface INodeDescription {
   description: string;
   inputs: string[];
   outputs: string[];
+  telegramNotify: boolean;
   properties: INodeProperty[];
 }
 
@@ -38,7 +39,6 @@ export interface INodeProperty {
   default: any;
   description: string;
   options?: Array<{ name: string; value: any }>;
-  telegramNotify: boolean;
 }
 
 /**

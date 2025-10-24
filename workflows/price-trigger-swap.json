@@ -1,0 +1,68 @@
+{
+  "nodes": [
+    {
+      "id": "priceFeed1",
+      "name": "监听 SOL 价格",
+      "type": "pythPriceFeed",
+      "parameters": {
+        "priceId": "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+        "targetPrice": "100",
+        "condition": "above",
+        "hermesEndpoint": "https://hermes.pyth.network",
+        "timeout": "300"
+      },
+      "position": [100, 100]
+    },
+    {
+      "id": "swap1",
+      "name": "执行 USDC 到 SOL 交换",
+      "type": "jupiterSwap",
+      "parameters": {
+        "rpcUrl": "https://api.mainnet-beta.solana.com",
+        "keypairPath": "./keypair.json",
+        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "outputMint": "So11111111111111111111111111111111111111112",
+        "amount": "10",
+        "slippageBps": "50"
+      },
+      "position": [300, 100]
+    },
+    {
+      "id": "kamino1",
+      "name": "存入 Kamino 金库",
+      "type": "kamino",
+      "parameters": {
+        "operation": "deposit",
+        "vaultAddress": "YOUR_VAULT_ADDRESS_HERE",
+        "amount": "1.0",
+        "shareAmount": "0",
+        "keypairPath": "./keypair.json"
+      },
+      "position": [500, 100]
+    }
+  ],
+  "connections": {
+    "priceFeed1": {
+      "main": [
+        [
+          {
+            "node": "swap1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "swap1": {
+      "main": [
+        [
+          {
+            "node": "kamino1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

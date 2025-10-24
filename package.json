@@ -1,10 +1,11 @@
 {
   "name": "test",
-  "type": "module",
   "scripts": {
     "start": "tsx main.ts",
-    "rebuild": "npm rebuild --update-binary",
-    "postinstall": "npm rebuild --update-binary"
+    "dev": "tsx watch main.ts",
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "workflow": "tsx src/run-workflow.ts"
   },
   "keywords": [],
   "author": "",
@@ -14,22 +15,26 @@
     "@types/node": "^24.8.0",
     "eslint": "^9.37.0",
     "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@jup-ag/api": "^6.0.45",
     "@kamino-finance/klend-sdk": "^7.1.9",
     "@kamino-finance/kswap-sdk": "^2.0.0",
+    "@pythnetwork/hermes-client": "^2.0.0",
+    "@raydium-io/raydium-sdk-v2": "^0.2.30-alpha",
     "@shyft-to/js": "^0.2.40",
     "@solana-program/address-lookup-table": "^0.9.0",
     "@solana-program/compute-budget": "^0.10.0",
     "@solana-program/token": "^0.7.0",
+    "@solana/buffer-layout-utils": "^0.3.0",
     "@solana/kit": "^4.0.0",
     "@solana/rpc-types": "^4.0.0",
-    "@solana/web3.js": "^1.98.4",
     "bn.js": "^5.2.2",
-    "bs58": "^6.0.0",
     "decimal.js": "^10.6.0",
     "dotenv": "^17.2.3",
-    "typescript-telegram-bot-api": "^0.10.0"
+    "typescript-telegram-bot-api": "^0.10.0",
+    "whatwg-fetch": "^3.6.20"
   }
 }
