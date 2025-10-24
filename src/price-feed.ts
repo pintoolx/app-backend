@@ -8,10 +8,8 @@ export async function priceFeed(priceIds: string[]) {
 
     // Streaming price updates
     const eventSource = await connection.getPriceUpdatesStream(priceIds);
-    var currentPrice: number;
     eventSource.onmessage = (event) => {
         const priceUpdate = JSON.parse(event.data);
-        currentPrice = parseInt(priceUpdate.parsed.price.price);
         console.log("Received price update:", priceUpdate.parsed);
     };
 

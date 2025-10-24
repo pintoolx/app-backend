@@ -127,8 +127,13 @@ export class WorkflowExecutor {
       console.log(`\n节点执行结果:`);
       console.log(JSON.stringify(result, null, 2));
 
-      // 检查是否需要发送 Telegram 通知（根据节点的 telegramNotify 设置）
-      if (nodeType.description.telegramNotify && this.telegramNotifier?.isEnabled()) {
+      // 检查是否需要发送 Telegram 通知
+      // 优先级: workflow JSON 中的设置 > Node 类中的默认设置
+      const shouldNotify = workflowNode.telegramNotify !== undefined
+        ? workflowNode.telegramNotify
+        : nodeType.description.telegramNotify;
+
+      if (shouldNotify && this.telegramNotifier?.isEnabled()) {
         await this.telegramNotifier.sendNodeExecutionResult(
           workflowNode.name,
           workflowNode.type,

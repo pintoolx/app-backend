@@ -11,7 +11,8 @@
         "hermesEndpoint": "https://hermes.pyth.network",
         "timeout": "300"
       },
-      "position": [100, 100]
+      "position": [100, 100],
+      "telegramNotify": true
     },
     {
       "id": "swap1",
@@ -25,7 +26,8 @@
         "amount": "10",
         "slippageBps": "50"
       },
-      "position": [300, 100]
+      "position": [300, 100],
+      "telegramNotify": true
     },
     {
       "id": "kamino1",
@@ -38,7 +40,8 @@
         "shareAmount": "0",
         "keypairPath": "./keypair.json"
       },
-      "position": [500, 100]
+      "position": [500, 100],
+      "telegramNotify": false
     }
   ],
   "connections": {

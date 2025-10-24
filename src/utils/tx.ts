@@ -1,6 +1,5 @@
 import {
   Account,
-  AccountRole,
   Address,
   AddressesByLookupTableAddress,
   addSignersToTransactionMessage,

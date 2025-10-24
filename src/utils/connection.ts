@@ -12,8 +12,6 @@ import {
 import { getEnvOrThrow } from './env';
 import { Connection } from '@solana/web3.js';
 
-export const LOCALNET_RPC_URL = 'http://localhost:8899';
-
 export type ConnectionPool = {
   rpc: Rpc<SolanaRpcApi>;
   wsRpc: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
@@ -42,7 +40,7 @@ export function getConnectionPool(): ConnectionPool {
   };
 }
 
-export function initRpc(rpcUrl: string = LOCALNET_RPC_URL): Rpc<SolanaRpcApi> {
+export function initRpc(rpcUrl: string ): Rpc<SolanaRpcApi> {
   const api = createSolanaRpcApi<SolanaRpcApi>({
     ...DEFAULT_RPC_CONFIG,
     defaultCommitment: 'processed',

@@ -61,7 +61,8 @@ export interface WorkflowNode {
   name: string;
   type: string;
   parameters: Record<string, any>;
-  position: [number, number];
+  position?: [number, number];
+  telegramNotify?: boolean; // 可选：是否为此节点发送 Telegram 通知
 }
 
 /**
