@@ -2,27 +2,26 @@
   "nodes": [
     {
       "id": "priceFeed1",
-      "name": "监听 SOL 价格",
+      "name": "監聽 SOL 價格",
       "type": "pythPriceFeed",
       "parameters": {
-        "priceId": "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+        "priceId": "SOL",
         "targetPrice": "100",
         "condition": "above",
-        "hermesEndpoint": "https://hermes.pyth.network",
-        "timeout": "300"
+        "hermesEndpoint": "https://hermes.pyth.network"
       },
       "position": [100, 100],
       "telegramNotify": true
     },
     {
       "id": "swap1",
-      "name": "执行 USDC 到 SOL 交换",
+      "name": "執行 USDC 到 SOL 交換",
       "type": "jupiterSwap",
       "parameters": {
         "rpcUrl": "https://api.mainnet-beta.solana.com",
         "keypairPath": "./keypair.json",
-        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-        "outputMint": "So11111111111111111111111111111111111111112",
+        "inputToken": "USDC",
+        "outputToken": "SOL",
         "amount": "10",
         "slippageBps": "50"
       },
@@ -31,17 +30,17 @@
     },
     {
       "id": "kamino1",
-      "name": "存入 Kamino 金库",
+      "name": "存入 Kamino 金庫",
       "type": "kamino",
       "parameters": {
         "operation": "deposit",
-        "vaultAddress": "YOUR_VAULT_ADDRESS_HERE",
-        "amount": "1.0",
+        "vaultName": "MEV_Capital_SOL",
+        "amount": "auto",
         "shareAmount": "0",
         "keypairPath": "./keypair.json"
       },
       "position": [500, 100],
-      "telegramNotify": false
+      "telegramNotify": true
     }
   ],
   "connections": {

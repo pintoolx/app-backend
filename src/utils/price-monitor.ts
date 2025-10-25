@@ -1,11 +1,13 @@
 import { HermesClient } from '@pythnetwork/hermes-client';
+import { Pyth_Price_Feed_ID } from './constant';
+
+export type TokenTicker = keyof typeof Pyth_Price_Feed_ID;
 
 export interface PriceMonitorOptions {
-  priceId: string;
+  ticker: TokenTicker; // 使用 TICKER 代替 priceId
   targetPrice: number;
   condition: 'above' | 'below' | 'equal';
   hermesEndpoint?: string;
-  timeout?: number; // seconds, 0 = no timeout
   onPriceUpdate?: (currentPrice: number) => void; // 回调函数，每次价格更新时调用
 }
 
@@ -14,48 +16,41 @@ export interface PriceMonitorResult {
   currentPrice: number;
   targetPrice: number;
   condition: string;
-  priceId: string;
+  ticker: TokenTicker;
   timestamp: number;
 }
 
 /**
  * 监听价格并在达到目标时触发
  * @param options 监听配置选项
- * @returns Promise<PriceMonitorResult> 当价格达到目标或超时时 resolve
+ * @returns Promise<PriceMonitorResult> 当价格达到目标时 resolve
  */
 export async function monitorPrice(options: PriceMonitorOptions): Promise<PriceMonitorResult> {
   const {
-    priceId,
+    ticker,
     targetPrice,
     condition,
     hermesEndpoint = 'https://hermes.pyth.network',
-    timeout = 0,
     onPriceUpdate
   } = options;
+
+  // 从 constant 中获取 priceId
+  const priceId = Pyth_Price_Feed_ID[ticker];
+  if (!priceId) {
+    throw new Error(`Unknown ticker: ${ticker}. Please check src/utils/constant.ts for available tickers.`);
+  }
 
   // 初始化 Hermes Client
   const hermesClient = new HermesClient(hermesEndpoint, {});
 
   return new Promise<PriceMonitorResult>((resolve, reject) => {
     let eventSource: EventSource;
-    let timeoutId: NodeJS.Timeout | null = null;
 
     const cleanup = () => {
       if (eventSource) {
         eventSource.close();
       }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
     };
-
-    // 设置超时
-    if (timeout > 0) {
-      timeoutId = setTimeout(() => {
-        cleanup();
-        reject(new Error(`Timeout: Target price not reached within ${timeout} seconds`));
-      }, timeout * 1000);
-    }
 
     // 开始监听价格
     hermesClient.getPriceUpdatesStream([priceId])
@@ -84,7 +79,7 @@ export async function monitorPrice(options: PriceMonitorOptions): Promise<PriceM
                 currentPrice,
                 targetPrice,
                 condition,
-                priceId,
+                ticker,
                 timestamp: Date.now()
               });
             }
@@ -137,27 +132,36 @@ export function checkPriceCondition(
 
 /**
  * 简单的价格获取（非监听）
- * @param priceIds 价格源 ID 数组
+ * @param tickers TICKER 数组
  * @param hermesEndpoint Hermes 端点
  * @returns Promise 当前价格数据
  */
 export async function getCurrentPrices(
-  priceIds: string[],
+  tickers: TokenTicker[],
   hermesEndpoint: string = 'https://hermes.pyth.network'
-): Promise<Array<{ priceId: string; price: number; expo: number }>> {
+): Promise<Array<{ ticker: string; price: number; expo: number }>> {
   const hermesClient = new HermesClient(hermesEndpoint, {});
 
+  // 转换 tickers 为 priceIds
+  const priceIds = tickers.map(ticker => {
+    const priceId = Pyth_Price_Feed_ID[ticker];
+    if (!priceId) {
+      throw new Error(`Unknown ticker: ${ticker}`);
+    }
+    return priceId;
+  });
+
   return new Promise((resolve, reject) => {
-    const prices: Array<{ priceId: string; price: number; expo: number }> = [];
+    const prices: Array<{ ticker: string; price: number; expo: number }> = [];
 
     hermesClient.getPriceUpdatesStream(priceIds)
       .then((eventSource) => {
         eventSource.onmessage = (event) => {
           try {
             const priceUpdate = JSON.parse(event.data);
-            priceUpdate.parsed.forEach((p: any) => {
+            priceUpdate.parsed.forEach((p: any, index: number) => {
               prices.push({
-                priceId: p.id,
+                ticker: tickers[index]!,
                 price: parseFloat(p.price.price) * Math.pow(10, p.price.expo),
                 expo: p.price.expo
               });

@@ -2,13 +2,13 @@
   "nodes": [
     {
       "id": "swap1",
-      "name": "执行 SOL 到 USDC 交换",
+      "name": "執行 SOL 到 USDC 交換",
       "type": "jupiterSwap",
       "parameters": {
         "rpcUrl": "https://api.mainnet-beta.solana.com",
         "keypairPath": "./keypair.json",
-        "inputMint": "So11111111111111111111111111111111111111112",
-        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "inputToken": "SOL",
+        "outputToken": "USDC",
         "amount": "0.1",
         "slippageBps": "50"
       },
@@ -17,12 +17,12 @@
     },
     {
       "id": "kamino1",
-      "name": "存入 Kamino 金库",
+      "name": "存入 Kamino 金庫",
       "type": "kamino",
       "parameters": {
         "operation": "deposit",
-        "vaultAddress": "HDsayqAsDWy3QvANGqh2yNraqcD8Fnjgh73Mhb3WRS5E",
-        "amount": "10",
+        "vaultName": "USDC_Prime",
+        "amount": "auto",
         "shareAmount": "0",
         "keypairPath": "./keypair.json"
       },
@@ -31,13 +31,13 @@
     },
     {
       "id": "kamino2",
-      "name": "提出 Kamino 金库",
+      "name": "提出 Kamino 金庫 (全部)",
       "type": "kamino",
       "parameters": {
         "operation": "withdraw",
-        "vaultAddress": "HDsayqAsDWy3QvANGqh2yNraqcD8Fnjgh73Mhb3WRS5E",
+        "vaultName": "USDC_Prime",
         "amount": "0",
-        "shareAmount": "10",
+        "shareAmount": "all",
         "keypairPath": "./keypair.json"
       },
       "position": [500, 100],
@@ -45,14 +45,14 @@
     },
     {
       "id": "swap2",
-      "name": "执行 USDC 到 SOL 交换",
+      "name": "執行 USDC 到 SOL 交換 (一半)",
       "type": "jupiterSwap",
       "parameters": {
         "rpcUrl": "https://api.mainnet-beta.solana.com",
         "keypairPath": "./keypair.json",
-        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-        "outputMint": "So11111111111111111111111111111111111111112",
-        "amount": "19",
+        "inputToken": "USDC",
+        "outputToken": "SOL",
+        "amount": "half",
         "slippageBps": "50"
       },
       "position": [700, 100],

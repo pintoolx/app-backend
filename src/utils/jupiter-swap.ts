@@ -1,21 +1,24 @@
 import { Connection, Keypair, VersionedTransaction } from '@solana/web3.js';
 import { createJupiterApiClient } from '@jup-ag/api';
 import { toTokenAmount, formatTokenAmount } from './token';
+import { TOKEN_ADDRESS } from './constant';
 import fs from 'fs';
+
+export type TokenTicker = keyof typeof TOKEN_ADDRESS;
 
 export interface JupiterSwapOptions {
   rpcUrl: string;
   keypairPath: string;
-  inputMint: string;
-  outputMint: string;
+  inputToken: TokenTicker; // 使用 TICKER 代替 inputMint
+  outputToken: TokenTicker; // 使用 TICKER 代替 outputMint
   amount: number; // 人類可讀數字 (e.g., 1, 0.5, 100)
   slippageBps?: number; // 滑點 (basis points), 默認 50 = 0.5%
 }
 
 export interface JupiterSwapResult {
   signature: string;
-  inputMint: string;
-  outputMint: string;
+  inputToken: string;
+  outputToken: string;
   inputAmount: number;
   outputAmount: string;
   walletAddress: string;
@@ -31,11 +34,22 @@ export async function executeJupiterSwap(options: JupiterSwapOptions): Promise<J
   const {
     rpcUrl,
     keypairPath,
-    inputMint,
-    outputMint,
+    inputToken,
+    outputToken,
     amount: humanAmount,
     slippageBps = 50
   } = options;
+
+  // 从 constant 中获取 token addresses
+  const inputMint = TOKEN_ADDRESS[inputToken];
+  const outputMint = TOKEN_ADDRESS[outputToken];
+
+  if (!inputMint) {
+    throw new Error(`Unknown input token: ${inputToken}. Please check src/utils/constant.ts for available tokens.`);
+  }
+  if (!outputMint) {
+    throw new Error(`Unknown output token: ${outputToken}. Please check src/utils/constant.ts for available tokens.`);
+  }
 
   // 初始化連接和客戶端
   const connection = new Connection(rpcUrl);
@@ -57,7 +71,7 @@ export async function executeJupiterSwap(options: JupiterSwapOptions): Promise<J
 
   // 顯示預期輸出
   const outputFormatted = await formatTokenAmount(connection, outputMint, quote.outAmount);
-  console.log(`從 ${humanAmount} ${inputMint} 換到 ${outputFormatted} ${outputMint}`);
+  console.log(`從 ${humanAmount} ${inputToken} 換到 ${outputFormatted} ${outputToken}`);
 
   // 2. 獲取序列化交易
   const swapResult = await jupiterApi.swapPost({
@@ -83,8 +97,8 @@ export async function executeJupiterSwap(options: JupiterSwapOptions): Promise<J
 
   return {
     signature: txid,
-    inputMint,
-    outputMint,
+    inputToken,
+    outputToken,
     inputAmount: humanAmount,
     outputAmount: outputFormatted,
     walletAddress: wallet.publicKey.toBase58(),
@@ -99,18 +113,29 @@ export async function executeJupiterSwap(options: JupiterSwapOptions): Promise<J
  */
 export async function getJupiterQuote(options: {
   rpcUrl: string;
-  inputMint: string;
-  outputMint: string;
+  inputToken: TokenTicker;
+  outputToken: TokenTicker;
   amount: number;
   slippageBps?: number;
 }) {
   const {
     rpcUrl,
-    inputMint,
-    outputMint,
+    inputToken,
+    outputToken,
     amount: humanAmount,
     slippageBps = 50
   } = options;
+
+  // 从 constant 中获取 token addresses
+  const inputMint = TOKEN_ADDRESS[inputToken];
+  const outputMint = TOKEN_ADDRESS[outputToken];
+
+  if (!inputMint) {
+    throw new Error(`Unknown input token: ${inputToken}`);
+  }
+  if (!outputMint) {
+    throw new Error(`Unknown output token: ${outputToken}`);
+  }
 
   const connection = new Connection(rpcUrl);
   const jupiterApi = createJupiterApiClient();
@@ -130,8 +155,8 @@ export async function getJupiterQuote(options: {
   const outputFormatted = await formatTokenAmount(connection, outputMint, quote.outAmount);
 
   return {
-    inputMint,
-    outputMint,
+    inputToken,
+    outputToken,
     inputAmount: humanAmount,
     outputAmount: outputFormatted,
     priceImpactPct: quote.priceImpactPct,

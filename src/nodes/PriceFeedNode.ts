@@ -1,5 +1,5 @@
 import { type INodeType, type IExecuteContext, type NodeExecutionData } from '../web3-workflow-types';
-import { monitorPrice } from '../utils/price-monitor';
+import { monitorPrice, TokenTicker } from '../utils/price-monitor';
 
 export class PriceFeedNode implements INodeType {
   description = {
@@ -13,7 +13,7 @@ export class PriceFeedNode implements INodeType {
     telegramNotify: true,
     properties: [
       {
-        displayName: 'Price Feed ID',
+        displayName: '',
         name: 'priceId',
         type: 'string' as const,
         default: '',
@@ -53,13 +53,6 @@ export class PriceFeedNode implements INodeType {
         type: 'string' as const,
         default: 'https://hermes.pyth.network',
         description: 'Pyth Hermes endpoint URL'
-      },
-      {
-        displayName: 'Timeout (seconds)',
-        name: 'timeout',
-        type: 'string' as const,
-        default: '300',
-        description: 'Maximum time to wait for target price (0 = no timeout)'
       }
     ]
   };
@@ -71,19 +64,17 @@ export class PriceFeedNode implements INodeType {
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
       try {
         // 獲取參數
-        const priceId = context.getNodeParameter('priceId', itemIndex) as string;
+        const ticker = context.getNodeParameter('priceId', itemIndex) as string;
         const targetPrice = parseFloat(context.getNodeParameter('targetPrice', itemIndex) as string);
         const condition = context.getNodeParameter('condition', itemIndex) as 'above' | 'below' | 'equal';
         const hermesEndpoint = context.getNodeParameter('hermesEndpoint', itemIndex, 'https://hermes.pyth.network') as string;
-        const timeout = parseInt(context.getNodeParameter('timeout', itemIndex, '300') as string);
 
         // 使用可復用的 monitorPrice 工具函數
         const priceReached = await monitorPrice({
-          priceId,
+          ticker: ticker as TokenTicker,
           targetPrice,
           condition,
           hermesEndpoint,
-          timeout,
           onPriceUpdate: (currentPrice) => {
             console.log(`Current price: ${currentPrice}, Target: ${targetPrice}, Condition: ${condition}`);
           }
@@ -97,7 +88,7 @@ export class PriceFeedNode implements INodeType {
             currentPrice: priceReached.currentPrice,
             targetPrice: priceReached.targetPrice,
             condition: priceReached.condition,
-            priceId: priceReached.priceId,
+            ticker: priceReached.ticker,
             timestamp: priceReached.timestamp,
             message: `Price ${condition} ${targetPrice} reached at ${priceReached.currentPrice}`
           }

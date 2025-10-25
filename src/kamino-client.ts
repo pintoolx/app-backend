@@ -176,4 +176,19 @@ export class KaminoClient {
 
     return sig;
   }
+
+  /**
+   * 獲取用戶在指定 vault 中的 share balance
+   */
+  async getUserShareBalance(vaultAddress: Address): Promise<Decimal> {
+    const vault = new KaminoVault(vaultAddress, undefined, this.kvaultProgramId);
+    await vault.getState(getConnectionPool().rpc as any);
+
+    const userShares = await this.manager.getUserSharesBalanceSingleVault(
+      this.wallet.address,
+      vault
+    );
+
+    return userShares.stakedShares;
+  }
 }
