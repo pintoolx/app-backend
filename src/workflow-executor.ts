@@ -52,7 +52,7 @@ export class WorkflowExecutor {
       }
 
       const duration = Date.now() - startTime;
-      console.log('\nWorkflow 执行完成！');
+      console.log(`\nWorkflow execution completed in ${duration}ms`);
 
       // 发送 Workflow 完成通知
       if (this.telegramNotifier?.isEnabled()) {
@@ -80,16 +80,16 @@ export class WorkflowExecutor {
 
     const workflowNode = workflow.nodes.find(n => n.id === nodeId);
     if (!workflowNode) {
-      throw new Error(`节点 ${nodeId} 不存在`);
+      throw new Error(`Node ${nodeId} does not exist`);
     }
 
     console.log(`\n${'='.repeat(60)}`);
-    console.log(`执行节点: ${workflowNode.name} (${workflowNode.type})`);
+    console.log(`Execute node: ${workflowNode.name} (${workflowNode.type})`);
     console.log(`${'='.repeat(60)}`);
 
     const nodeType = this.nodes.get(workflowNode.type);
     if (!nodeType) {
-      throw new Error(`未注册的节点类型: ${workflowNode.type}`);
+      throw new Error(`Unregistered node type: ${workflowNode.type}`);
     }
 
     // 获取输入数据（从前置节点）
@@ -124,7 +124,7 @@ export class WorkflowExecutor {
       this.workflowData.set(nodeId, result);
 
       // 打印执行结果
-      console.log(`\n节点执行结果:`);
+      console.log(`\nNode execution result:`);
       console.log(JSON.stringify(result, null, 2));
 
       // 检查是否需要发送 Telegram 通知
@@ -148,7 +148,7 @@ export class WorkflowExecutor {
         await this.executeNode(workflow, nextNodeId);
       }
     } catch (error) {
-      console.error(`\n❌ 节点执行失败: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`\n❌ Node execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
 
       // 发送节点失败通知
       if (this.telegramNotifier?.isEnabled() && error instanceof Error) {

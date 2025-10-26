@@ -16,7 +16,7 @@ dotenv.config();
  */
 async function runWorkflow(workflowPath: string) {
   console.log(`\n${'*'.repeat(80)}`);
-  console.log(`正在加载 Workflow: ${workflowPath}`);
+  console.log(`Loading Workflow: ${workflowPath}`);
   console.log(`${'*'.repeat(80)}\n`);
 
   // 加载 workflow 定义
@@ -27,9 +27,9 @@ async function runWorkflow(workflowPath: string) {
   const telegramNotifier = createTelegramNotifierFromEnv();
 
   if (telegramNotifier.isEnabled()) {
-    console.log('✓ Telegram 通知已启用\n');
+    console.log('✓ Telegram notification enabled\n');
   } else {
-    console.log('ℹ Telegram 通知未启用\n');
+    console.log('ℹ Telegram notification disabled\n');
   }
 
   // 创建执行器，传入 Telegram 通知器和 workflow 名称
@@ -46,20 +46,20 @@ async function runWorkflow(workflowPath: string) {
     const results = await executor.execute(workflow);
 
     console.log('\n' + '*'.repeat(80));
-    console.log('Workflow 执行完成！');
+    console.log('Workflow execution completed successfully!');
     console.log('*'.repeat(80));
 
     // 打印所有节点的最终结果
-    console.log('\n所有节点的执行结果:');
+    console.log('\nAll node execution results:');
     for (const [nodeId, data] of results.entries()) {
-      console.log(`\n节点 ${nodeId}:`);
+      console.log(`\nNode ${nodeId}:`);
       console.log(JSON.stringify(data, null, 2));
     }
 
     return results;
   } catch (error) {
     console.error('\n' + '!'.repeat(80));
-    console.error('Workflow 执行失败！');
+    console.error('Workflow execution failed!');
     console.error('!'.repeat(80));
     console.error(error);
     throw error;
@@ -71,9 +71,9 @@ async function main() {
   const workflowPath = process.argv[2] || path.join(__dirname, '../workflows/price-trigger-swap.json');
 
   if (!fs.existsSync(workflowPath)) {
-    console.error(`错误: Workflow 文件不存在: ${workflowPath}`);
-    console.error('\n用法: npm run workflow [workflow-path]');
-    console.error('示例: npm run workflow ./workflows/price-trigger-swap.json');
+    console.error(`Error: Workflow file does not exist: ${workflowPath}`);
+    console.error('\nUsage: npm run workflow [workflow-path]');
+    console.error('Example: npm run workflow ./workflows/price-trigger-swap.json');
     process.exit(1);
   }
 

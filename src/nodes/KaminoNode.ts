@@ -156,14 +156,14 @@ export class KaminoNode implements INodeType {
           if (inputAmount !== null && (amountParam === '0' || amountParam.toLowerCase() === 'auto')) {
             // 使用前一個節點的輸出金額
             depositAmount = inputAmount;
-            console.log(`使用前一個節點的輸出金額: ${depositAmount.toString()}`);
+            console.log(`Use output amount from previous node: ${depositAmount.toString()}`);
           } else if (amountParam.toLowerCase() === 'all' || amountParam.toLowerCase() === 'half') {
-            // 對於 "all" 或 "half"，使用前一個節點的金額
+            // 對於 "all" 或 "half"，使用前一個節點的輸出金額
             if (inputAmount === null) {
               throw new Error('Cannot use "all" or "half" without input from previous node');
             }
             depositAmount = parseAmount(amountParam, inputAmount);
-            console.log(`使用 ${amountParam}: ${depositAmount.toString()}`);
+            console.log(`Use ${amountParam}: ${depositAmount.toString()}`);
           } else {
             // 使用指定的固定金額
             depositAmount = new Decimal(amountParam);
@@ -191,10 +191,10 @@ export class KaminoNode implements INodeType {
           if (shareAmountParam.toLowerCase() === 'all' || shareAmountParam.toLowerCase() === 'half') {
             // 獲取當前的 share balance
             const currentShareBalance = await kaminoClient.getUserShareBalance(vaultAddress as Address);
-            console.log(`當前 share balance: ${currentShareBalance.toString()}`);
+            console.log(`Current share balance: ${currentShareBalance.toString()}`);
 
             withdrawShareAmount = parseAmount(shareAmountParam, currentShareBalance);
-            console.log(`提取 ${shareAmountParam}: ${withdrawShareAmount.toString()}`);
+            console.log(`Withdraw ${shareAmountParam}: ${withdrawShareAmount.toString()}`);
           } else {
             // 使用指定的固定數量
             withdrawShareAmount = new Decimal(shareAmountParam);

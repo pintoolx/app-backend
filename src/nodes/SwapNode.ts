@@ -121,14 +121,14 @@ export class SwapNode implements INodeType {
         if (inputAmount !== null && (amountParam === '0' || amountParam.toLowerCase() === 'auto')) {
           // 使用前一個節點的輸出金額
           amount = inputAmount;
-          console.log(`使用前一個節點的輸出金額: ${amount}`);
+          console.log(`Use output amount from previous node: ${amount}`);
         } else if (amountParam.toLowerCase() === 'all' || amountParam.toLowerCase() === 'half') {
-          // 對於 "all" 或 "half"，使用前一個節點的金額
+          // 對於 "all" 或 "half"，使用前一個節點的輸出金額
           if (inputAmount === null) {
             throw new Error('Cannot use "all" or "half" without input from previous node');
           }
           amount = parseSwapAmount(amountParam, inputAmount);
-          console.log(`使用 ${amountParam}: ${amount}`);
+          console.log(`Use ${amountParam}: ${amount}`);
         } else {
           // 使用指定的固定金額
           amount = parseFloat(amountParam);

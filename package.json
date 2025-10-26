@@ -31,6 +31,7 @@
     "@solana/buffer-layout-utils": "^0.3.0",
     "@solana/kit": "^4.0.0",
     "@solana/rpc-types": "^4.0.0",
+    "@supabase/supabase-js": "^2.76.1",
     "bn.js": "^5.2.2",
     "decimal.js": "^10.6.0",
     "dotenv": "^17.2.3",
