@@ -5,7 +5,7 @@
     "dev": "tsx watch main.ts",
     "build": "tsc",
     "type-check": "tsc --noEmit",
-    "workflow": "tsx src/run-workflow.ts"
+    "workflow": "tsx src-legacy/run-workflow.ts"
   },
   "keywords": [],
   "author": "",

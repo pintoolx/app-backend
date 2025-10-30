@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tsx:*)"
+      "Bash(tsx:*)",
+      "Bash(mv:*)",
+      "Bash(mkdir:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm install)",
+      "Bash(cat:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

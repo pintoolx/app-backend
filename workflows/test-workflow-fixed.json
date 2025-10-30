@@ -37,7 +37,7 @@
         "operation": "withdraw",
         "vaultName": "USDC_Prime",
         "amount": "0",
-        "shareAmount": "all",
+        "shareAmount": "auto",
         "keypairPath": "./keypair.json"
       },
       "position": [500, 100],
@@ -45,14 +45,14 @@
     },
     {
       "id": "swap2",
-      "name": "執行 USDC 到 SOL 交換 (一半)",
+      "name": "執行 USDC 到 SOL 交換 (全部)",
       "type": "jupiterSwap",
       "parameters": {
         "rpcUrl": "https://api.mainnet-beta.solana.com",
         "keypairPath": "./keypair.json",
         "inputToken": "USDC",
         "outputToken": "SOL",
-        "amount": "half",
+        "amount": "auto",
         "slippageBps": "50"
       },
       "position": [700, 100],

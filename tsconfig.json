@@ -27,11 +27,11 @@
     "noPropertyAccessFromIndexSignature": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src-legacy/*"]
     }
   },
   "include": [
-    "src/**/*",
+    "src-legacy/**/*",
     "*.ts"
   ],
   "exclude": [
