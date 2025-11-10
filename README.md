@@ -2,23 +2,23 @@
 
 A Solana-based Web3 workflow automation system supporting price monitoring, token swapping, DeFi operations, and more.
 
-## ✨ Features
+## Features
 
-- 🎯 **Price Triggers** - Monitor token prices and auto-trigger when targets are met
-- 💱 **Jupiter Swap** - Automated token swapping
-- 🏦 **Kamino Integration** - Auto deposit/withdraw from Kamino vaults
-- 🔗 **Visual Workflows** - JSON configuration for easy operation chaining
-- 📱 **Telegram Notifications** - Real-time workflow execution updates
-- 🛡️ **Type Safety** - Full TypeScript support
-- 🧩 **Modular Design** - Easy to extend with new node types
+- **Price Triggers** - Monitor token prices and auto-trigger when targets are met
+- **Jupiter Swap** - Automated token swapping
+- **Kamino Integration** - Auto deposit/withdraw from Kamino vaults
+- **Visual Workflows** - JSON configuration for easy operation chaining
+- **Telegram Notifications** - Real-time workflow execution updates
+- **Type Safety** - Full TypeScript support
+- **Modular Design** - Easy to extend with new node types
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prepare Wallet Keypair
 
@@ -87,7 +87,7 @@ Or specify a workflow file:
 npm run workflow ./workflows/your-workflow.json
 ```
 
-## 📚 Supported Node Types
+## Supported Node Types
 
 ### 1. PriceFeedNode (Price Monitor)
 
@@ -99,7 +99,7 @@ Monitors token prices and triggers subsequent nodes when target price is reached
 - `condition`: `above` | `below` | `equal`
 - `timeout`: Timeout in seconds
 
-**Telegram Notifications**: ✅ Enabled
+**Telegram Notifications**: Enabled
 
 ### 2. SwapNode (Jupiter Swap)
 
@@ -111,7 +111,7 @@ Executes token swaps using Jupiter aggregator.
 - `amount`: Amount to swap (human-readable)
 - `slippageBps`: Slippage tolerance in basis points
 
-**Telegram Notifications**: ✅ Enabled
+**Telegram Notifications**: Enabled
 
 ### 3. KaminoNode (Kamino Operations)
 
@@ -123,19 +123,19 @@ Deposits or withdraws tokens from Kamino vaults.
 - `amount`: Amount
 - `shareAmount`: Share amount (for withdrawals)
 
-**Telegram Notifications**: ✅ Enabled
+**Telegram Notifications**: Enabled
 
 ### 4. X402PaymentNode (X402 Payment Protocol)
 
-**🌟 Featured Node** - Enables micropayment-based API access using the x402 protocol with Solana USDC payments.
+**Featured Node** - Enables micropayment-based API access using the x402 protocol with Solana USDC payments.
 
 #### What is X402?
 
 X402 is a payment protocol that enables **pay-per-use** access to APIs and content. Instead of monthly subscriptions, you pay tiny amounts (like $0.0001) for each request. This is perfect for:
-- 💰 **AI/LLM APIs** - Pay per query instead of monthly fees
-- 📊 **Premium Data APIs** - Access expensive data feeds only when needed
-- 🔐 **Gated Content** - Unlock specific content with micropayments
-- 🤖 **Machine-to-Machine Payments** - Automated payments between services
+- **AI/LLM APIs** - Pay per query instead of monthly fees
+- **Premium Data APIs** - Access expensive data feeds only when needed
+- **Gated Content** - Unlock specific content with micropayments
+- **Machine-to-Machine Payments** - Automated payments between services
 
 #### Payment Flow
 
@@ -233,12 +233,12 @@ The repository includes a complete x402 server implementation:
 
 #### Security Features
 
-- ✅ **Amount Validation**: Server validates exact payment amount
-- ✅ **Transaction Simulation**: Tests transaction before submission
-- ✅ **Recipient Verification**: Ensures payment goes to correct account
-- ✅ **Safety Limits**: Client-side maximum payment protection
-- ✅ **Balance Checks**: Verifies sufficient funds before payment
-- ✅ **Blockchain Confirmation**: Waits for transaction confirmation
+- **Amount Validation**: Server validates exact payment amount
+- **Transaction Simulation**: Tests transaction before submission
+- **Recipient Verification**: Ensures payment goes to correct account
+- **Safety Limits**: Client-side maximum payment protection
+- **Balance Checks**: Verifies sufficient funds before payment
+- **Blockchain Confirmation**: Waits for transaction confirmation
 
 #### Output Data
 
@@ -259,20 +259,20 @@ Successful execution returns:
 }
 ```
 
-**Telegram Notifications**: ✅ Enabled - Notifies payment amount, status, and explorer link
+**Telegram Notifications**: Enabled - Notifies payment amount, status, and explorer link
 
-## 📱 Telegram Notifications
+## Telegram Notifications
 
 The system sends Telegram notifications at the following times:
 
-1. **🚀 Workflow Start** - When workflow begins
-2. **📦 Node Execution** - When nodes complete (only nodes with `telegramNotify: true`)
-3. **❌ Execution Failure** - When errors occur
-4. **✅ Workflow Complete** - When workflow finishes
+1. **Workflow Start** - When workflow begins
+2. **Node Execution** - When nodes complete (only nodes with `telegramNotify: true`)
+3. **Execution Failure** - When errors occur
+4. **Workflow Complete** - When workflow finishes
 
 See [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) for detailed setup instructions.
 
-## 🎯 Use Cases
+## Use Cases
 
 ### Scenario 1: Automated Arbitrage
 
@@ -308,11 +308,11 @@ Use X402 to access premium AI analysis APIs only when needed. Pay $0.0001 per qu
 
 Access expensive data feeds (options data, whale alerts, sentiment analysis) only when specific conditions are met, minimizing API costs while maintaining strategy effectiveness.
 
-## 📖 Documentation
+## Documentation
 
 See [WORKFLOW_GUIDE.md](./WORKFLOW_GUIDE.md) for the complete usage guide.
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 src/
@@ -332,7 +332,7 @@ workflows/              # Workflow configuration files
 └── price-trigger-swap.json
 ```
 
-## 🔧 Development
+## Development
 
 ### Adding New Node Types
 
@@ -359,17 +359,13 @@ npm run type-check
 npm run build
 ```
 
-## ⚠️ Important Notes
+## Important Notes
 
 1. **Testing**: Always test on devnet first
 2. **Security**: Never commit `keypair.json` to Git
 3. **RPC Limits**: Consider using paid RPC endpoints
 4. **Amounts**: All amounts use human-readable format (not smallest units)
 
-## 🤝 Contributing
-
-Issues and Pull Requests are welcome!
-
-## 📄 License
+## License
 
 MIT
