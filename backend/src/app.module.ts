@@ -9,6 +9,9 @@ import { TelegramModule } from './telegram/telegram.module';
 import { Web3Module } from './web3/web3.module';
 
 
+import { AppController } from './app.controller';
+import { RootController } from './root.controller';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -22,5 +25,6 @@ import { Web3Module } from './web3/web3.module';
     TelegramModule,
     Web3Module,
   ],
+  controllers: [RootController, AppController],
 })
 export class AppModule { }

@@ -9,7 +9,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Global prefix
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['/', 'favicon.ico'],
+  });
 
   // Enable CORS
   app.enableCors({
@@ -36,11 +38,11 @@ async function bootstrap() {
     .setTitle('PinTool API')
     .setDescription(
       'PinTool Web3 Workflow Automation API Documentation\n\n' +
-        'This API provides endpoints for:\n' +
-        '- Wallet-based authentication\n' +
-        '- Workflow management and execution\n' +
-        '- Telegram bot integration\n' +
-        '- Web3 operations (Jupiter swap, Kamino vaults, Pyth price feeds)',
+      'This API provides endpoints for:\n' +
+      '- Wallet-based authentication\n' +
+      '- Workflow management and execution\n' +
+      '- Telegram bot integration\n' +
+      '- Web3 operations (Jupiter swap, Kamino vaults, Pyth price feeds) - Available as Workflow Nodes',
     )
     .setVersion('1.0')
     .addBearerAuth(
