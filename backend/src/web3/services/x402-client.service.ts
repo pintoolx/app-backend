@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Keypair } from '@solana/web3.js';
 import { wrap } from '@faremeter/fetch';
 import { createLocalWallet } from '@faremeter/wallet-solana';
-import { createPaymentHandler } from '@faremeter/payment-solana/dist/src/exact';
+import { exact } from '@faremeter/payment-solana';
 import { SupabaseService } from '../../database/supabase.service';
 import { EncryptionService } from '../../encryption/encryption.service';
 
@@ -78,7 +78,7 @@ export class X402ClientService {
             // For Solana, we need to provide a mint for token payments
             // If undefined/null, it should handle native SOL
             // The actual token will be determined from the 402 response
-            const paymentHandler = createPaymentHandler(wallet, null as any);
+            const paymentHandler = exact.createPaymentHandler(wallet, null as any);
 
             this.logger.log(`  ✓ Payment handler created`);
 

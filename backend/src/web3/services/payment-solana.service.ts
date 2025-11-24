@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { Connection, Transaction, PublicKey } from '@solana/web3.js';
-import { createPaymentHandler } from '@faremeter/payment-solana/dist/src/exact';
+import { exact } from '@faremeter/payment-solana';
 import {
     type x402PaymentPayload,
     type PaymentConfig,
