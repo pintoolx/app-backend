@@ -1,12 +1,19 @@
 import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
+import { TelegramNotifierService } from '../telegram/telegram-notifier.service';
+import { WorkflowExecutor } from './executor.service';
+import { PriceFeedNode } from '../web3/nodes/price-feed.node';
+import { SwapNode } from '../web3/nodes/swap.node';
+import { KaminoNode } from '../web3/nodes/kamino.node';
+import { WorkflowDefinition } from '../web3/workflow-types';
 
 @Injectable()
 export class WorkflowsService {
   constructor(
     @Inject(forwardRef(() => SupabaseService))
     private supabaseService: SupabaseService,
-  ) {}
+    private telegramNotifier: TelegramNotifierService,
+  ) { }
 
   async getWorkflows(walletAddress: string) {
     const { data, error } = await this.supabaseService.client
@@ -120,9 +127,63 @@ export class WorkflowsService {
       throw new Error('Failed to start workflow execution');
     }
 
-    // TODO: Integrate with WorkflowExecutor
-    // For now, just return the execution record
     console.log(`✅ Workflow execution started: ${execution.id}`);
+
+    // Get Telegram Chat ID
+    const { data: telegramMapping } = await this.supabaseService.client
+      .from('telegram_mappings')
+      .select('chat_id')
+      .eq('wallet_address', walletAddress)
+      .single();
+
+    const chatId = telegramMapping?.chat_id;
+
+    if (chatId) {
+      console.log(`📱 Found linked Telegram chat: ${chatId}`);
+    } else {
+      console.log('⚠️ No linked Telegram chat found for notifications');
+    }
+
+    // Initialize Executor
+    const executor = new WorkflowExecutor(
+      this.telegramNotifier,
+      workflow.name,
+      chatId,
+      execution.id,
+    );
+
+    // Register Nodes
+    executor.registerNodeType('pythPriceFeed', PriceFeedNode);
+    executor.registerNodeType('jupiterSwap', SwapNode);
+    executor.registerNodeType('kamino', KaminoNode);
+
+    // Execute asynchronously (fire and forget from API perspective, but we await here to catch immediate errors)
+    // In a production app, this should be offloaded to a queue.
+    (async () => {
+      try {
+        await executor.execute(workflow.definition as WorkflowDefinition);
+
+        // Update status to completed
+        await this.supabaseService.client
+          .from('workflow_executions')
+          .update({ status: 'completed', completed_at: new Date().toISOString() })
+          .eq('id', execution.id);
+
+        console.log(`✅ Workflow execution completed successfully: ${execution.id}`);
+      } catch (err) {
+        console.error(`❌ Workflow execution failed: ${execution.id}`, err);
+
+        // Update status to failed
+        await this.supabaseService.client
+          .from('workflow_executions')
+          .update({
+            status: 'failed',
+            error_message: err instanceof Error ? err.message : 'Unknown error',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', execution.id);
+      }
+    })();
 
     return execution;
   }

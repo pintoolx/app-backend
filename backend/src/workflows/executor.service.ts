@@ -14,10 +14,19 @@ export class WorkflowExecutor {
   private workflowData: Map<string, NodeExecutionData[][]> = new Map();
   private telegramNotifier?: TelegramNotifierService | undefined;
   private workflowName?: string | undefined;
+  private chatId?: string;
+  private executionId?: string;
 
-  constructor(telegramNotifier?: TelegramNotifierService, workflowName?: string) {
+  constructor(
+    telegramNotifier?: TelegramNotifierService,
+    workflowName?: string,
+    chatId?: string,
+    executionId?: string,
+  ) {
     this.telegramNotifier = telegramNotifier;
     this.workflowName = workflowName;
+    this.chatId = chatId;
+    this.executionId = executionId;
   }
 
   /**
@@ -40,8 +49,15 @@ export class WorkflowExecutor {
     console.log('开始执行 Workflow...\n');
 
     // 发送 Workflow 开始通知
-    if (this.telegramNotifier?.isEnabled) {
-      await this.telegramNotifier.sendWorkflowStart(this.workflowName);
+    if (this.telegramNotifier?.isEnabled && this.chatId && this.workflowName && this.executionId) {
+      await this.telegramNotifier.sendWorkflowStartNotification(
+        this.chatId,
+        this.workflowName,
+        this.executionId,
+      );
+    } else {
+      // Fallback log
+      console.log(`⚙️ Workflow started: ${this.workflowName}`);
     }
 
     // 清空之前的数据
@@ -60,15 +76,34 @@ export class WorkflowExecutor {
       console.log(`\nWorkflow execution completed in ${duration}ms`);
 
       // 发送 Workflow 完成通知
-      if (this.telegramNotifier?.isEnabled) {
-        await this.telegramNotifier.sendWorkflowComplete(workflow.nodes.length, duration);
+      if (this.telegramNotifier?.isEnabled && this.chatId && this.workflowName && this.executionId) {
+        await this.telegramNotifier.sendWorkflowCompleteNotification(
+          this.chatId,
+          this.workflowName,
+          this.executionId,
+        );
+      } else {
+        console.log(`✅ Workflow completed: ${workflow.nodes.length} nodes in ${duration}ms`);
       }
 
       return this.workflowData;
     } catch (error) {
       // 发送 Workflow 失败通知
-      if (this.telegramNotifier?.isEnabled && error instanceof Error) {
-        await this.telegramNotifier.sendWorkflowError('Workflow', error);
+      if (
+        this.telegramNotifier?.isEnabled &&
+        this.chatId &&
+        this.workflowName &&
+        this.executionId &&
+        error instanceof Error
+      ) {
+        await this.telegramNotifier.sendWorkflowErrorNotification(
+          this.chatId,
+          this.workflowName,
+          this.executionId,
+          error.message,
+        );
+      } else {
+        console.error(`❌ Workflow error:`, error);
       }
       throw error;
     }
@@ -139,12 +174,15 @@ export class WorkflowExecutor {
           ? workflowNode.telegramNotify
           : nodeType.description.telegramNotify;
 
-      if (shouldNotify && this.telegramNotifier?.isEnabled) {
-        await this.telegramNotifier.sendNodeExecutionResult(
+      if (shouldNotify && this.telegramNotifier?.isEnabled && this.chatId) {
+        await this.telegramNotifier.sendNodeExecutionNotification(
+          this.chatId,
           workflowNode.name,
           workflowNode.type,
-          result[0], // 发送第一个输出数组的数据
+          result[0][0].json, // 发送第一个输出数组的第一个元素的数据
         );
+      } else {
+        console.log(`✅ Node executed: ${workflowNode.name} (${workflowNode.type})`);
       }
 
       // 执行后续节点
@@ -157,10 +195,14 @@ export class WorkflowExecutor {
         `\n❌ Node execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
 
-      // 发送节点失败通知
-      if (this.telegramNotifier?.isEnabled && error instanceof Error) {
-        await this.telegramNotifier.sendWorkflowError(workflowNode.name, error);
+      // 发送节点失败通知 (Workflow level error handler will also catch this, but we might want granular notification here if needed)
+      // For now, we rely on the workflow level catch block to send the final error notification.
+      // But if we want to notify about specific node failure before bubbling up:
+      /*
+      if (this.telegramNotifier?.isEnabled && this.chatId && error instanceof Error) {
+         // Optional: Send specific node error
       }
+      */
 
       throw error;
     }

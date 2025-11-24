@@ -1,0 +1,40 @@
+# Node modules
+node_modules
+npm-debug.log
+
+# 測試和覆蓋率文件
+coverage
+*.spec.ts
+test
+
+# 開發環境文件
+.env
+.env.local
+.env.development
+
+# Git
+.git
+.gitignore
+
+# IDE 配置
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# 文檔
+README.md
+*.md
+
+# 其他開發文件
+.eslintrc.js
+.prettierrc
+.claude
+
+# 構建產物（會在 Docker 中重新構建）
+dist
+
+# 日誌
+logs
+*.log

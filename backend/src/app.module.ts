@@ -7,7 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { Web3Module } from './web3/web3.module';
-import { X402Module } from './x402/x402.module';
+
 
 @Module({
   imports: [
@@ -21,7 +21,6 @@ import { X402Module } from './x402/x402.module';
     WorkflowsModule,
     TelegramModule,
     Web3Module,
-    X402Module,
   ],
 })
-export class AppModule {}
+export class AppModule { }
