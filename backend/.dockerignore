@@ -38,3 +38,5 @@ dist
 # 日誌
 logs
 *.log
+
+database/functions
