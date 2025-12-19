@@ -35,6 +35,9 @@ README.md
 # 構建產物（會在 Docker 中重新構建）
 dist
 
+# Database functions (Supabase Edge Functions)
+src/database/functions
+
 # 日誌
 logs
 *.log
