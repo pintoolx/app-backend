@@ -39,3 +39,5 @@ Thumbs.db
 
 # Build
 *.tsbuildinfo
+
+/database/functions
