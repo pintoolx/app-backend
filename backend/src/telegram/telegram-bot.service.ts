@@ -90,7 +90,7 @@ After linking, you'll receive real-time workflow execution notifications.
         wallet_address: walletAddress,
         chat_id: chatId,
         notifications_enabled: true,
-        linked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       });
 
       if (error) throw error;
@@ -162,7 +162,7 @@ After linking, you'll receive real-time workflow execution notifications.
 Wallet: \`${mapping.wallet_address}\`
 ${emailStatus}
 Notifications: ${mapping.notifications_enabled ? '✅ Enabled' : '❌ Disabled'}
-Linked: ${new Date(mapping.linked_at).toLocaleString('en-US')}
+Linked: ${new Date(mapping.created_at).toLocaleString('en-US')}
     `.trim();
 
     await this.bot.sendMessage({
