@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Read(//c/Users/USER/Desktop/test/**)"
+      "Read(//c/Users/USER/Desktop/test/**)",
+      "Bash(xargs:*)",
+      "Bash(tree:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

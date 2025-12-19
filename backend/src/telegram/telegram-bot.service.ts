@@ -35,6 +35,9 @@ export class TelegramBotService {
         await this.handleUnlinkWallet(chatId);
       } else if (text === '/status') {
         await this.handleStatusCommand(chatId);
+      } else if (text?.startsWith('/link-email ')) {
+        const email = text.replace('/link-email ', '').trim();
+        await this.handleLinkEmail(chatId, email);
       }
     });
   }
@@ -94,7 +97,7 @@ After linking, you'll receive real-time workflow execution notifications.
 
       await this.bot.sendMessage({
         chat_id: chatId,
-        text: `✅ Successfully linked!\n\nWallet: \`${walletAddress}\`\n\nYou will now receive workflow notifications.`,
+        text: `✅ Successfully linked!\n\nWallet: \`${walletAddress}\`\n\nYou will now receive workflow notifications.\n\n📧 Optionally, link your email:\n\`/link-email your@email.com\``,
         parse_mode: 'Markdown',
       });
 
@@ -145,10 +148,19 @@ After linking, you'll receive real-time workflow execution notifications.
       return;
     }
 
+    const { data: user } = await this.supabaseService.client
+      .from('users')
+      .select('email')
+      .eq('wallet_address', mapping.wallet_address)
+      .single();
+
+    const emailStatus = user?.email ? `Email: ${user.email}` : 'Email: Not linked';
+
     const statusText = `
 📊 Your Status
 
 Wallet: \`${mapping.wallet_address}\`
+${emailStatus}
 Notifications: ${mapping.notifications_enabled ? '✅ Enabled' : '❌ Disabled'}
 Linked: ${new Date(mapping.linked_at).toLocaleString('en-US')}
     `.trim();
@@ -162,6 +174,56 @@ Linked: ${new Date(mapping.linked_at).toLocaleString('en-US')}
 
   private isValidSolanaAddress(address: string): boolean {
     return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+  }
+
+  private isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  private async handleLinkEmail(chatId: string, email: string) {
+    try {
+      if (!this.isValidEmail(email)) {
+        await this.bot.sendMessage({
+          chat_id: chatId,
+          text: '❌ Invalid email format. Please provide a valid email address.',
+        });
+        return;
+      }
+
+      const { data: mapping } = await this.supabaseService.client
+        .from('telegram_mappings')
+        .select('wallet_address')
+        .eq('chat_id', chatId)
+        .single();
+
+      if (!mapping) {
+        await this.bot.sendMessage({
+          chat_id: chatId,
+          text: '❌ Please link your wallet first using /link command.',
+        });
+        return;
+      }
+
+      const { error } = await this.supabaseService.client
+        .from('users')
+        .update({ email, updated_at: new Date().toISOString() })
+        .eq('wallet_address', mapping.wallet_address);
+
+      if (error) throw error;
+
+      await this.bot.sendMessage({
+        chat_id: chatId,
+        text: `✅ Email linked successfully!\n\nEmail: ${email}`,
+      });
+
+      console.log(`✅ Email linked: ${email} → ${mapping.wallet_address}`);
+    } catch (error) {
+      console.error('❌ Link email error:', error);
+      await this.bot.sendMessage({
+        chat_id: chatId,
+        text: '❌ Failed to link email. Please try again later.',
+      });
+    }
   }
 
   async startBot() {
