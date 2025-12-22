@@ -97,9 +97,17 @@ After linking, you'll receive real-time workflow execution notifications.
 
       await this.bot.sendMessage({
         chat_id: chatId,
-        text: `✅ Successfully linked!\n\nWallet: \`${walletAddress}\`\n\nYou will now receive workflow notifications.\n\n📧 Optionally, link your email:\n\`/link-email your@email.com\``,
+        text: `✅ Successfully linked!\n\nWallet: \`${walletAddress}\``,
         parse_mode: 'Markdown',
       });
+
+      // If user has catpurr = true, send additional JUP transfer message
+      if (user.catpurr && user.transfer_tx) {
+        await this.bot.sendMessage({
+          chat_id: chatId,
+          text: `Your 250 JUP sent Tx: ${user.transfer_tx}\n\nPlease check your email inbox after applying on Luma (https://lu.ma/7f1gdren) for further details to complete the formal registration and deposit process.`,
+        });
+      }
 
       console.log(`✅ Wallet linked: ${walletAddress} → ${chatId}`);
     } catch (error) {
