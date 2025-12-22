@@ -109,6 +109,12 @@ After linking, you'll receive real-time workflow execution notifications.
         });
       }
 
+      await this.bot.sendMessage({
+        chat_id: chatId,
+        text: `📧 Optionally, link your email:\n/link-email your@email.com`,
+        parse_mode: 'Markdown',
+      });
+
       console.log(`✅ Wallet linked: ${walletAddress} → ${chatId}`);
     } catch (error) {
       console.error('❌ Link wallet error:', error);
