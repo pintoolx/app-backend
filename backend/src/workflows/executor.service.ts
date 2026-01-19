@@ -5,6 +5,21 @@ import {
   type IExecuteContext,
 } from '../web3/workflow-types';
 import { TelegramNotifierService } from '../telegram/telegram-notifier.service';
+import { CrossmintService } from '../crossmint/crossmint.service';
+import { AgentKitService } from '../web3/services/agent-kit.service';
+
+/**
+ * Workflow Executor 配置
+ */
+export interface WorkflowExecutorConfig {
+  telegramNotifier?: TelegramNotifierService;
+  workflowName?: string;
+  chatId?: string;
+  executionId?: string;
+  // 服務注入
+  crossmintService?: CrossmintService;
+  agentKitService?: AgentKitService;
+}
 
 /**
  * Workflow 执行器
@@ -12,21 +27,21 @@ import { TelegramNotifierService } from '../telegram/telegram-notifier.service';
 export class WorkflowExecutor {
   private nodes: Map<string, INodeType> = new Map();
   private workflowData: Map<string, NodeExecutionData[][]> = new Map();
-  private telegramNotifier?: TelegramNotifierService | undefined;
-  private workflowName?: string | undefined;
+  private telegramNotifier?: TelegramNotifierService;
+  private workflowName?: string;
   private chatId?: string;
   private executionId?: string;
+  // 注入的服務
+  private crossmintService?: CrossmintService;
+  private agentKitService?: AgentKitService;
 
-  constructor(
-    telegramNotifier?: TelegramNotifierService,
-    workflowName?: string,
-    chatId?: string,
-    executionId?: string,
-  ) {
-    this.telegramNotifier = telegramNotifier;
-    this.workflowName = workflowName;
-    this.chatId = chatId;
-    this.executionId = executionId;
+  constructor(config: WorkflowExecutorConfig = {}) {
+    this.telegramNotifier = config.telegramNotifier;
+    this.workflowName = config.workflowName;
+    this.chatId = config.chatId;
+    this.executionId = config.executionId;
+    this.crossmintService = config.crossmintService;
+    this.agentKitService = config.agentKitService;
   }
 
   /**
@@ -76,7 +91,12 @@ export class WorkflowExecutor {
       console.log(`\nWorkflow execution completed in ${duration}ms`);
 
       // 发送 Workflow 完成通知
-      if (this.telegramNotifier?.isEnabled && this.chatId && this.workflowName && this.executionId) {
+      if (
+        this.telegramNotifier?.isEnabled &&
+        this.chatId &&
+        this.workflowName &&
+        this.executionId
+      ) {
         await this.telegramNotifier.sendWorkflowCompleteNotification(
           this.chatId,
           this.workflowName,
@@ -138,6 +158,14 @@ export class WorkflowExecutor {
     // 创建执行上下文
     const context: IExecuteContext = {
       getNodeParameter: (parameterName: string, itemIndex: number, defaultValue?: any) => {
+        // 特殊參數：注入的服務
+        if (parameterName === 'crossmintService') {
+          return this.crossmintService;
+        }
+        if (parameterName === 'agentKitService') {
+          return this.agentKitService;
+        }
+
         const value = workflowNode.parameters[parameterName];
         return value !== undefined ? value : defaultValue;
       },

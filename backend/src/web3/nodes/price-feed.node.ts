@@ -1,8 +1,4 @@
-import {
-  type INodeType,
-  type IExecuteContext,
-  type NodeExecutionData,
-} from '../workflow-types';
+import { type INodeType, type IExecuteContext, type NodeExecutionData } from '../workflow-types';
 import { monitorPrice, TokenTicker } from '../utils/price-monitor';
 import { Pyth_Price_Feed_ID } from '../constants';
 

@@ -20,7 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@faremeter/rides": "^0.13.0",
+    "@crossmint/wallets-sdk": "^0.18.14",
     "@jup-ag/api": "^6.0.45",
     "@kamino-finance/klend-sdk": "^7.1.9",
     "@nestjs/common": "^10.0.0",
@@ -46,6 +46,7 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
+    "solana-agent-kit": "^2.0.10",
     "tweetnacl": "^1.0.3",
     "typescript-telegram-bot-api": "^0.10.0"
   },

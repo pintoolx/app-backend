@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 import { TelegramNotifierService } from '../telegram/telegram-notifier.service';
+import { CrossmintService } from '../crossmint/crossmint.service';
+import { AgentKitService } from '../web3/services/agent-kit.service';
 import { WorkflowExecutor } from './executor.service';
 import { PriceFeedNode } from '../web3/nodes/price-feed.node';
 import { SwapNode } from '../web3/nodes/swap.node';
 import { KaminoNode } from '../web3/nodes/kamino.node';
+import { TransferNode } from '../web3/nodes/transfer.node';
+import { BalanceNode } from '../web3/nodes/balance.node';
+import { LimitOrderNode } from '../web3/nodes/limit-order.node';
 import { WorkflowDefinition } from '../web3/workflow-types';
 
 @Injectable()
@@ -13,7 +18,9 @@ export class WorkflowsService {
     @Inject(forwardRef(() => SupabaseService))
     private supabaseService: SupabaseService,
     private telegramNotifier: TelegramNotifierService,
-  ) { }
+    private crossmintService: CrossmintService,
+    private agentKitService: AgentKitService,
+  ) {}
 
   async getWorkflows(walletAddress: string) {
     const { data, error } = await this.supabaseService.client
@@ -144,18 +151,23 @@ export class WorkflowsService {
       console.log('⚠️ No linked Telegram chat found for notifications');
     }
 
-    // Initialize Executor
-    const executor = new WorkflowExecutor(
-      this.telegramNotifier,
-      workflow.name,
+    // Initialize Executor with injected services
+    const executor = new WorkflowExecutor({
+      telegramNotifier: this.telegramNotifier,
+      workflowName: workflow.name,
       chatId,
-      execution.id,
-    );
+      executionId: execution.id,
+      crossmintService: this.crossmintService,
+      agentKitService: this.agentKitService,
+    });
 
     // Register Nodes
     executor.registerNodeType('pythPriceFeed', PriceFeedNode);
     executor.registerNodeType('jupiterSwap', SwapNode);
     executor.registerNodeType('kamino', KaminoNode);
+    executor.registerNodeType('transfer', TransferNode);
+    executor.registerNodeType('getBalance', BalanceNode);
+    executor.registerNodeType('jupiterLimitOrder', LimitOrderNode);
 
     // Execute asynchronously (fire and forget from API perspective, but we await here to catch immediate errors)
     // In a production app, this should be offloaded to a queue.

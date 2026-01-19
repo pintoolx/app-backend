@@ -15,7 +15,8 @@ export class WalletVerifyDto {
 
   @ApiProperty({
     description: 'Base58 encoded signature from wallet',
-    example: '3yZe7d1AKnhtaVBS9KQXw7JjaYEPpVvXfFXv9Kfki5qc6hH9NcWY1wHpHXzSQLqZrqNcpPjxFj6KQdDh2TL8VJPC',
+    example:
+      '3yZe7d1AKnhtaVBS9KQXw7JjaYEPpVvXfFXv9Kfki5qc6hH9NcWY1wHpHXzSQLqZrqNcpPjxFj6KQdDh2TL8VJPC',
   })
   @IsString()
   signature: string;

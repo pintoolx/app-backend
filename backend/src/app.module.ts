@@ -2,13 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
-import { EncryptionModule } from './encryption/encryption.module';
+import { CrossmintModule } from './crossmint/crossmint.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { Web3Module } from './web3/web3.module';
-
-
 import { AppController } from './app.controller';
 import { RootController } from './root.controller';
 
@@ -19,7 +17,7 @@ import { RootController } from './root.controller';
       load: [configuration],
     }),
     DatabaseModule,
-    EncryptionModule,
+    CrossmintModule,
     AuthModule,
     WorkflowsModule,
     TelegramModule,
@@ -27,4 +25,4 @@ import { RootController } from './root.controller';
   ],
   controllers: [RootController, AppController],
 })
-export class AppModule { }
+export class AppModule {}

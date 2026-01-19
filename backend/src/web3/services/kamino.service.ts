@@ -7,9 +7,20 @@ import { sendAndConfirmTx } from '../utils/tx';
 import { getConnectionPool } from '../utils/connection';
 import { getAssociatedTokenAddress, getAccount, getMint } from '@solana/spl-token';
 import { PublicKey } from '@solana/web3.js';
+import { CrossmintWalletAdapter } from '../../crossmint/crossmint-wallet.adapter';
 
+/**
+ * Kamino Client 配置
+ * 支援兩種模式：
+ * 1. keypairPath: 傳統的私鑰檔案路徑（已棄用）
+ * 2. walletAdapter: Crossmint Wallet Adapter（推薦）
+ */
 export interface KaminoClientConfig {
-  keypairPath: string;
+  /** @deprecated 使用 walletAdapter 代替 */
+  keypairPath?: string;
+  /** Crossmint Wallet Adapter */
+  walletAdapter?: CrossmintWalletAdapter;
+  /** 是否為主網 */
   isMainnet: boolean;
 }
 
@@ -21,17 +32,20 @@ export interface VaultInfo {
 
 export class KaminoClient {
   private wallet: TransactionSigner;
+  private walletAddress: Address;
   private manager: KaminoManager;
   private kvaultProgramId: Address;
   private isMainnet: boolean;
 
   private constructor(
     wallet: TransactionSigner,
+    walletAddress: Address,
     manager: KaminoManager,
     kvaultProgramId: Address,
     isMainnet: boolean,
   ) {
     this.wallet = wallet;
+    this.walletAddress = walletAddress;
     this.manager = manager;
     this.kvaultProgramId = kvaultProgramId;
     this.isMainnet = isMainnet;
@@ -39,9 +53,26 @@ export class KaminoClient {
 
   /**
    * 初始化 KaminoClient
+   * 支援兩種模式：
+   * 1. 使用 keypairPath（已棄用）
+   * 2. 使用 walletAdapter（推薦）
    */
   static async initialize(config: KaminoClientConfig): Promise<KaminoClient> {
-    const wallet = await parseKeypairFile(config.keypairPath);
+    let wallet: TransactionSigner;
+    let walletAddress: Address;
+
+    if (config.walletAdapter) {
+      // 使用 Crossmint Wallet Adapter
+      wallet = config.walletAdapter as unknown as TransactionSigner;
+      walletAddress = config.walletAdapter.address as Address;
+    } else if (config.keypairPath) {
+      // 傳統模式：使用私鑰檔案（已棄用）
+      console.warn('Using keypairPath is deprecated. Please use walletAdapter instead.');
+      wallet = await parseKeypairFile(config.keypairPath);
+      walletAddress = (wallet as any).address;
+    } else {
+      throw new Error('Either walletAdapter or keypairPath must be provided');
+    }
 
     const klendProgramId = config.isMainnet
       ? address('KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD')
@@ -58,7 +89,7 @@ export class KaminoClient {
       kvaultProgramId,
     );
 
-    return new KaminoClient(wallet, manager, kvaultProgramId, config.isMainnet);
+    return new KaminoClient(wallet, walletAddress, manager, kvaultProgramId, config.isMainnet);
   }
 
   /**
@@ -146,7 +177,7 @@ export class KaminoClient {
     try {
       const tokenAccount = await getAssociatedTokenAddress(
         new PublicKey(tokenMint),
-        new PublicKey(this.wallet.address),
+        new PublicKey(this.walletAddress),
       );
 
       const account = await getAccount(getConnectionPool().rpc as any, tokenAccount, 'confirmed');
@@ -160,7 +191,10 @@ export class KaminoClient {
   /**
    * 從指定的 vault withdraw，並返回提領的數量
    */
-  async withdraw(vaultAddress: Address, shareAmount: Decimal): Promise<{ signature: Signature; withdrawnAmount: Decimal }> {
+  async withdraw(
+    vaultAddress: Address,
+    shareAmount: Decimal,
+  ): Promise<{ signature: Signature; withdrawnAmount: Decimal }> {
     const vault = new KaminoVault(vaultAddress, undefined, this.kvaultProgramId);
     const currentSlot = await getConnectionPool().rpc.getSlot({ commitment: 'confirmed' }).send();
 
@@ -199,13 +233,19 @@ export class KaminoClient {
     const withdrawnAmountRaw = balanceAfter.minus(balanceBefore);
 
     // Get the actual decimals from the token mint
-    const mintInfo = await getMint(getConnectionPool().rpc as any, new PublicKey(tokenMint), 'confirmed');
+    const mintInfo = await getMint(
+      getConnectionPool().rpc as any,
+      new PublicKey(tokenMint),
+      'confirmed',
+    );
     const decimals = mintInfo.decimals;
 
     // Convert to human-readable amount (divide by 10^decimals)
     const withdrawnAmount = withdrawnAmountRaw.div(new Decimal(10).pow(decimals));
 
-    console.log(`Withdrawn amount: ${withdrawnAmount.toString()} (raw: ${withdrawnAmountRaw.toString()}, decimals: ${decimals})`);
+    console.log(
+      `Withdrawn amount: ${withdrawnAmount.toString()} (raw: ${withdrawnAmountRaw.toString()}, decimals: ${decimals})`,
+    );
 
     return {
       signature: sig,
@@ -221,7 +261,7 @@ export class KaminoClient {
     await vault.getState(getConnectionPool().rpc as any);
 
     const userShares = await this.manager.getUserSharesBalanceSingleVault(
-      this.wallet.address,
+      this.walletAddress,
       vault,
     );
 

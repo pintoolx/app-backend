@@ -1,6 +1,8 @@
 import { type INodeType, type IExecuteContext, type NodeExecutionData } from '../workflow-types';
-import { executeJupiterSwap, type TokenTicker } from '../services/jupiter.service';
-import Decimal from 'decimal.js';
+import { AgentKitService } from '../services/agent-kit.service';
+import { TOKEN_ADDRESS } from '../constants';
+
+export type TokenTicker = keyof typeof TOKEN_ADDRESS;
 
 /**
  * Parse amount from input, supporting "all", "half", or numeric values
@@ -50,24 +52,17 @@ export class SwapNode implements INodeType {
     name: 'jupiterSwap',
     group: ['swap'],
     version: 1,
-    description: 'Swap tokens using Jupiter aggregator',
+    description: 'Swap tokens using Jupiter aggregator with Crossmint custodial wallet',
     inputs: ['main'],
     outputs: ['main'],
     telegramNotify: true,
     properties: [
       {
-        displayName: 'RPC URL',
-        name: 'rpcUrl',
+        displayName: 'Account ID',
+        name: 'accountId',
         type: 'string' as const,
-        default: 'https://api.mainnet-beta.solana.com',
-        description: 'Solana RPC endpoint URL',
-      },
-      {
-        displayName: 'Keypair Path',
-        name: 'keypairPath',
-        type: 'string' as const,
-        default: './keypair.json',
-        description: 'Path to the wallet keypair file',
+        default: '',
+        description: 'Account ID to use for the swap (uses Crossmint custodial wallet)',
       },
       {
         displayName: 'Input Token',
@@ -75,7 +70,7 @@ export class SwapNode implements INodeType {
         type: 'string' as const,
         default: 'USDC',
         description:
-          'Input token ticker (e.g., USDC, SOL, JITOSOL). See src/utils/constant.ts for available tokens.',
+          'Input token ticker (e.g., USDC, SOL, JITOSOL). See src/web3/constants.ts for available tokens.',
       },
       {
         displayName: 'Output Token',
@@ -83,7 +78,7 @@ export class SwapNode implements INodeType {
         type: 'string' as const,
         default: 'SOL',
         description:
-          'Output token ticker (e.g., SOL, USDC, JITOSOL). See src/utils/constant.ts for available tokens.',
+          'Output token ticker (e.g., SOL, USDC, JITOSOL). See src/web3/constants.ts for available tokens.',
       },
       {
         displayName: 'Amount',
@@ -107,17 +102,42 @@ export class SwapNode implements INodeType {
     const items = context.getInputData();
     const returnData: NodeExecutionData[] = [];
 
+    // 從 context 獲取 AgentKitService (在 executor 中注入)
+    const agentKitService = context.getNodeParameter('agentKitService', 0) as AgentKitService;
+
+    if (!agentKitService) {
+      throw new Error('AgentKitService not available in execution context');
+    }
+
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
       try {
         // 獲取參數
-        const rpcUrl = context.getNodeParameter('rpcUrl', itemIndex) as string;
-        const keypairPath = context.getNodeParameter('keypairPath', itemIndex) as string;
+        const accountId = context.getNodeParameter('accountId', itemIndex) as string;
         const inputToken = context.getNodeParameter('inputToken', itemIndex) as TokenTicker;
         const outputToken = context.getNodeParameter('outputToken', itemIndex) as TokenTicker;
         const amountParam = context.getNodeParameter('amount', itemIndex) as string;
         const slippageBps = parseInt(
           context.getNodeParameter('slippageBps', itemIndex, '50') as string,
         );
+
+        if (!accountId) {
+          throw new Error('Account ID is required');
+        }
+
+        // 從 constants 獲取 token addresses
+        const inputMint = TOKEN_ADDRESS[inputToken];
+        const outputMint = TOKEN_ADDRESS[outputToken];
+
+        if (!inputMint) {
+          throw new Error(
+            `Unknown input token: ${inputToken}. Please check src/web3/constants.ts for available tokens.`,
+          );
+        }
+        if (!outputMint) {
+          throw new Error(
+            `Unknown output token: ${outputToken}. Please check src/web3/constants.ts for available tokens.`,
+          );
+        }
 
         // 解析 amount，支持從前一個節點讀取
         let amount: number;
@@ -139,22 +159,31 @@ export class SwapNode implements INodeType {
           amount = parseFloat(amountParam);
         }
 
-        // 使用可復用的 executeJupiterSwap 工具函數
-        const swapResult = await executeJupiterSwap({
-          rpcUrl,
-          keypairPath,
-          inputToken,
-          outputToken,
+        console.log(`\nSwap Node: Executing swap via Crossmint wallet`);
+        console.log(`  Account: ${accountId}`);
+        console.log(`  ${amount} ${inputToken} → ${outputToken}`);
+
+        // 使用 AgentKitService 執行 swap
+        const swapResult = await agentKitService.executeSwap(
+          accountId,
+          inputMint,
+          outputMint,
           amount,
           slippageBps,
-        });
+        );
 
         // 返回結果
         returnData.push({
           json: {
             success: true,
             operation: 'swap',
-            ...swapResult,
+            signature: swapResult.signature,
+            inputToken,
+            outputToken,
+            inputAmount: swapResult.inputAmount,
+            outputAmount: swapResult.outputAmount,
+            accountId,
+            slippageBps,
           },
         });
       } catch (error) {

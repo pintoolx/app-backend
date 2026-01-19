@@ -94,6 +94,7 @@ CREATE TABLE public.users (
   email text UNIQUE,
   drift_hist jsonb,
   transfer_tx text,
+  current_status jsonb,
   CONSTRAINT users_pkey PRIMARY KEY (wallet_address)
 );
 CREATE TABLE public.workflow_executions (

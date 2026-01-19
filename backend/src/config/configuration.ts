@@ -13,10 +13,6 @@ export default () => ({
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
 
-  encryption: {
-    secret: process.env.ENCRYPTION_SECRET,
-  },
-
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
     notifyEnabled: process.env.TELEGRAM_NOTIFY_ENABLED === 'true',
@@ -30,5 +26,22 @@ export default () => ({
 
   pyth: {
     hermesEndpoint: process.env.PYTH_HERMES_ENDPOINT || 'https://hermes.pyth.network',
+  },
+
+  crossmint: {
+    serverApiKey: process.env.CROSSMINT_SERVER_API_KEY,
+    environment: process.env.CROSSMINT_ENVIRONMENT || 'production',
+  },
+
+  helius: {
+    apiKey: process.env.HELIUS_API_KEY,
+  },
+
+  lulo: {
+    apiKey: process.env.LULO_API_KEY,
+  },
+
+  sanctum: {
+    apiKey: process.env.SANCTUM_API_KEY,
   },
 });

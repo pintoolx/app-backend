@@ -18,15 +18,38 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@/*": ["src/*"],
-      "@auth/*": ["src/auth/*"],
-      "@workflows/*": ["src/workflows/*"],
-      "@telegram/*": ["src/telegram/*"],
-      "@web3/*": ["src/web3/*"],
-      "@database/*": ["src/database/*"],
-      "@encryption/*": ["src/encryption/*"],
-      "@common/*": ["src/common/*"],
-      "@config/*": ["src/config/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@auth/*": [
+        "src/auth/*"
+      ],
+      "@workflows/*": [
+        "src/workflows/*"
+      ],
+      "@telegram/*": [
+        "src/telegram/*"
+      ],
+      "@web3/*": [
+        "src/web3/*"
+      ],
+      "@database/*": [
+        "src/database/*"
+      ],
+      "@encryption/*": [
+        "src/encryption/*"
+      ],
+      "@common/*": [
+        "src/common/*"
+      ],
+      "@config/*": [
+        "src/config/*"
+      ]
     }
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/database/functions/**"
+  ]
 }

@@ -6,7 +6,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 export class SupabaseService implements OnModuleInit {
   private supabaseClient: SupabaseClient;
 
-  constructor(private configService: ConfigService) { }
+  constructor(private configService: ConfigService) {}
 
   onModuleInit() {
     const supabaseUrl = this.configService.get<string>('supabase.url');
@@ -33,7 +33,7 @@ export class SupabaseService implements OnModuleInit {
   // Helper method to set RLS context for wallet address
   async setRLSContext(walletAddress: string) {
     await this.supabaseClient.rpc('set_config', {
-      setting: 'app.current_wallet',  // Fixed: must match schema RLS policies
+      setting: 'app.current_wallet', // Fixed: must match schema RLS policies
       value: walletAddress,
       is_local: true,
     });

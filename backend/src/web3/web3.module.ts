@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConnectionService } from './services/connection.service';
-import { X402ClientService } from './services/x402-client.service';
+import { AgentKitService } from './services/agent-kit.service';
 import { DatabaseModule } from '../database/database.module';
-import { EncryptionModule } from '../encryption/encryption.module';
+import { CrossmintModule } from '../crossmint/crossmint.module';
 
 @Module({
-  imports: [DatabaseModule, EncryptionModule],
-  providers: [ConnectionService, X402ClientService],
-  exports: [ConnectionService, X402ClientService],
+  imports: [DatabaseModule, CrossmintModule],
+  providers: [ConnectionService, AgentKitService],
+  exports: [ConnectionService, AgentKitService],
 })
-export class Web3Module { }
+export class Web3Module {}

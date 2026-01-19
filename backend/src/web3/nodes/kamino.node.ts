@@ -3,6 +3,7 @@ import { KaminoClient } from '../services/kamino.service';
 import { type Address } from '@solana/kit';
 import Decimal from 'decimal.js';
 import { KAMINO_VAULT } from '../constants';
+import { CrossmintService } from '../../crossmint/crossmint.service';
 
 /**
  * Helper function to get vault address from vault name
@@ -19,7 +20,7 @@ function getVaultAddress(vaultName: string): string {
   }
 
   throw new Error(
-    `Vault "${vaultName}" not found in KAMINO_VAULT configuration. Please check src/utils/constant.ts for available vault names.`,
+    `Vault "${vaultName}" not found in KAMINO_VAULT configuration. Please check src/web3/constants.ts for available vault names.`,
   );
 }
 
@@ -71,11 +72,19 @@ export class KaminoNode implements INodeType {
     name: 'kamino',
     group: ['vault'],
     version: 1,
-    description: 'Interact with Kamino vaults - deposit or withdraw tokens',
+    description:
+      'Interact with Kamino vaults using Crossmint custodial wallet - deposit or withdraw tokens',
     inputs: ['main'],
     outputs: ['main'],
-    telegramNotify: true, // 啟用此 node 的 Telegram 通知
+    telegramNotify: true,
     properties: [
+      {
+        displayName: 'Account ID',
+        name: 'accountId',
+        type: 'string' as const,
+        default: '',
+        description: 'Account ID to use (uses Crossmint custodial wallet)',
+      },
       {
         displayName: 'Operation',
         name: 'operation',
@@ -116,13 +125,6 @@ export class KaminoNode implements INodeType {
         description:
           'Share amount to withdraw. Use "all" to withdraw all shares, "half" for half, or specify a number (for withdraw operation)',
       },
-      {
-        displayName: 'Keypair Path',
-        name: 'keypairPath',
-        type: 'string' as const,
-        default: './keypair.json',
-        description: 'Path to the wallet keypair file',
-      },
     ],
   };
 
@@ -130,27 +132,37 @@ export class KaminoNode implements INodeType {
     const items = context.getInputData();
     const returnData: NodeExecutionData[] = [];
 
+    // 從 context 獲取 CrossmintService (在 executor 中注入)
+    const crossmintService = context.getNodeParameter('crossmintService', 0) as CrossmintService;
+
+    if (!crossmintService) {
+      throw new Error('CrossmintService not available in execution context');
+    }
+
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
       try {
         // 獲取參數
+        const accountId = context.getNodeParameter('accountId', itemIndex) as string;
         const operation = context.getNodeParameter('operation', itemIndex) as
           | 'deposit'
           | 'withdraw';
         const vaultName = context.getNodeParameter('vaultName', itemIndex) as string;
         const amountParam = context.getNodeParameter('amount', itemIndex, '0') as string;
         const shareAmountParam = context.getNodeParameter('shareAmount', itemIndex, '0') as string;
-        const keypairPath = context.getNodeParameter(
-          'keypairPath',
-          itemIndex,
-          './keypair.json',
-        ) as string;
+
+        if (!accountId) {
+          throw new Error('Account ID is required');
+        }
 
         // 從 vault name 獲取 vault address
         const vaultAddress = getVaultAddress(vaultName);
 
-        // 初始化 Kamino Client
+        // 獲取 Crossmint Wallet Adapter
+        const walletAdapter = await crossmintService.getWalletForAccount(accountId);
+
+        // 初始化 Kamino Client（使用 Crossmint wallet adapter）
         const kaminoClient = await KaminoClient.initialize({
-          keypairPath,
+          walletAdapter,
           isMainnet: true,
         });
 
@@ -190,6 +202,7 @@ export class KaminoNode implements INodeType {
             vaultAddress,
             amount: depositAmount.toString(),
             signature,
+            accountId,
             success: true,
           };
         } else if (operation === 'withdraw') {
@@ -214,7 +227,10 @@ export class KaminoNode implements INodeType {
             withdrawShareAmount = new Decimal(shareAmountParam);
           }
 
-          const withdrawResult = await kaminoClient.withdraw(vaultAddress as Address, withdrawShareAmount);
+          const withdrawResult = await kaminoClient.withdraw(
+            vaultAddress as Address,
+            withdrawShareAmount,
+          );
 
           operationDetails = {
             operation: 'withdraw',
@@ -223,6 +239,7 @@ export class KaminoNode implements INodeType {
             shareAmount: withdrawShareAmount.toString(),
             amount: withdrawResult.withdrawnAmount.toString(),
             signature: withdrawResult.signature,
+            accountId,
             success: true,
           };
         } else {

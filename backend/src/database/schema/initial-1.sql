@@ -5,9 +5,8 @@ CREATE TABLE public.accounts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   owner_wallet_address text NOT NULL,
   name text NOT NULL,
-  account_address text NOT NULL UNIQUE,
-  encrypted_private_key text NOT NULL,
-  encryption_method text NOT NULL DEFAULT 'aes256'::text,
+  crossmint_wallet_locator varchar(255) NOT NULL,
+  crossmint_wallet_address varchar(64) NOT NULL UNIQUE,
   current_workflow_id uuid,
   is_active boolean DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -91,8 +90,10 @@ CREATE TABLE public.users (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   last_active_at timestamp with time zone,
   catpurr boolean NOT NULL DEFAULT false CHECK (catpurr = ANY (ARRAY[true, false])),
-  email text NOT NULL DEFAULT ''::text UNIQUE,
+  email text UNIQUE,
   drift_hist jsonb,
+  transfer_tx text,
+  current_status jsonb,
   CONSTRAINT users_pkey PRIMARY KEY (wallet_address)
 );
 CREATE TABLE public.workflow_executions (
