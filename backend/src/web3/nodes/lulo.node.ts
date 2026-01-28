@@ -1,7 +1,7 @@
 import { type INodeType, type IExecuteContext, type NodeExecutionData } from '../workflow-types';
 import { AgentKitService } from '../services/agent-kit.service';
 import { TOKEN_ADDRESS } from '../constants';
-import { Connection, VersionedTransaction, PublicKey } from '@solana/web3.js';
+import { VersionedTransaction } from '@solana/web3.js';
 
 type TokenTicker = keyof typeof TOKEN_ADDRESS;
 
@@ -110,8 +110,6 @@ export class LuloNode implements INodeType {
 
         const wallet = await agentKitService.getWalletForAccount(accountId);
         const walletAddress = wallet.publicKey.toBase58();
-        const connection = new Connection(agentKitService.getRpcUrl());
-
         if (operation === 'info') {
           // 獲取帳戶資訊
           const accountInfo = await this.getAccountInfo(walletAddress);

@@ -168,7 +168,7 @@ ${error}
     console.error(`❌ Workflow error in ${context}:`, error.message);
   }
 
-  async sendNodeExecutionResult(nodeName: string, nodeType: string, result: any) {
+  async sendNodeExecutionResult(nodeName: string, nodeType: string, _result: any) {
     console.log(`✅ Node executed: ${nodeName} (${nodeType})`);
   }
 }

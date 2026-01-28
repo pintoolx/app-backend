@@ -1,26 +1,12 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  Inject,
-  forwardRef,
-  InternalServerErrorException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { Injectable, Inject, forwardRef, InternalServerErrorException } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 import { PublicKey } from '@solana/web3.js';
 import * as nacl from 'tweetnacl';
 import bs58 from 'bs58';
 
-interface ChallengeCache {
-  challenge: string;
-  expiresAt: number;
-}
-
-@Injectable()
 @Injectable()
 export class AuthService {
   constructor(
-    private jwtService: JwtService,
     @Inject(forwardRef(() => SupabaseService))
     private supabaseService: SupabaseService,
   ) {
@@ -55,30 +41,6 @@ export class AuthService {
 
     console.log(`✅ Generated challenge for wallet: ${walletAddress}`);
     return challenge;
-  }
-
-  /**
-   * Verify wallet signature and issue JWT token (Legacy flow, keeping for compatibility if needed)
-   */
-  async verifySignature(
-    walletAddress: string,
-    signature: string,
-  ): Promise<{ accessToken: string }> {
-    const isValid = await this.verifyAndConsumeChallenge(walletAddress, signature);
-
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid signature or challenge expired');
-    }
-
-    // Create or update user in database
-    await this.createOrUpdateUser(walletAddress);
-
-    // Generate JWT token
-    const payload = { walletAddress };
-    const accessToken = this.jwtService.sign(payload);
-
-    console.log(`✅ User authenticated successfully: ${walletAddress}`);
-    return { accessToken };
   }
 
   /**

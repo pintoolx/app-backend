@@ -1,6 +1,6 @@
 import { type INodeType, type IExecuteContext, type NodeExecutionData } from '../workflow-types';
 import { AgentKitService } from '../services/agent-kit.service';
-import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { Connection, VersionedTransaction } from '@solana/web3.js';
 
 /**
  * Drift Perpetual Markets

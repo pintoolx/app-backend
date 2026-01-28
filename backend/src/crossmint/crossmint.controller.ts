@@ -4,7 +4,6 @@ import {
   Delete,
   Body,
   Param,
-  Inject,
   UnauthorizedException,
   HttpCode,
 } from '@nestjs/common';

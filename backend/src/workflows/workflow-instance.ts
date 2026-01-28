@@ -178,7 +178,7 @@ export class WorkflowInstance {
         }
         return inputData[inputIndex] || [];
       },
-      getWorkflowStaticData: (type: string) => ({}),
+      getWorkflowStaticData: (_type: string) => ({}),
       helpers: {
         returnJsonArray: (jsonData: any[]) => [jsonData.map((item) => ({ json: item }))],
       },
@@ -233,7 +233,7 @@ export class WorkflowInstance {
     const allNodes = new Set(workflow.nodes.map((n) => n.id));
     const hasInput = new Set<string>();
 
-    for (const [nodeId, connections] of Object.entries(workflow.connections)) {
+    for (const [, connections] of Object.entries(workflow.connections)) {
       if (connections.main) {
         for (const connectionGroup of connections.main) {
           for (const connection of connectionGroup) {

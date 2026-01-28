@@ -1,6 +1,6 @@
 import { type INodeType, type IExecuteContext, type NodeExecutionData } from '../workflow-types';
 import { AgentKitService } from '../services/agent-kit.service';
-import { Connection, VersionedTransaction } from '@solana/web3.js';
+import { VersionedTransaction } from '@solana/web3.js';
 
 /**
  * 流動性質押代幣 (LST) 地址

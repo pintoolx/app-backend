@@ -85,7 +85,6 @@ Server will start on `http://localhost:3000`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/auth/challenge` | Get signature challenge |
-| POST | `/auth/verify` | Verify signature & login |
 
 **Example:**
 
@@ -96,21 +95,12 @@ curl -X POST http://localhost:3000/api/auth/challenge \
   -d '{"walletAddress":"7xKgF2p3VQa..."}'
 
 # 2. Sign the challenge with your wallet
-
-# 3. Verify signature
-curl -X POST http://localhost:3000/api/auth/verify \
-  -H "Content-Type: application/json" \
-  -d '{
-    "walletAddress":"7xKgF2p3VQa...",
-    "signature":"base58_signature"
-  }'
-
-# Response: {"success":true,"data":{"accessToken":"eyJhbG..."}}
+# 3. Send the signature to endpoints that require wallet verification
 ```
 
 ### Workflows (`/api/workflows`)
 
-All endpoints require JWT authentication via `Authorization: Bearer <token>` header.
+All endpoints that mutate data require a signed challenge in the request body.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -125,7 +115,6 @@ All endpoints require JWT authentication via `Authorization: Bearer <token>` hea
 
 ```bash
 curl -X POST http://localhost:3000/api/workflows \
-  -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "SOL Price Monitor & Auto Swap",
@@ -254,7 +243,7 @@ For production, set:
 ## 🔐 Security
 
 - **Private Keys**: Encrypted with AES-256-GCM before storage
-- **JWT**: Signed tokens for API authentication
+- **Auth**: Wallet signature challenges
 - **RLS**: Row Level Security in Supabase ensures users only access their data
 - **Validation**: All inputs validated using class-validator
 
@@ -268,7 +257,7 @@ For production, set:
   - Kamino Finance (@kamino-finance/klend-sdk)
   - Pyth Network (@pythnetwork/hermes-client)
 - **Notifications**: Telegram Bot API
-- **Authentication**: JWT + Wallet Signatures (tweetnacl, bs58)
+- **Authentication**: Wallet Signatures (tweetnacl, bs58)
 - **Encryption**: Node.js Crypto (AES-256-GCM)
 
 ## 🐛 Troubleshooting

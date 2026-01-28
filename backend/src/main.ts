@@ -45,15 +45,6 @@ async function bootstrap() {
         '- Web3 operations (Jupiter swap, Kamino vaults, Pyth price feeds) - Available as Workflow Nodes',
     )
     .setVersion('1.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        description: 'Enter your JWT token obtained from /auth/verify endpoint',
-      },
-      'JWT-auth',
-    )
     .addTag('Auth', 'Wallet signature authentication endpoints')
     .addTag('Workflows', 'Workflow CRUD and execution endpoints')
     .addTag('Telegram', 'Telegram bot management endpoints')
