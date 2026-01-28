@@ -1,4 +1,13 @@
-import { Injectable, Logger, OnModuleInit, NotFoundException, InternalServerErrorException, ForbiddenException, BadRequestException, RequestTimeoutException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  NotFoundException,
+  InternalServerErrorException,
+  ForbiddenException,
+  BadRequestException,
+  RequestTimeoutException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../database/supabase.service';
 import { CrossmintWalletAdapter, CrossmintSolanaWallet } from './crossmint-wallet.adapter';
@@ -79,7 +88,9 @@ export class CrossmintService implements OnModuleInit {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new InternalServerErrorException(`Failed to create Crossmint wallet: ${response.status} - ${errorText}`);
+        throw new InternalServerErrorException(
+          `Failed to create Crossmint wallet: ${response.status} - ${errorText}`,
+        );
       }
 
       const wallet: CrossmintWalletResponse = await response.json();
@@ -146,7 +157,9 @@ export class CrossmintService implements OnModuleInit {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new InternalServerErrorException(`Failed to get Crossmint wallet: ${response.status} - ${errorText}`);
+        throw new InternalServerErrorException(
+          `Failed to get Crossmint wallet: ${response.status} - ${errorText}`,
+        );
       }
 
       const walletData: CrossmintWalletResponse = await response.json();
@@ -203,7 +216,9 @@ export class CrossmintService implements OnModuleInit {
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
-      throw new InternalServerErrorException(`Failed to create transaction: ${createResponse.status} - ${errorText}`);
+      throw new InternalServerErrorException(
+        `Failed to create transaction: ${createResponse.status} - ${errorText}`,
+      );
     }
 
     const txResult = await createResponse.json();
@@ -238,7 +253,9 @@ export class CrossmintService implements OnModuleInit {
       );
 
       if (!response.ok) {
-        throw new InternalServerErrorException(`Failed to get transaction status: ${response.status}`);
+        throw new InternalServerErrorException(
+          `Failed to get transaction status: ${response.status}`,
+        );
       }
 
       const tx = await response.json();
@@ -276,7 +293,9 @@ export class CrossmintService implements OnModuleInit {
       );
 
       if (!response.ok) {
-        throw new InternalServerErrorException(`Failed to get transaction status: ${response.status}`);
+        throw new InternalServerErrorException(
+          `Failed to get transaction status: ${response.status}`,
+        );
       }
 
       const tx = await response.json();
@@ -286,7 +305,9 @@ export class CrossmintService implements OnModuleInit {
       }
 
       if (tx.status === 'failed') {
-        throw new InternalServerErrorException(`Transaction failed: ${tx.error || 'Unknown error'}`);
+        throw new InternalServerErrorException(
+          `Transaction failed: ${tx.error || 'Unknown error'}`,
+        );
       }
 
       // 等待 1 秒後重試
@@ -402,7 +423,7 @@ export class CrossmintService implements OnModuleInit {
     // If Crossmint adds support, we would call their API here using this.baseUrl + apiKey
     // For now, return a specific message or throw.
     // User requested "export and close", so we might want to close it too if export were successful.
-    
+
     this.logger.warn(`Export requested for ${accountId} - Not supported by Crossmint MPC`);
     throw new BadRequestException('Exporting private key is not supported for this wallet type.');
   }

@@ -21,7 +21,12 @@ export class WorkflowExecutorFactory {
   /**
    * Create a new WorkflowInstance with injected services
    */
-  createInstance(config: Omit<WorkflowInstanceConfig, 'telegramNotifier' | 'crossmintService' | 'agentKitService'>): WorkflowInstance {
+  createInstance(
+    config: Omit<
+      WorkflowInstanceConfig,
+      'telegramNotifier' | 'crossmintService' | 'agentKitService'
+    >,
+  ): WorkflowInstance {
     const fullConfig: WorkflowInstanceConfig = {
       ...config,
       telegramNotifier: this.telegramNotifier,
@@ -31,7 +36,7 @@ export class WorkflowExecutorFactory {
 
     const instance = new WorkflowInstance(fullConfig);
     this.registerStandardNodes(instance);
-    
+
     return instance;
   }
 

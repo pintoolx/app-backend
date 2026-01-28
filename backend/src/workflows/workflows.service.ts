@@ -76,20 +76,20 @@ export class WorkflowsService {
         .select('crossmint_wallet_address')
         .eq('id', executeDto.accountId)
         .single();
-        if (account) {
-            crossmintWalletAddress = account.crossmint_wallet_address;
-        }
+      if (account) {
+        crossmintWalletAddress = account.crossmint_wallet_address;
+      }
     }
 
     // Create Instance using Factory
     const instance = this.executorFactory.createInstance({
-        workflowDefinition: workflow.definition as WorkflowDefinition,
-        executionId: execution.id,
-        workflowName: workflow.name,
-        chatId: chatId,
-        accountId: executeDto.accountId,
-        ownerWalletAddress: walletAddress,
-        crossmintWalletAddress: crossmintWalletAddress,
+      workflowDefinition: workflow.definition as WorkflowDefinition,
+      executionId: execution.id,
+      workflowName: workflow.name,
+      chatId: chatId,
+      accountId: executeDto.accountId,
+      ownerWalletAddress: walletAddress,
+      crossmintWalletAddress: crossmintWalletAddress,
     });
 
     // Execute asynchronously (fire and forget from API perspective)

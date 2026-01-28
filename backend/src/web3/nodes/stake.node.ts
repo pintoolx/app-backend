@@ -19,7 +19,8 @@ export class StakeNode implements INodeType {
     name: 'stakeSOL',
     group: ['defi'],
     version: 1,
-    description: 'Stake SOL for jupSOL using Jupiter staking (liquid staking with Crossmint wallet)',
+    description:
+      'Stake SOL for jupSOL using Jupiter staking (liquid staking with Crossmint wallet)',
     inputs: ['main'],
     outputs: ['main'],
     telegramNotify: true,
@@ -48,7 +49,8 @@ export class StakeNode implements INodeType {
         name: 'amount',
         type: 'string' as const,
         default: 'auto',
-        description: 'Amount to stake/unstake. Use "auto" for previous node output, "all" for entire balance, or a number (minimum 0.1 SOL)',
+        description:
+          'Amount to stake/unstake. Use "auto" for previous node output, "all" for entire balance, or a number (minimum 0.1 SOL)',
       },
     ],
   };
@@ -237,7 +239,10 @@ export class StakeNode implements INodeType {
   /**
    * 獲取質押資訊
    */
-  private async getStakingInfo(walletAddress: string, connection: Connection): Promise<{
+  private async getStakingInfo(
+    walletAddress: string,
+    connection: Connection,
+  ): Promise<{
     solBalance: number;
     jupsolBalance: number;
     jupsolValueInSol: number;
@@ -248,7 +253,7 @@ export class StakeNode implements INodeType {
 
     // 獲取 SOL 餘額
     const walletPubkey = new PublicKey(walletAddress);
-    const solBalance = await connection.getBalance(walletPubkey) / LAMPORTS_PER_SOL;
+    const solBalance = (await connection.getBalance(walletPubkey)) / LAMPORTS_PER_SOL;
 
     // 獲取 jupSOL 餘額
     const jupsolBalance = await this.getJupsolBalance(walletAddress, connection);

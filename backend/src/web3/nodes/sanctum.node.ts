@@ -99,7 +99,8 @@ export class SanctumNode implements INodeType {
         name: 'amount',
         type: 'string' as const,
         default: 'auto',
-        description: 'Amount to swap. Use "auto" for previous node output, "all" for entire balance, or a number',
+        description:
+          'Amount to swap. Use "auto" for previous node output, "all" for entire balance, or a number',
       },
       {
         displayName: 'Priority Fee (lamports)',
@@ -128,7 +129,9 @@ export class SanctumNode implements INodeType {
         const inputLst = context.getNodeParameter('inputLst', itemIndex) as LstTicker;
         const outputLst = context.getNodeParameter('outputLst', itemIndex) as LstTicker;
         const amountParam = context.getNodeParameter('amount', itemIndex, 'auto') as string;
-        const priorityFee = parseInt(context.getNodeParameter('priorityFee', itemIndex, '5000') as string);
+        const priorityFee = parseInt(
+          context.getNodeParameter('priorityFee', itemIndex, '5000') as string,
+        );
 
         if (!accountId && operation !== 'apy') {
           throw new Error('Account ID is required');
@@ -138,10 +141,14 @@ export class SanctumNode implements INodeType {
         const outputMint = LST_MINTS[outputLst];
 
         if (!inputMint && operation !== 'apy') {
-          throw new Error(`Unknown input LST: ${inputLst}. Available: ${Object.keys(LST_MINTS).join(', ')}`);
+          throw new Error(
+            `Unknown input LST: ${inputLst}. Available: ${Object.keys(LST_MINTS).join(', ')}`,
+          );
         }
         if (!outputMint && operation !== 'apy') {
-          throw new Error(`Unknown output LST: ${outputLst}. Available: ${Object.keys(LST_MINTS).join(', ')}`);
+          throw new Error(
+            `Unknown output LST: ${outputLst}. Available: ${Object.keys(LST_MINTS).join(', ')}`,
+          );
         }
 
         console.log(`\nSanctum Node: Executing ${operation}`);
@@ -163,8 +170,8 @@ export class SanctumNode implements INodeType {
           const walletAddress = wallet.publicKey.toBase58();
 
           // 解析金額 (使用 lamports)
-          let amount = this.parseAmount(amountParam, items);
-          
+          const amount = this.parseAmount(amountParam, items);
+
           // 轉換為 lamports (假設 9 decimals for SOL-based LSTs)
           const amountLamports = Math.round(amount * 1e9).toString();
 
@@ -272,7 +279,7 @@ export class SanctumNode implements INodeType {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
 
     if (!response.ok) {
@@ -286,14 +293,18 @@ export class SanctumNode implements INodeType {
   /**
    * 獲取報價
    */
-  private async getQuote(inputMint: string, outputMint: string, amount: string): Promise<SanctumQuoteResponse> {
+  private async getQuote(
+    inputMint: string,
+    outputMint: string,
+    amount: string,
+  ): Promise<SanctumQuoteResponse> {
     const response = await fetch(
       `https://api.sanctum.so/v1/swap/quote?input=${inputMint}&outputLstMint=${outputMint}&amount=${amount}&mode=ExactIn`,
       {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
 
     if (!response.ok) {

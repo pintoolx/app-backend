@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, Inject, forwardRef, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  Inject,
+  forwardRef,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SupabaseService } from '../database/supabase.service';
 import { PublicKey } from '@solana/web3.js';
@@ -87,11 +93,11 @@ export class AuthService {
       .from('auth_challenges')
       .select('*')
       .eq('wallet_address', cleanAddress);
-    
+
     if (error || !rows || rows.length === 0) {
       return false; // Challenge not found
     }
-    
+
     const cached = rows[0];
 
     // 2. Check Expiry
@@ -107,7 +113,7 @@ export class AuthService {
     if (isValid) {
       // Ensure user exists (to satisfy FK constraints)
       await this.createOrUpdateUser(cleanAddress);
-      
+
       await this.deleteChallenge(walletAddress);
       return true;
     }

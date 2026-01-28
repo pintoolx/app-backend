@@ -52,7 +52,8 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
       // 1. Fetch all active accounts that have a workflow assigned
       const { data: accounts, error } = await this.supabaseService.client
         .from('accounts')
-        .select(`
+        .select(
+          `
           id,
           owner_wallet_address,
           name,
@@ -63,7 +64,8 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
              name,
              definition
           )
-        `)
+        `,
+        )
         .eq('is_active', true)
         .not('current_workflow_id', 'is', null);
 
@@ -88,13 +90,15 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
         if (!this.activeInstances.has(account.id)) {
           // Check if workflow data is valid (it comes from a join)
           const workflow = account.workflows as any; // Cast because nested join might be array or object depending on One-to-One
-          
+
           if (!workflow || !workflow.definition) {
-             this.logger.warn(`Account ${account.id} has workflow ID but no definition found.`);
-             continue;
+            this.logger.warn(`Account ${account.id} has workflow ID but no definition found.`);
+            continue;
           }
 
-          this.logger.log(`Starting new instance for Account ${account.id} (Workflow: ${workflow.name})`);
+          this.logger.log(
+            `Starting new instance for Account ${account.id} (Workflow: ${workflow.name})`,
+          );
 
           // Fetch Chat ID if needed
           const chatId = await this.getChatId(account.owner_wallet_address);
@@ -111,40 +115,39 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
 
           // Start the instance (Depending on design, maybe we just hold it, or we trigger it?)
           // User request implied "專注於執行該 workflow 的內容", which often implies running it.
-          // However, typically workflows are triggered by events or schedules. 
+          // However, typically workflows are triggered by events or schedules.
           // If the persistent instance is just *waiting* for triggers, we just keep it.
           // IF the requirement is to "Initial" it and it runs continuously (like a bot), we call execute().
-          
-          // Assuming "Execute Once" logic for now based on previous code, 
+
+          // Assuming "Execute Once" logic for now based on previous code,
           // BUT since the user wants a persistent instance, maybe it should loop?
           // For safety, I will NOT auto-execute in the loop, unless there's a trigger mechanism.
           // Wait, the user said "每次一個新的 account 產生 initial 一個 instance 並專注於執行該 workflow 的內容".
-          // This strongly implies the instance *runs*. 
+          // This strongly implies the instance *runs*.
 
-          // Let's assume for now we just create it. If it needs to run a loop, the Workflow Definition 
+          // Let's assume for now we just create it. If it needs to run a loop, the Workflow Definition
           // usually handles loops or the instance does.
           // Detailed Requirement: "專注於執行該 workflow 的內容".
           // I will add a `start()` or similar if the instance is meant to run autonomously.
-          
+
           // Re-reading `WorkflowInstance`: It has `execute()`.
           // If I call `execute()`, it runs through nodes once.
           // If the workflow is a "looping bot", the workflow definition might have a loop.
-          
+
           this.activeInstances.set(account.id, instance);
         }
       }
-
     } catch (err) {
       this.logger.error('Error in syncInstances', err);
     }
   }
 
   private async getChatId(walletAddress: string): Promise<string | undefined> {
-     const { data } = await this.supabaseService.client
+    const { data } = await this.supabaseService.client
       .from('telegram_mappings')
       .select('chat_id')
       .eq('wallet_address', walletAddress)
       .single();
-      return data?.chat_id;
+    return data?.chat_id;
   }
 }

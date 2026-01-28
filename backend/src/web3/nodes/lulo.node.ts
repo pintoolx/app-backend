@@ -72,7 +72,8 @@ export class LuloNode implements INodeType {
         name: 'amount',
         type: 'string' as const,
         default: 'auto',
-        description: 'Amount to deposit/withdraw. Use "auto" for previous node output, "all" for entire balance, or a number',
+        description:
+          'Amount to deposit/withdraw. Use "auto" for previous node output, "all" for entire balance, or a number',
       },
     ],
   };
@@ -212,20 +213,22 @@ export class LuloNode implements INodeType {
   /**
    * 獲取 Lulo 帳戶資訊
    */
-  private async getAccountInfo(walletAddress: string, apiKey?: string): Promise<LuloAccountResponse> {
+  private async getAccountInfo(
+    walletAddress: string,
+    apiKey?: string,
+  ): Promise<LuloAccountResponse> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-wallet-pubkey': walletAddress,
     };
-    
+
     if (apiKey) {
       headers['x-api-key'] = apiKey;
     }
 
-    const response = await fetch(
-      `https://api.flexlend.fi/account?wallet=${walletAddress}`,
-      { headers }
-    );
+    const response = await fetch(`https://api.flexlend.fi/account?wallet=${walletAddress}`, {
+      headers,
+    });
 
     if (!response.ok) {
       // 如果帳戶不存在，返回空資料
@@ -251,16 +254,16 @@ export class LuloNode implements INodeType {
     const { walletAddress, operation, mintAddress, amount, apiKey } = params;
 
     const endpoint = operation === 'deposit' ? 'deposit' : 'withdraw';
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-wallet-pubkey': walletAddress,
     };
-    
+
     if (apiKey) {
       headers['x-api-key'] = apiKey;
     }
-    
+
     const response = await fetch(`https://api.flexlend.fi/${endpoint}`, {
       method: 'POST',
       headers,
@@ -274,7 +277,9 @@ export class LuloNode implements INodeType {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Lulo API error: ${errorData.error || errorData.message || response.statusText}`);
+      throw new Error(
+        `Lulo API error: ${errorData.error || errorData.message || response.statusText}`,
+      );
     }
 
     return response.json();

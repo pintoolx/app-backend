@@ -38,10 +38,7 @@ export class WorkflowsController {
   })
   @ApiResponse({ status: 404, description: 'Workflow not found' })
   @ApiResponse({ status: 401, description: 'Invalid signature' })
-  async executeWorkflow(
-    @Param('id') id: string,
-    @Body() executeDto: ExecuteWorkflowDto,
-  ) {
+  async executeWorkflow(@Param('id') id: string, @Body() executeDto: ExecuteWorkflowDto) {
     // 1. Verify Signature
     const isValid = await this.authService.verifyAndConsumeChallenge(
       executeDto.walletAddress,
@@ -64,5 +61,3 @@ export class WorkflowsController {
     };
   }
 }
-
-

@@ -142,7 +142,9 @@ export class DriftNode implements INodeType {
 
         const marketIndex = DRIFT_MARKETS[market];
         if (marketIndex === undefined) {
-          throw new Error(`Unknown market: ${market}. Available: ${Object.keys(DRIFT_MARKETS).join(', ')}`);
+          throw new Error(
+            `Unknown market: ${market}. Available: ${Object.keys(DRIFT_MARKETS).join(', ')}`,
+          );
         }
 
         console.log(`\nDrift Node: Executing ${operation} on ${market}`);
@@ -170,9 +172,13 @@ export class DriftNode implements INodeType {
         } else {
           // 開/平倉操作
           const amount = parseFloat(context.getNodeParameter('amount', itemIndex, '0') as string);
-          const leverage = parseFloat(context.getNodeParameter('leverage', itemIndex, '1') as string);
+          const leverage = parseFloat(
+            context.getNodeParameter('leverage', itemIndex, '1') as string,
+          );
           const orderType = context.getNodeParameter('orderType', itemIndex, 'market') as string;
-          const limitPrice = parseFloat(context.getNodeParameter('limitPrice', itemIndex, '0') as string);
+          const limitPrice = parseFloat(
+            context.getNodeParameter('limitPrice', itemIndex, '0') as string,
+          );
 
           if ((operation === 'openLong' || operation === 'openShort') && amount <= 0) {
             throw new Error('Amount is required for opening positions');
@@ -237,7 +243,9 @@ export class DriftNode implements INodeType {
     nextFundingTime: string;
   }> {
     // 使用 Drift API 獲取資金費率
-    const response = await fetch(`https://mainnet-beta.api.drift.trade/fundingRates?marketSymbol=${market}`);
+    const response = await fetch(
+      `https://mainnet-beta.api.drift.trade/fundingRates?marketSymbol=${market}`,
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to get funding rate: ${response.statusText}`);
@@ -274,8 +282,9 @@ export class DriftNode implements INodeType {
     const { wallet, operation, marketIndex, amount, leverage, orderType, limitPrice } = params;
 
     // 使用 Drift Gateway API 建立交易
-    const direction = operation === 'openLong' ? 'long' : operation === 'openShort' ? 'short' : 'close';
-    
+    const direction =
+      operation === 'openLong' ? 'long' : operation === 'openShort' ? 'short' : 'close';
+
     const requestBody: any = {
       marketIndex,
       marketType: 'perp',

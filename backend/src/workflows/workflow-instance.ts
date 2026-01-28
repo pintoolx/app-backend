@@ -33,7 +33,7 @@ export interface WorkflowInstanceConfig {
 export class WorkflowInstance {
   private nodes: Map<string, INodeType> = new Map();
   private workflowData: Map<string, NodeExecutionData[][]> = new Map();
-  
+
   // Configuration & Context
   public readonly executionId: string;
   private workflowDefinition: WorkflowDefinition;
@@ -50,7 +50,7 @@ export class WorkflowInstance {
     this.executionId = config.executionId;
     this.workflowName = config.workflowName;
     this.chatId = config.chatId;
-    
+
     // Injected Services
     this.telegramNotifier = config.telegramNotifier;
     this.crossmintService = config.crossmintService;
@@ -114,7 +114,7 @@ export class WorkflowInstance {
       return this.workflowData;
     } catch (error) {
       console.error(`[Instance ${this.executionId}] Error:`, error);
-      
+
       // Send Error Notification
       if (this.telegramNotifier?.isEnabled && this.chatId && error instanceof Error) {
         await this.telegramNotifier.sendWorkflowErrorNotification(
@@ -146,7 +146,9 @@ export class WorkflowInstance {
       throw new Error(`Node ${nodeId} does not exist`);
     }
 
-    console.log(`[Instance ${this.executionId}] Executing node: ${workflowNode.name} (${workflowNode.type})`);
+    console.log(
+      `[Instance ${this.executionId}] Executing node: ${workflowNode.name} (${workflowNode.type})`,
+    );
 
     const nodeType = this.nodes.get(workflowNode.type);
     if (!nodeType) {
@@ -160,7 +162,7 @@ export class WorkflowInstance {
       getNodeParameter: (parameterName: string, itemIndex: number, defaultValue?: any) => {
         // Inject specific wallet address if requested (e.g. for automatic assignment)
         if (parameterName === 'walletAddress' && this.crossmintWalletAddress) {
-             return this.crossmintWalletAddress;
+          return this.crossmintWalletAddress;
         }
 
         // Service Injection
@@ -218,12 +220,12 @@ export class WorkflowInstance {
         await this.executeNode(nextNodeId);
       }
     } catch (error) {
-       console.error(`[Instance ${this.executionId}] Node ${workflowNode.name} failed`);
-       stepLog.status = 'failed';
-       stepLog.durationMs = Date.now() - startTime; // Use node-specific start time
-       stepLog.error = error instanceof Error ? error.message : 'Unknown error';
-       this.executionLogs.push(stepLog);
-       throw error;
+      console.error(`[Instance ${this.executionId}] Node ${workflowNode.name} failed`);
+      stepLog.status = 'failed';
+      stepLog.durationMs = Date.now() - startTime; // Use node-specific start time
+      stepLog.error = error instanceof Error ? error.message : 'Unknown error';
+      this.executionLogs.push(stepLog);
+      throw error;
     }
   }
 

@@ -11,10 +11,10 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 
 # 複製 package 文件
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
 # 安裝所有依賴（包含 devDependencies）
-RUN npm install
+RUN npm ci
 
 # 複製源代碼
 COPY . .
@@ -23,7 +23,7 @@ COPY . .
 RUN npm run build
 
 # 移除 devDependencies，只保留生產依賴
-RUN npm install --only=production && npm cache clean --force
+RUN npm cache clean --force
 
 
 # ====================================
@@ -41,10 +41,9 @@ RUN addgroup -g 1001 -S nodejs && \
 # 設定工作目錄
 WORKDIR /app
 
-# 從 builder 階段複製必要文件
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force && chown -R nodejs:nodejs /app
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
 
 # 切換到非 root 用戶
 USER nodejs
@@ -54,7 +53,7 @@ EXPOSE 3000
 
 # 健康檢查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+    CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
 
 # 使用 dumb-init 來啟動應用
 ENTRYPOINT ["dumb-init", "--"]

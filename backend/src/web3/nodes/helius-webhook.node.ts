@@ -106,7 +106,8 @@ export class HeliusWebhookNode implements INodeType {
         name: 'transactionTypes',
         type: 'string' as const,
         default: 'ANY',
-        description: 'Comma-separated transaction types to monitor (SWAP, TRANSFER, NFT_SALE, ANY, etc.)',
+        description:
+          'Comma-separated transaction types to monitor (SWAP, TRANSFER, NFT_SALE, ANY, etc.)',
       },
       {
         displayName: 'Webhook Type',
@@ -146,8 +147,14 @@ export class HeliusWebhookNode implements INodeType {
         switch (operation) {
           case 'create': {
             const webhookUrl = context.getNodeParameter('webhookUrl', itemIndex) as string;
-            const accountAddressesStr = context.getNodeParameter('accountAddresses', itemIndex) as string;
-            const transactionTypesStr = context.getNodeParameter('transactionTypes', itemIndex) as string;
+            const accountAddressesStr = context.getNodeParameter(
+              'accountAddresses',
+              itemIndex,
+            ) as string;
+            const transactionTypesStr = context.getNodeParameter(
+              'transactionTypes',
+              itemIndex,
+            ) as string;
             const webhookType = context.getNodeParameter('webhookType', itemIndex) as WebhookType;
 
             if (!webhookUrl) {
@@ -158,7 +165,9 @@ export class HeliusWebhookNode implements INodeType {
             }
 
             const accountAddresses = accountAddressesStr.split(',').map((a) => a.trim());
-            const transactionTypes = transactionTypesStr.split(',').map((t) => t.trim()) as TransactionType[];
+            const transactionTypes = transactionTypesStr
+              .split(',')
+              .map((t) => t.trim()) as TransactionType[];
 
             const webhook = await this.createWebhook({
               apiKey: heliusApiKey,
@@ -306,12 +315,15 @@ export class HeliusWebhookNode implements INodeType {
    * 獲取 Webhook
    */
   private async getWebhook(apiKey: string, webhookId: string): Promise<HeliusWebhookResponse> {
-    const response = await fetch(`https://api.helius.xyz/v0/webhooks/${webhookId}?api-key=${apiKey}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      `https://api.helius.xyz/v0/webhooks/${webhookId}?api-key=${apiKey}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -325,12 +337,15 @@ export class HeliusWebhookNode implements INodeType {
    * 刪除 Webhook
    */
   private async deleteWebhook(apiKey: string, webhookId: string): Promise<void> {
-    const response = await fetch(`https://api.helius.xyz/v0/webhooks/${webhookId}?api-key=${apiKey}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      `https://api.helius.xyz/v0/webhooks/${webhookId}?api-key=${apiKey}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

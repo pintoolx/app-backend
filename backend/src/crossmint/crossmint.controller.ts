@@ -1,4 +1,13 @@
-import { Controller, Post, Delete, Body, Param, Inject, UnauthorizedException, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Delete,
+  Body,
+  Param,
+  Inject,
+  UnauthorizedException,
+  HttpCode,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CrossmintService } from './crossmint.service';
 import { AuthService } from '../auth/auth.service';
@@ -22,7 +31,10 @@ export class CrossmintController {
   @ApiResponse({ status: 401, description: 'Invalid signature' })
   async initWallet(@Body() dto: InitWalletDto) {
     // 1. Verify Signature
-    const isValid = await this.authService.verifyAndConsumeChallenge(dto.walletAddress, dto.signature);
+    const isValid = await this.authService.verifyAndConsumeChallenge(
+      dto.walletAddress,
+      dto.signature,
+    );
     if (!isValid) {
       throw new UnauthorizedException('Invalid signature or challenge expired');
     }
@@ -39,12 +51,12 @@ export class CrossmintController {
   @ApiResponse({ status: 200, description: 'Account deleted' })
   @ApiResponse({ status: 401, description: 'Invalid signature' })
   @ApiResponse({ status: 403, description: 'Not authorized (Not the owner)' })
-  async deleteWallet(
-    @Param('id') id: string,
-    @Body() dto: SignedRequestDto,
-  ) {
+  async deleteWallet(@Param('id') id: string, @Body() dto: SignedRequestDto) {
     // 1. Verify Signature
-    const isValid = await this.authService.verifyAndConsumeChallenge(dto.walletAddress, dto.signature);
+    const isValid = await this.authService.verifyAndConsumeChallenge(
+      dto.walletAddress,
+      dto.signature,
+    );
     if (!isValid) {
       throw new UnauthorizedException('Invalid signature or challenge expired');
     }
@@ -57,17 +69,18 @@ export class CrossmintController {
   @Post(':id/export')
   @ApiOperation({
     summary: 'Export wallet private key',
-    description: 'Requires valid signature from the owner wallet. Note: MPC wallets may not support this.',
+    description:
+      'Requires valid signature from the owner wallet. Note: MPC wallets may not support this.',
   })
   @ApiResponse({ status: 200, description: 'Key exported' })
   @ApiResponse({ status: 400, description: 'Not supported' })
   @HttpCode(200)
-  async exportWallet(
-    @Param('id') id: string,
-    @Body() dto: SignedRequestDto,
-  ) {
+  async exportWallet(@Param('id') id: string, @Body() dto: SignedRequestDto) {
     // 1. Verify Signature
-    const isValid = await this.authService.verifyAndConsumeChallenge(dto.walletAddress, dto.signature);
+    const isValid = await this.authService.verifyAndConsumeChallenge(
+      dto.walletAddress,
+      dto.signature,
+    );
     if (!isValid) {
       throw new UnauthorizedException('Invalid signature or challenge expired');
     }
