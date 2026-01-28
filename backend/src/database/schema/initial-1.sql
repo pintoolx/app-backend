@@ -5,15 +5,22 @@ CREATE TABLE public.accounts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   owner_wallet_address text NOT NULL,
   name text NOT NULL,
-  crossmint_wallet_locator varchar(255) NOT NULL,
-  crossmint_wallet_address varchar(64) NOT NULL UNIQUE,
   current_workflow_id uuid,
   is_active boolean DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  crossmint_wallet_locator character varying,
+  crossmint_wallet_address character varying UNIQUE,
   CONSTRAINT accounts_pkey PRIMARY KEY (id),
   CONSTRAINT accounts_owner_wallet_address_fkey FOREIGN KEY (owner_wallet_address) REFERENCES public.users(wallet_address),
   CONSTRAINT accounts_current_workflow_id_fkey FOREIGN KEY (current_workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.auth_challenges (
+  wallet_address text NOT NULL,
+  challenge text NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT auth_challenges_pkey PRIMARY KEY (wallet_address)
 );
 CREATE TABLE public.node_executions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -99,7 +106,7 @@ CREATE TABLE public.users (
 CREATE TABLE public.workflow_executions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   workflow_id uuid NOT NULL,
-  account_id uuid NOT NULL,
+  account_id uuid,
   owner_wallet_address text NOT NULL,
   status text NOT NULL CHECK (status = ANY (ARRAY['pending'::text, 'running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])),
   trigger_type text CHECK (trigger_type = ANY (ARRAY['manual'::text, 'scheduled'::text, 'price_trigger'::text, 'webhook'::text, 'telegram_command'::text])),
@@ -113,6 +120,7 @@ CREATE TABLE public.workflow_executions (
   telegram_notification_sent_at timestamp with time zone,
   telegram_message_id text,
   metadata jsonb DEFAULT '{}'::jsonb,
+  definition_snapshot jsonb,
   CONSTRAINT workflow_executions_pkey PRIMARY KEY (id),
   CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
   CONSTRAINT workflow_executions_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.accounts(id),
@@ -124,9 +132,9 @@ CREATE TABLE public.workflows (
   name text NOT NULL,
   description text,
   definition jsonb NOT NULL,
-  is_active boolean DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  is_public boolean DEFAULT false,
   CONSTRAINT workflows_pkey PRIMARY KEY (id),
   CONSTRAINT workflows_owner_wallet_address_fkey FOREIGN KEY (owner_wallet_address) REFERENCES public.users(wallet_address)
 );

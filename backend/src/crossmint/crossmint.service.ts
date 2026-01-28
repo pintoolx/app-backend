@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, NotFoundException, InternalServerErrorException, ForbiddenException, BadRequestException, RequestTimeoutException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../database/supabase.service';
 import { CrossmintWalletAdapter, CrossmintSolanaWallet } from './crossmint-wallet.adapter';
@@ -79,7 +79,7 @@ export class CrossmintService implements OnModuleInit {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to create Crossmint wallet: ${response.status} - ${errorText}`);
+        throw new InternalServerErrorException(`Failed to create Crossmint wallet: ${response.status} - ${errorText}`);
       }
 
       const wallet: CrossmintWalletResponse = await response.json();
@@ -111,11 +111,11 @@ export class CrossmintService implements OnModuleInit {
       .single();
 
     if (error || !account) {
-      throw new Error(`Account not found: ${accountId}`);
+      throw new NotFoundException(`Account not found: ${accountId}`);
     }
 
     if (!account.crossmint_wallet_locator) {
-      throw new Error(`Account ${accountId} has no Crossmint wallet configured`);
+      throw new BadRequestException(`Account ${accountId} has no Crossmint wallet configured`);
     }
 
     // 獲取 Crossmint 錢包
@@ -146,7 +146,7 @@ export class CrossmintService implements OnModuleInit {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to get Crossmint wallet: ${response.status} - ${errorText}`);
+        throw new InternalServerErrorException(`Failed to get Crossmint wallet: ${response.status} - ${errorText}`);
       }
 
       const walletData: CrossmintWalletResponse = await response.json();
@@ -203,7 +203,7 @@ export class CrossmintService implements OnModuleInit {
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
-      throw new Error(`Failed to create transaction: ${createResponse.status} - ${errorText}`);
+      throw new InternalServerErrorException(`Failed to create transaction: ${createResponse.status} - ${errorText}`);
     }
 
     const txResult = await createResponse.json();
@@ -238,7 +238,7 @@ export class CrossmintService implements OnModuleInit {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to get transaction status: ${response.status}`);
+        throw new InternalServerErrorException(`Failed to get transaction status: ${response.status}`);
       }
 
       const tx = await response.json();
@@ -249,14 +249,14 @@ export class CrossmintService implements OnModuleInit {
       }
 
       if (tx.status === 'failed') {
-        throw new Error(`Transaction failed: ${tx.error}`);
+        throw new InternalServerErrorException(`Transaction failed: ${tx.error}`);
       }
 
       // 等待 1 秒後重試
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    throw new Error('Transaction signing timeout');
+    throw new RequestTimeoutException('Transaction signing timeout');
   }
 
   /**
@@ -276,7 +276,7 @@ export class CrossmintService implements OnModuleInit {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to get transaction status: ${response.status}`);
+        throw new InternalServerErrorException(`Failed to get transaction status: ${response.status}`);
       }
 
       const tx = await response.json();
@@ -286,14 +286,14 @@ export class CrossmintService implements OnModuleInit {
       }
 
       if (tx.status === 'failed') {
-        throw new Error(`Transaction failed: ${tx.error || 'Unknown error'}`);
+        throw new InternalServerErrorException(`Transaction failed: ${tx.error || 'Unknown error'}`);
       }
 
       // 等待 1 秒後重試
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    throw new Error('Transaction completion timeout');
+    throw new RequestTimeoutException('Transaction completion timeout');
   }
 
   /**
@@ -337,11 +337,73 @@ export class CrossmintService implements OnModuleInit {
 
     if (error) {
       this.logger.error(`Failed to create account: ${error.message}`);
-      throw new Error(`Failed to create account: ${error.message}`);
+      throw new InternalServerErrorException(`Failed to create account: ${error.message}`);
     }
 
     this.logger.log(`Account created with Crossmint wallet: ${account.id}`);
 
     return account;
+  }
+
+  /**
+   * Delete (Archive) an account's wallet
+   */
+  async deleteWallet(accountId: string, ownerWalletAddress: string): Promise<void> {
+    // 1. Verify Ownership
+    const { data: account, error } = await this.supabaseService.client
+      .from('accounts')
+      .select('owner_wallet_address')
+      .eq('id', accountId)
+      .single();
+
+    if (error || !account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    if (account.owner_wallet_address !== ownerWalletAddress) {
+      throw new ForbiddenException('Unauthorized: Ownership verification failed');
+    }
+
+    // 2. Perform Deletion (Soft Delete to verify Foreign Key Constraints)
+    // We strictly use soft deletes now to update is_active to false.
+    const { error: deleteError } = await this.supabaseService.client
+      .from('accounts')
+      .update({ is_active: false })
+      .eq('id', accountId);
+
+    if (deleteError) {
+      throw new InternalServerErrorException(`Failed to delete account: ${deleteError.message}`);
+    }
+
+    this.logger.log(`Account soft deleted: ${accountId} by owner ${ownerWalletAddress}`);
+  }
+
+  /**
+   * Export wallet private key (Simulated / Placeholder)
+   * Crossmint MPC usually does not support this.
+   */
+  async exportWallet(accountId: string, ownerWalletAddress: string): Promise<string> {
+    // 1. Verify Ownership
+    const { data: account, error } = await this.supabaseService.client
+      .from('accounts')
+      .select('owner_wallet_address')
+      .eq('id', accountId)
+      .single();
+
+    if (error || !account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    if (account.owner_wallet_address !== ownerWalletAddress) {
+      throw new ForbiddenException('Unauthorized: Ownership verification failed');
+    }
+
+    // 2. Try to export (Mocking failure as expected for MPC)
+    // If Crossmint adds support, we would call their API here using this.baseUrl + apiKey
+    // For now, return a specific message or throw.
+    // User requested "export and close", so we might want to close it too if export were successful.
+    
+    this.logger.warn(`Export requested for ${accountId} - Not supported by Crossmint MPC`);
+    throw new BadRequestException('Exporting private key is not supported for this wallet type.');
   }
 }

@@ -35,7 +35,8 @@ export class AuthController {
     description: 'Invalid wallet address',
   })
   async getChallenge(@Body() dto: WalletChallengeDto) {
-    const challenge = this.authService.generateChallenge(dto.walletAddress);
+    const challenge = await this.authService.generateChallenge(dto.walletAddress);
+    console.log('DEBUG: Generated challenge:', challenge, 'Type:', typeof challenge);
 
     return {
       success: true,

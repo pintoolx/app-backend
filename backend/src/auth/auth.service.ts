@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject, forwardRef, InternalServerErrorException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SupabaseService } from '../database/supabase.service';
 import { PublicKey } from '@solana/web3.js';
@@ -11,9 +11,8 @@ interface ChallengeCache {
 }
 
 @Injectable()
+@Injectable()
 export class AuthService {
-  private challengeCache: Map<string, ChallengeCache> = new Map();
-
   constructor(
     private jwtService: JwtService,
     @Inject(forwardRef(() => SupabaseService))
@@ -26,48 +25,44 @@ export class AuthService {
   /**
    * Generate a challenge message for wallet signature
    */
-  generateChallenge(walletAddress: string): string {
+  async generateChallenge(walletAddress: string): Promise<string> {
     const nonce = this.generateRandomNonce();
     const timestamp = Date.now();
     const expiresIn = 5 * 60 * 1000; // 5 minutes
 
     const challenge = `Sign this message to authenticate with PinTool:\n\nNonce: ${nonce}\nTimestamp: ${timestamp}\nWallet: ${walletAddress}`;
+    const expiresAt = new Date(Date.now() + expiresIn).toISOString();
 
-    this.challengeCache.set(walletAddress, {
-      challenge,
-      expiresAt: Date.now() + expiresIn,
+    // Store in DB (Upsert)
+    const { error } = await this.supabaseService.client.from('auth_challenges').upsert({
+      wallet_address: walletAddress,
+      challenge: challenge,
+      expires_at: expiresAt,
     });
+
+    if (error) {
+      console.error('❌ Failed to store challenge:', error);
+      throw new InternalServerErrorException('Failed to generate challenge');
+    } else {
+      console.log('DEBUG: Upsert success for wallet:', walletAddress);
+    }
 
     console.log(`✅ Generated challenge for wallet: ${walletAddress}`);
     return challenge;
   }
 
   /**
-   * Verify wallet signature and issue JWT token
+   * Verify wallet signature and issue JWT token (Legacy flow, keeping for compatibility if needed)
    */
   async verifySignature(
     walletAddress: string,
     signature: string,
   ): Promise<{ accessToken: string }> {
-    const cached = this.challengeCache.get(walletAddress);
-
-    if (!cached) {
-      throw new UnauthorizedException('Challenge not found or expired');
-    }
-
-    if (Date.now() > cached.expiresAt) {
-      this.challengeCache.delete(walletAddress);
-      throw new UnauthorizedException('Challenge has expired');
-    }
-
-    const isValid = this.verifyWalletSignature(cached.challenge, signature, walletAddress);
+    const isValid = await this.verifyAndConsumeChallenge(walletAddress, signature);
 
     if (!isValid) {
-      throw new UnauthorizedException('Invalid signature');
+      throw new UnauthorizedException('Invalid signature or challenge expired');
     }
-
-    // Remove used challenge
-    this.challengeCache.delete(walletAddress);
 
     // Create or update user in database
     await this.createOrUpdateUser(walletAddress);
@@ -78,6 +73,48 @@ export class AuthService {
 
     console.log(`✅ User authenticated successfully: ${walletAddress}`);
     return { accessToken };
+  }
+
+  /**
+   * Verify signature and consume challenge (For direct signature auth)
+   * Returns true if valid, false otherwise.
+   */
+  async verifyAndConsumeChallenge(walletAddress: string, signature: string): Promise<boolean> {
+    // 1. Get Challenge from DB
+    // 1. Get Challenge from DB
+    const cleanAddress = walletAddress.trim();
+    const { data: rows, error } = await this.supabaseService.client
+      .from('auth_challenges')
+      .select('*')
+      .eq('wallet_address', cleanAddress);
+    
+    if (error || !rows || rows.length === 0) {
+      return false; // Challenge not found
+    }
+    
+    const cached = rows[0];
+
+    // 2. Check Expiry
+    if (new Date() > new Date(cached.expires_at)) {
+      await this.deleteChallenge(walletAddress);
+      return false; // Expired
+    }
+
+    // 3. Verify Signature
+    const isValid = this.verifyWalletSignature(cached.challenge, signature, walletAddress);
+
+    // 4. Consume (Delete) Challenge
+    if (isValid) {
+      // Ensure user exists (to satisfy FK constraints)
+      await this.createOrUpdateUser(cleanAddress);
+      
+      await this.deleteChallenge(walletAddress);
+      return true;
+    }
+
+    return false;
+
+    return false;
   }
 
   /**
@@ -117,26 +154,31 @@ export class AuthService {
 
     if (error) {
       console.error('❌ Failed to create/update user:', error);
-      throw new Error('Failed to create user');
+      throw new InternalServerErrorException('Failed to create user');
     }
   }
 
   /**
-   * Clean expired challenges from cache
+   * Delete challenge from DB
    */
-  private cleanExpiredChallenges() {
-    const now = Date.now();
-    let cleaned = 0;
+  private async deleteChallenge(walletAddress: string) {
+    await this.supabaseService.client
+      .from('auth_challenges')
+      .delete()
+      .eq('wallet_address', walletAddress);
+  }
 
-    for (const [walletAddress, cache] of this.challengeCache.entries()) {
-      if (now > cache.expiresAt) {
-        this.challengeCache.delete(walletAddress);
-        cleaned++;
-      }
-    }
+  /**
+   * Clean expired challenges from DB
+   */
+  private async cleanExpiredChallenges() {
+    const { error, count } = await this.supabaseService.client
+      .from('auth_challenges')
+      .delete({ count: 'exact' })
+      .lt('expires_at', new Date().toISOString());
 
-    if (cleaned > 0) {
-      console.log(`🧹 Cleaned ${cleaned} expired challenges`);
+    if (!error && count && count > 0) {
+      console.log(`🧹 Cleaned ${count} expired challenges`);
     }
   }
 
