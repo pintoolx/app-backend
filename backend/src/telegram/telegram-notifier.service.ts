@@ -6,6 +6,10 @@ import { TelegramBot } from 'typescript-telegram-bot-api';
 export class TelegramNotifierService {
   private bot: TelegramBot;
   private enabled: boolean;
+  private queue: Array<{ chatId: string; text: string; parse_mode: 'Markdown' }> = [];
+  private processingTimer: NodeJS.Timeout | null = null;
+  private lastSentAt = 0;
+  private readonly MIN_INTERVAL_MS = 250;
 
   constructor(private configService: ConfigService) {
     const token = this.configService.get<string>('telegram.botToken');
@@ -34,16 +38,7 @@ Execution ID: \`${executionId}\`
 Time: ${new Date().toLocaleString('en-US')}
     `.trim();
 
-    try {
-      await this.bot.sendMessage({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'Markdown',
-      });
-      console.log(`✅ Workflow start notification sent to ${chatId}`);
-    } catch (error) {
-      console.error('❌ Failed to send Telegram notification:', error.message);
-    }
+    this.enqueueMessage(chatId, message);
   }
 
   async sendNodeExecutionNotification(
@@ -70,16 +65,7 @@ Time: ${new Date().toLocaleString('en-US')}
       message += `TX: \`${result.transactionSignature}\``;
     }
 
-    try {
-      await this.bot.sendMessage({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'Markdown',
-      });
-      console.log(`✅ Node execution notification sent: ${nodeName}`);
-    } catch (error) {
-      console.error('❌ Failed to send node notification:', error.message);
-    }
+    this.enqueueMessage(chatId, message);
   }
 
   async sendWorkflowCompleteNotification(
@@ -99,16 +85,7 @@ Completed: ${new Date().toLocaleString('en-US')}
 All nodes executed successfully.
     `.trim();
 
-    try {
-      await this.bot.sendMessage({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'Markdown',
-      });
-      console.log(`✅ Workflow complete notification sent`);
-    } catch (error) {
-      console.error('❌ Failed to send completion notification:', error.message);
-    }
+    this.enqueueMessage(chatId, message);
   }
 
   async sendWorkflowErrorNotification(
@@ -132,16 +109,7 @@ ${error}
 \`\`\`
     `.trim();
 
-    try {
-      await this.bot.sendMessage({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'Markdown',
-      });
-      console.log(`✅ Error notification sent`);
-    } catch (error) {
-      console.error('❌ Failed to send error notification:', error.message);
-    }
+    this.enqueueMessage(chatId, message);
   }
 
   private getNodeTypeEmoji(nodeType: string): string {
@@ -151,6 +119,48 @@ ${error}
       kamino: '🏦',
     };
     return emojiMap[nodeType] || '🔧';
+  }
+
+  private enqueueMessage(chatId: string, message: string) {
+    if (!this.enabled || !chatId) return;
+    this.queue.push({ chatId, text: message, parse_mode: 'Markdown' });
+    this.scheduleProcessing();
+  }
+
+  private scheduleProcessing() {
+    if (this.processingTimer) return;
+    const delay = Math.max(0, this.MIN_INTERVAL_MS - (Date.now() - this.lastSentAt));
+    this.processingTimer = setTimeout(() => {
+      this.processingTimer = null;
+      this.processQueue();
+    }, delay);
+  }
+
+  private async processQueue() {
+    if (this.queue.length === 0) {
+      return;
+    }
+
+    const next = this.queue.shift();
+    if (!next) {
+      return;
+    }
+
+    try {
+      await this.bot.sendMessage({
+        chat_id: next.chatId,
+        text: next.text,
+        parse_mode: next.parse_mode,
+      });
+      this.lastSentAt = Date.now();
+    } catch (error) {
+      console.error('❌ Failed to send Telegram notification:', error.message);
+      this.lastSentAt = Date.now();
+    } finally {
+      if (this.queue.length > 0) {
+        this.scheduleProcessing();
+      }
+    }
   }
 
   // Wrapper methods for compatibility with WorkflowExecutor

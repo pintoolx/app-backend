@@ -11,6 +11,37 @@ export class WorkflowsService {
     private executorFactory: WorkflowExecutorFactory,
   ) {}
 
+  private inflightExecutionKeys = new Set<string>();
+
+  private buildExecutionKey(workflowId: string, walletAddress: string, accountId?: string) {
+    return `${workflowId}:${walletAddress}:${accountId ?? 'none'}`;
+  }
+
+  private async findRunningExecution(
+    workflowId: string,
+    walletAddress: string,
+    accountId?: string,
+  ) {
+    const query = this.supabaseService.client
+      .from('workflow_executions')
+      .select('*')
+      .eq('workflow_id', workflowId)
+      .eq('owner_wallet_address', walletAddress)
+      .eq('status', 'running');
+
+    if (accountId) {
+      query.eq('account_id', accountId);
+    } else {
+      query.is('account_id', null);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(1);
+    if (error) {
+      return null;
+    }
+    return data?.[0] ?? null;
+  }
+
   private async getWorkflow(id: string, walletAddress: string) {
     const { data, error } = await this.supabaseService.client
       .from('workflows')
@@ -31,6 +62,27 @@ export class WorkflowsService {
 
     console.log(`⚙️ Executing workflow: ${workflow.name}`);
 
+    const executionKey = this.buildExecutionKey(id, walletAddress, executeDto.accountId);
+    const runningExecution = await this.findRunningExecution(
+      id,
+      walletAddress,
+      executeDto.accountId,
+    );
+    if (runningExecution) {
+      return runningExecution;
+    }
+    if (this.inflightExecutionKeys.has(executionKey)) {
+      const inflightExecution = await this.findRunningExecution(
+        id,
+        walletAddress,
+        executeDto.accountId,
+      );
+      if (inflightExecution) {
+        return inflightExecution;
+      }
+    }
+    this.inflightExecutionKeys.add(executionKey);
+
     // Create execution record
     const { data: execution, error } = await this.supabaseService.client
       .from('workflow_executions')
@@ -47,6 +99,7 @@ export class WorkflowsService {
       .single();
 
     if (error) {
+      this.inflightExecutionKeys.delete(executionKey);
       console.error('❌ Failed to create execution:', error);
       throw new Error('Failed to start workflow execution');
     }
@@ -108,7 +161,8 @@ export class WorkflowsService {
               summary: 'Completed successfully',
             },
           })
-          .eq('id', execution.id);
+          .eq('id', execution.id)
+          .eq('status', 'running');
 
         console.log(`✅ Workflow execution completed successfully: ${execution.id}`);
       } catch (err) {
@@ -126,7 +180,10 @@ export class WorkflowsService {
               summary: `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
             },
           })
-          .eq('id', execution.id);
+          .eq('id', execution.id)
+          .eq('status', 'running');
+      } finally {
+        this.inflightExecutionKeys.delete(executionKey);
       }
     })();
 

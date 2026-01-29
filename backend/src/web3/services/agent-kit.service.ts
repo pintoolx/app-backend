@@ -3,6 +3,49 @@ import { ConfigService } from '@nestjs/config';
 import { CrossmintService } from '../../crossmint/crossmint.service';
 import { CrossmintWalletAdapter } from '../../crossmint/crossmint-wallet.adapter';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const createLimiter = (max: number) => {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (active >= max) {
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    active += 1;
+    try {
+      return await fn();
+    } finally {
+      active -= 1;
+      const next = queue.shift();
+      if (next) next();
+    }
+  };
+};
+
+const withRetry = async <T>(
+  fn: () => Promise<T>,
+  attempts: number = 3,
+  baseDelay: number = 200,
+  maxDelay: number = 2000,
+): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts - 1) break;
+      const delay = Math.min(maxDelay, baseDelay * 2 ** attempt);
+      const jitter = Math.floor(Math.random() * delay * 0.2);
+      await sleep(delay + jitter);
+    }
+  }
+  throw lastError;
+};
+
+const externalApiLimiter = createLimiter(5);
+
 /**
  * Agent Kit Service
  *
@@ -73,23 +116,31 @@ export class AgentKitService {
     const jupiterApi = createJupiterApiClient();
 
     // 1. 獲取報價
-    const quote = await jupiterApi.quoteGet({
-      inputMint,
-      outputMint,
-      amount,
-      slippageBps,
-    });
+    const quote = await withRetry(() =>
+      externalApiLimiter(() =>
+        jupiterApi.quoteGet({
+          inputMint,
+          outputMint,
+          amount,
+          slippageBps,
+        }),
+      ),
+    );
 
     this.logger.log(`  Quote received: ${quote.outAmount} output tokens`);
 
     // 2. 獲取序列化交易
-    const swapResult = await jupiterApi.swapPost({
-      swapRequest: {
-        quoteResponse: quote,
-        userPublicKey: wallet.publicKey.toBase58(),
-        wrapAndUnwrapSol: true,
-      },
-    });
+    const swapResult = await withRetry(() =>
+      externalApiLimiter(() =>
+        jupiterApi.swapPost({
+          swapRequest: {
+            quoteResponse: quote,
+            userPublicKey: wallet.publicKey.toBase58(),
+            wrapAndUnwrapSol: true,
+          },
+        }),
+      ),
+    );
 
     // 3. 反序列化交易
     const { VersionedTransaction } = await import('@solana/web3.js');

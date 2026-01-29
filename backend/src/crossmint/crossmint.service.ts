@@ -12,6 +12,63 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../database/supabase.service';
 import { CrossmintWalletAdapter, CrossmintSolanaWallet } from './crossmint-wallet.adapter';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const createLimiter = (max: number) => {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (active >= max) {
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    active += 1;
+    try {
+      return await fn();
+    } finally {
+      active -= 1;
+      const next = queue.shift();
+      if (next) next();
+    }
+  };
+};
+
+const withRetry = async <T>(
+  fn: () => Promise<T>,
+  attempts: number = 3,
+  baseDelay: number = 200,
+  maxDelay: number = 2000,
+): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts - 1) break;
+      const delay = Math.min(maxDelay, baseDelay * 2 ** attempt);
+      const jitter = Math.floor(Math.random() * delay * 0.2);
+      await sleep(delay + jitter);
+    }
+  }
+  throw lastError;
+};
+
+const fetchWithTimeout = async (
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number = 10000,
+) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const externalApiLimiter = createLimiter(5);
+
 /**
  * Crossmint API 回應類型
  */
@@ -73,18 +130,26 @@ export class CrossmintService implements OnModuleInit {
     this.logger.log(`Creating Crossmint wallet for user: ${userId}, index: ${accountIndex}`);
 
     try {
-      const response = await fetch(`${this.baseUrl}/2025-06-09/wallets`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': this.apiKey,
-        },
-        body: JSON.stringify({
-          chainType: 'solana',
-          type: 'smart',
-          owner: locator,
-        }),
-      });
+      const response = await withRetry(() =>
+        externalApiLimiter(() =>
+          fetchWithTimeout(
+            `${this.baseUrl}/2025-06-09/wallets`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-API-KEY': this.apiKey,
+              },
+              body: JSON.stringify({
+                chainType: 'solana',
+                type: 'smart',
+                owner: locator,
+              }),
+            },
+            15000,
+          ),
+        ),
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -145,14 +210,19 @@ export class CrossmintService implements OnModuleInit {
     this.logger.debug(`Getting Crossmint wallet: ${locator}`);
 
     try {
-      const response = await fetch(
-        `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}`,
-        {
-          method: 'GET',
-          headers: {
-            'X-API-KEY': this.apiKey,
-          },
-        },
+      const response = await withRetry(() =>
+        externalApiLimiter(() =>
+          fetchWithTimeout(
+            `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}`,
+            {
+              method: 'GET',
+              headers: {
+                'X-API-KEY': this.apiKey,
+              },
+            },
+            10000,
+          ),
+        ),
       );
 
       if (!response.ok) {
@@ -198,20 +268,25 @@ export class CrossmintService implements OnModuleInit {
     const serializedTx = Buffer.from(transaction.serialize()).toString('base64');
 
     // 創建交易
-    const createResponse = await fetch(
-      `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}/transactions`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': this.apiKey,
-        },
-        body: JSON.stringify({
-          params: {
-            transaction: serializedTx,
+    const createResponse = await withRetry(() =>
+      externalApiLimiter(() =>
+        fetchWithTimeout(
+          `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}/transactions`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-KEY': this.apiKey,
+            },
+            body: JSON.stringify({
+              params: {
+                transaction: serializedTx,
+              },
+            }),
           },
-        }),
-      },
+          15000,
+        ),
+      ),
     );
 
     if (!createResponse.ok) {
@@ -245,11 +320,16 @@ export class CrossmintService implements OnModuleInit {
     maxAttempts: number = 30,
   ): Promise<any> {
     for (let i = 0; i < maxAttempts; i++) {
-      const response = await fetch(
-        `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}/transactions/${transactionId}`,
-        {
-          headers: { 'X-API-KEY': this.apiKey },
-        },
+      const response = await withRetry(() =>
+        externalApiLimiter(() =>
+          fetchWithTimeout(
+            `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}/transactions/${transactionId}`,
+            {
+              headers: { 'X-API-KEY': this.apiKey },
+            },
+            10000,
+          ),
+        ),
       );
 
       if (!response.ok) {
@@ -285,11 +365,16 @@ export class CrossmintService implements OnModuleInit {
     maxAttempts: number = 60,
   ): Promise<any> {
     for (let i = 0; i < maxAttempts; i++) {
-      const response = await fetch(
-        `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}/transactions/${transactionId}`,
-        {
-          headers: { 'X-API-KEY': this.apiKey },
-        },
+      const response = await withRetry(() =>
+        externalApiLimiter(() =>
+          fetchWithTimeout(
+            `${this.baseUrl}/2025-06-09/wallets/${encodeURIComponent(locator)}/transactions/${transactionId}`,
+            {
+              headers: { 'X-API-KEY': this.apiKey },
+            },
+            10000,
+          ),
+        ),
       );
 
       if (!response.ok) {

@@ -44,6 +44,7 @@ export class WorkflowInstance {
   private agentKitService?: AgentKitService;
   private crossmintWalletAddress?: string;
   private executionLogs: any[] = [];
+  private isRunning = false;
 
   constructor(config: WorkflowInstanceConfig) {
     this.workflowDefinition = config.workflowDefinition;
@@ -76,6 +77,10 @@ export class WorkflowInstance {
    * Execute the workflow
    */
   async execute(): Promise<Map<string, NodeExecutionData[][]>> {
+    if (this.isRunning) {
+      throw new Error('Workflow execution already running');
+    }
+    this.isRunning = true;
     const startTime = Date.now();
     console.log(`[Instance ${this.executionId}] Starting workflow: ${this.workflowName}`);
 
@@ -125,6 +130,8 @@ export class WorkflowInstance {
         );
       }
       throw error;
+    } finally {
+      this.isRunning = false;
     }
   }
 

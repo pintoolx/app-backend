@@ -2,6 +2,63 @@ import { type INodeType, type IExecuteContext, type NodeExecutionData } from '..
 import { AgentKitService } from '../services/agent-kit.service';
 import { VersionedTransaction } from '@solana/web3.js';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const createLimiter = (max: number) => {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (active >= max) {
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    active += 1;
+    try {
+      return await fn();
+    } finally {
+      active -= 1;
+      const next = queue.shift();
+      if (next) next();
+    }
+  };
+};
+
+const withRetry = async <T>(
+  fn: () => Promise<T>,
+  attempts: number = 3,
+  baseDelay: number = 200,
+  maxDelay: number = 2000,
+): Promise<T> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts - 1) break;
+      const delay = Math.min(maxDelay, baseDelay * 2 ** attempt);
+      const jitter = Math.floor(Math.random() * delay * 0.2);
+      await sleep(delay + jitter);
+    }
+  }
+  throw lastError;
+};
+
+const fetchWithTimeout = async (
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number = 10000,
+) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const externalApiLimiter = createLimiter(5);
+
 /**
  * 流動性質押代幣 (LST) 地址
  */
@@ -273,13 +330,18 @@ export class SanctumNode implements INodeType {
    * 獲取 APY
    */
   private async getApys(lstList: string[]): Promise<Record<string, number>> {
-    const response = await fetch(
-      `https://sanctum-extra-api.ngrok.dev/v1/apy/latest?lst=${lstList.join(',')}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
+    const response = await withRetry(() =>
+      externalApiLimiter(() =>
+        fetchWithTimeout(
+          `https://sanctum-extra-api.ngrok.dev/v1/apy/latest?lst=${lstList.join(',')}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+          10000,
+        ),
+      ),
     );
 
     if (!response.ok) {
@@ -298,13 +360,18 @@ export class SanctumNode implements INodeType {
     outputMint: string,
     amount: string,
   ): Promise<SanctumQuoteResponse> {
-    const response = await fetch(
-      `https://api.sanctum.so/v1/swap/quote?input=${inputMint}&outputLstMint=${outputMint}&amount=${amount}&mode=ExactIn`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
+    const response = await withRetry(() =>
+      externalApiLimiter(() =>
+        fetchWithTimeout(
+          `https://api.sanctum.so/v1/swap/quote?input=${inputMint}&outputLstMint=${outputMint}&amount=${amount}&mode=ExactIn`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+          10000,
+        ),
+      ),
     );
 
     if (!response.ok) {
@@ -328,25 +395,33 @@ export class SanctumNode implements INodeType {
   }): Promise<SanctumSwapResponse> {
     const { inputMint, outputMint, amount, quotedAmount, userPubkey, priorityFee } = params;
 
-    const response = await fetch('https://api.sanctum.so/v1/swap', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        input: inputMint,
-        outputLstMint: outputMint,
-        amount,
-        quotedAmount,
-        signer: userPubkey,
-        mode: 'ExactIn',
-        priorityFee: {
-          Auto: {
-            max_unit_price_micro_lamports: priorityFee,
+    const response = await withRetry(() =>
+      externalApiLimiter(() =>
+        fetchWithTimeout(
+          'https://api.sanctum.so/v1/swap',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              input: inputMint,
+              outputLstMint: outputMint,
+              amount,
+              quotedAmount,
+              signer: userPubkey,
+              mode: 'ExactIn',
+              priorityFee: {
+                Auto: {
+                  max_unit_price_micro_lamports: priorityFee,
+                },
+              },
+            }),
           },
-        },
-      }),
-    });
+          15000,
+        ),
+      ),
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

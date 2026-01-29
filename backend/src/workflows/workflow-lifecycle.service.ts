@@ -8,8 +8,9 @@ import { WorkflowDefinition } from '../web3/workflow-types';
 export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WorkflowLifecycleManager.name);
   private activeInstances = new Map<string, WorkflowInstance>(); // Map<AccountId, WorkflowInstance>
-  private pollingInterval: NodeJS.Timeout | null = null;
-  private readonly POLLING_MS = 30000; // 30 seconds
+  private pollingTimeout: NodeJS.Timeout | null = null;
+  private syncInProgress = false;
+  private readonly POLLING_MS = 5 * 60 * 1000;
 
   constructor(
     private supabaseService: SupabaseService,
@@ -26,21 +27,35 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
 
   private startPolling() {
     this.logger.log('Starting workflow lifecycle polling...');
-    if (this.pollingInterval) return;
-
-    // Initial sync
-    this.syncInstances();
-
-    // Start loop
-    this.pollingInterval = setInterval(() => {
-      this.syncInstances();
-    }, this.POLLING_MS);
+    if (this.pollingTimeout) return;
+    this.pollingTimeout = setTimeout(() => {
+      this.pollingLoop();
+    }, 0);
   }
 
   private stopPolling() {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
+    if (this.pollingTimeout) {
+      clearTimeout(this.pollingTimeout);
+      this.pollingTimeout = null;
+    }
+  }
+
+  private async pollingLoop() {
+    if (!this.pollingTimeout) return;
+    await this.runSyncOnce();
+    if (!this.pollingTimeout) return;
+    this.pollingTimeout = setTimeout(() => {
+      this.pollingLoop();
+    }, this.POLLING_MS);
+  }
+
+  private async runSyncOnce() {
+    if (this.syncInProgress) return;
+    this.syncInProgress = true;
+    try {
+      await this.syncInstances();
+    } finally {
+      this.syncInProgress = false;
     }
   }
 
@@ -59,6 +74,7 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
           name,
           current_workflow_id,
           crossmint_wallet_address,
+          users!owner_wallet_address ( wallet_address, telegram_mappings ( chat_id ) ),
           workflows!current_workflow_id (
              id,
              name,
@@ -100,8 +116,10 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
             `Starting new instance for Account ${account.id} (Workflow: ${workflow.name})`,
           );
 
-          // Fetch Chat ID if needed
-          const chatId = await this.getChatId(account.owner_wallet_address);
+          const userMappings = (account as any)?.users?.telegram_mappings;
+          const chatId = Array.isArray(userMappings)
+            ? userMappings[0]?.chat_id
+            : userMappings?.chat_id;
 
           const instance = this.executorFactory.createInstance({
             workflowDefinition: workflow.definition as WorkflowDefinition,
@@ -140,14 +158,5 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.error('Error in syncInstances', err);
     }
-  }
-
-  private async getChatId(walletAddress: string): Promise<string | undefined> {
-    const { data } = await this.supabaseService.client
-      .from('telegram_mappings')
-      .select('chat_id')
-      .eq('wallet_address', walletAddress)
-      .single();
-    return data?.chat_id;
   }
 }
