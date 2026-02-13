@@ -9,6 +9,7 @@ export interface PriceMonitorOptions {
   condition: 'above' | 'below' | 'equal';
   hermesEndpoint?: string;
   onPriceUpdate?: (currentPrice: number) => void; // 回调函数，每次价格更新时调用
+  abortSignal?: AbortSignal;
 }
 
 export interface PriceMonitorResult {
@@ -32,6 +33,7 @@ export async function monitorPrice(options: PriceMonitorOptions): Promise<PriceM
     condition,
     hermesEndpoint = 'https://hermes.pyth.network',
     onPriceUpdate,
+    abortSignal,
   } = options;
 
   // 从 constant 中获取 priceId
@@ -53,6 +55,18 @@ export async function monitorPrice(options: PriceMonitorOptions): Promise<PriceM
         eventSource.close();
       }
     };
+
+    if (abortSignal?.aborted) {
+      reject(new Error('Aborted'));
+      return;
+    }
+
+    if (abortSignal) {
+      abortSignal.addEventListener('abort', () => {
+        cleanup();
+        reject(new Error('Aborted'));
+      }, { once: true });
+    }
 
     // 开始监听价格
     hermesClient

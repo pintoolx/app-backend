@@ -10,7 +10,7 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
   private activeInstances = new Map<string, WorkflowInstance>(); // Map<AccountId, WorkflowInstance>
   private pollingTimeout: NodeJS.Timeout | null = null;
   private syncInProgress = false;
-  private readonly POLLING_MS = 5 * 60 * 1000;
+  private readonly POLLING_MS = 60 * 1000;
 
   constructor(
     private supabaseService: SupabaseService,
@@ -145,18 +145,126 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
 
           // Let's assume for now we just create it. If it needs to run a loop, the Workflow Definition
           // usually handles loops or the instance does.
-          // Detailed Requirement: "專注於執行該 workflow 的內容".
-          // I will add a `start()` or similar if the instance is meant to run autonomously.
-
-          // Re-reading `WorkflowInstance`: It has `execute()`.
-          // If I call `execute()`, it runs through nodes once.
-          // If the workflow is a "looping bot", the workflow definition might have a loop.
-
           this.activeInstances.set(account.id, instance);
+
+          instance.execute().catch((err) => {
+            this.logger.error(`Failed to execute workflow for account ${account.id}`, err);
+          });
         }
       }
     } catch (err) {
       this.logger.error('Error in syncInstances', err);
+    }
+  }
+
+  /**
+   * 列出所有目前在記憶體中的 active workflow instances
+   */
+  getActiveInstances(): Array<{
+    accountId: string;
+    executionId: string;
+    workflowName: string;
+    ownerWalletAddress?: string;
+    isRunning: boolean;
+    nodeCount: number;
+    startedAt: string;
+  }> {
+    const results: Array<{
+      accountId: string;
+      executionId: string;
+      workflowName: string;
+      ownerWalletAddress?: string;
+      isRunning: boolean;
+      nodeCount: number;
+      startedAt: string;
+    }> = [];
+
+    for (const [accountId, instance] of this.activeInstances.entries()) {
+      results.push({
+        accountId,
+        executionId: instance.executionId,
+        workflowName: instance.workflowName,
+        ownerWalletAddress: instance.ownerWalletAddress,
+        isRunning: instance.running,
+        nodeCount: instance.nodeCount,
+        startedAt: instance.startedAt.toISOString(),
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Start a workflow for a specific account (best-effort, no-throw).
+   * Called after account creation to immediately trigger execution.
+   */
+  async startWorkflowForAccount(accountId: string): Promise<void> {
+    try {
+      if (this.activeInstances.has(accountId)) {
+        this.logger.debug(`Account ${accountId} already has an active instance, skipping.`);
+        return;
+      }
+
+      const { data: account, error } = await this.supabaseService.client
+        .from('accounts')
+        .select(
+          `
+          id,
+          owner_wallet_address,
+          name,
+          current_workflow_id,
+          crossmint_wallet_address,
+          users!owner_wallet_address ( wallet_address, telegram_mappings ( chat_id ) ),
+          workflows!current_workflow_id (
+             id,
+             name,
+             definition
+          )
+        `,
+        )
+        .eq('id', accountId)
+        .eq('is_active', true)
+        .not('current_workflow_id', 'is', null)
+        .single();
+
+      if (error || !account) {
+        this.logger.debug(`Account ${accountId} not ready for workflow execution.`);
+        return;
+      }
+
+      const workflow = account.workflows as any;
+
+      if (!workflow || !workflow.definition) {
+        this.logger.debug(`Account ${accountId} has no workflow definition, skipping.`);
+        return;
+      }
+
+      this.logger.log(
+        `Starting workflow for account ${accountId} (Workflow: ${workflow.name})`,
+      );
+
+      const userMappings = (account as any)?.users?.telegram_mappings;
+      const chatId = Array.isArray(userMappings)
+        ? userMappings[0]?.chat_id
+        : userMappings?.chat_id;
+
+      const instance = this.executorFactory.createInstance({
+        workflowDefinition: workflow.definition as WorkflowDefinition,
+        executionId: `auto-${accountId}-${Date.now()}`,
+        workflowName: workflow.name,
+        chatId,
+        accountId: account.id,
+        ownerWalletAddress: account.owner_wallet_address,
+        crossmintWalletAddress: account.crossmint_wallet_address,
+      });
+
+      this.activeInstances.set(accountId, instance);
+
+      instance.execute().catch((err) => {
+        this.logger.error(`Failed to execute workflow for account ${accountId}`, err);
+      });
+    } catch (err) {
+      this.logger.error(`Error starting workflow for account ${accountId}`, err);
     }
   }
 }

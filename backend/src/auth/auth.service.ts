@@ -1,17 +1,24 @@
-import { Injectable, Inject, forwardRef, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, InternalServerErrorException, OnModuleDestroy } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { SupabaseService } from '../database/supabase.service';
 import { PublicKey } from '@solana/web3.js';
 import * as nacl from 'tweetnacl';
 import bs58 from 'bs58';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleDestroy {
+  private cleanupInterval: NodeJS.Timeout;
+
   constructor(
     @Inject(forwardRef(() => SupabaseService))
     private supabaseService: SupabaseService,
   ) {
     // Clean expired challenges every 5 minutes
-    setInterval(() => this.cleanExpiredChallenges(), 5 * 60 * 1000);
+    this.cleanupInterval = setInterval(() => this.cleanExpiredChallenges(), 5 * 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.cleanupInterval);
   }
 
   /**
@@ -79,8 +86,6 @@ export class AuthService {
       await this.deleteChallenge(walletAddress);
       return true;
     }
-
-    return false;
 
     return false;
   }
@@ -154,8 +159,6 @@ export class AuthService {
    * Generate a random nonce
    */
   private generateRandomNonce(): string {
-    return (
-      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-    );
+    return randomBytes(16).toString('hex');
   }
 }

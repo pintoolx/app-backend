@@ -117,6 +117,7 @@ export class SanctumNode implements INodeType {
     inputs: ['main'],
     outputs: ['main'],
     telegramNotify: true,
+    isTrigger: false,
     properties: [
       {
         displayName: 'Account ID',

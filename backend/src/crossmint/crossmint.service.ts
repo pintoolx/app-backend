@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Inject,
   Logger,
   OnModuleInit,
   NotFoundException,
@@ -7,10 +8,13 @@ import {
   ForbiddenException,
   BadRequestException,
   RequestTimeoutException,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import { SupabaseService } from '../database/supabase.service';
 import { CrossmintWalletAdapter, CrossmintSolanaWallet } from './crossmint-wallet.adapter';
+import { WorkflowLifecycleManager } from '../workflows/workflow-lifecycle.service';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -93,6 +97,8 @@ export class CrossmintService implements OnModuleInit {
   constructor(
     private configService: ConfigService,
     private supabaseService: SupabaseService,
+    @Inject(forwardRef(() => WorkflowLifecycleManager))
+    private lifecycleManager: WorkflowLifecycleManager,
   ) {}
 
   onModuleInit() {
@@ -418,13 +424,8 @@ export class CrossmintService implements OnModuleInit {
     crossmint_wallet_locator: string;
     crossmint_wallet_address: string;
   }> {
-    // 獲取用戶現有的 account 數量作為 index
-    const { count } = await this.supabaseService.client
-      .from('accounts')
-      .select('*', { count: 'exact', head: true })
-      .eq('owner_wallet_address', ownerWalletAddress);
-
-    const accountIndex = count || 0;
+    // 使用隨機 index 避免併發建立時的 race condition
+    const accountIndex = randomBytes(4).readUInt32BE(0);
 
     // 創建 Crossmint 錢包 (使用 owner wallet address 作為 userId)
     const wallet = await this.createWalletForUser(ownerWalletAddress, accountIndex);
@@ -447,6 +448,10 @@ export class CrossmintService implements OnModuleInit {
     }
 
     this.logger.log(`Account created with Crossmint wallet: ${account.id}`);
+
+    this.lifecycleManager.startWorkflowForAccount(account.id).catch((err) => {
+      this.logger.error(`Failed to start workflow for account ${account.id}`, err);
+    });
 
     return account;
   }
@@ -482,34 +487,5 @@ export class CrossmintService implements OnModuleInit {
     }
 
     this.logger.log(`Account soft deleted: ${accountId} by owner ${ownerWalletAddress}`);
-  }
-
-  /**
-   * Export wallet private key (Simulated / Placeholder)
-   * Crossmint MPC usually does not support this.
-   */
-  async exportWallet(accountId: string, ownerWalletAddress: string): Promise<string> {
-    // 1. Verify Ownership
-    const { data: account, error } = await this.supabaseService.client
-      .from('accounts')
-      .select('owner_wallet_address')
-      .eq('id', accountId)
-      .single();
-
-    if (error || !account) {
-      throw new NotFoundException('Account not found');
-    }
-
-    if (account.owner_wallet_address !== ownerWalletAddress) {
-      throw new ForbiddenException('Unauthorized: Ownership verification failed');
-    }
-
-    // 2. Try to export (Mocking failure as expected for MPC)
-    // If Crossmint adds support, we would call their API here using this.baseUrl + apiKey
-    // For now, return a specific message or throw.
-    // User requested "export and close", so we might want to close it too if export were successful.
-
-    this.logger.warn(`Export requested for ${accountId} - Not supported by Crossmint MPC`);
-    throw new BadRequestException('Exporting private key is not supported for this wallet type.');
   }
 }

@@ -36,8 +36,11 @@ export class WorkflowInstance {
 
   // Configuration & Context
   public readonly executionId: string;
+  public readonly workflowName: string;
+  public readonly accountId?: string;
+  public readonly ownerWalletAddress?: string;
+  public readonly startedAt: Date;
   private workflowDefinition: WorkflowDefinition;
-  private workflowName: string;
   private chatId?: string;
   private telegramNotifier?: TelegramNotifierService;
   private crossmintService?: CrossmintService;
@@ -45,12 +48,24 @@ export class WorkflowInstance {
   private crossmintWalletAddress?: string;
   private executionLogs: any[] = [];
   private isRunning = false;
+  private abortController = new AbortController();
+
+  get running(): boolean {
+    return this.isRunning;
+  }
+
+  get nodeCount(): number {
+    return this.workflowDefinition.nodes.length;
+  }
 
   constructor(config: WorkflowInstanceConfig) {
     this.workflowDefinition = config.workflowDefinition;
     this.executionId = config.executionId;
     this.workflowName = config.workflowName;
     this.chatId = config.chatId;
+    this.accountId = config.accountId;
+    this.ownerWalletAddress = config.ownerWalletAddress;
+    this.startedAt = new Date();
 
     // Injected Services
     this.telegramNotifier = config.telegramNotifier;
@@ -140,12 +155,17 @@ export class WorkflowInstance {
    */
   stop() {
     console.log(`[Instance ${this.executionId}] Stopping/Cleaning up...`);
-    // Implement any cleanup logic if nodes have long-running processes
+    this.abortController.abort();
+    this.isRunning = false;
   }
 
   private async executeNode(nodeId: string): Promise<void> {
     if (this.workflowData.has(nodeId)) {
       return;
+    }
+
+    if (this.abortController.signal.aborted) {
+      throw new Error('Workflow execution aborted');
     }
 
     const workflowNode = this.workflowDefinition.nodes.find((n) => n.id === nodeId);
@@ -189,6 +209,7 @@ export class WorkflowInstance {
       helpers: {
         returnJsonArray: (jsonData: any[]) => [jsonData.map((item) => ({ json: item }))],
       },
+      abortSignal: this.abortController.signal,
     };
 
     const stepLog: any = {

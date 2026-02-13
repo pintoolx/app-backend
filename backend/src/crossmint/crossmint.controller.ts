@@ -5,7 +5,6 @@ import {
   Body,
   Param,
   UnauthorizedException,
-  HttpCode,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CrossmintService } from './crossmint.service';
@@ -63,29 +62,5 @@ export class CrossmintController {
     // 2. Perform Delete with Ownership Check
     await this.crossmintService.deleteWallet(id, dto.walletAddress);
     return { success: true, message: 'Wallet deleted' };
-  }
-
-  @Post(':id/export')
-  @ApiOperation({
-    summary: 'Export wallet private key',
-    description:
-      'Requires valid signature from the owner wallet. Note: MPC wallets may not support this.',
-  })
-  @ApiResponse({ status: 200, description: 'Key exported' })
-  @ApiResponse({ status: 400, description: 'Not supported' })
-  @HttpCode(200)
-  async exportWallet(@Param('id') id: string, @Body() dto: SignedRequestDto) {
-    // 1. Verify Signature
-    const isValid = await this.authService.verifyAndConsumeChallenge(
-      dto.walletAddress,
-      dto.signature,
-    );
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid signature or challenge expired');
-    }
-
-    // 2. Try Export with Ownership Check
-    const privateKey = await this.crossmintService.exportWallet(id, dto.walletAddress);
-    return { success: true, privateKey };
   }
 }

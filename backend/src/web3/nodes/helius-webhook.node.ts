@@ -123,6 +123,7 @@ export class HeliusWebhookNode implements INodeType {
     inputs: ['main'],
     outputs: ['main'],
     telegramNotify: false,
+    isTrigger: true,
     properties: [
       {
         displayName: 'Operation',

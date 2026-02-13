@@ -12,6 +12,7 @@ export class PriceFeedNode implements INodeType {
     inputs: ['main'],
     outputs: ['main'],
     telegramNotify: true,
+    isTrigger: true,
     properties: [
       {
         displayName: 'Token Ticker',
@@ -89,6 +90,7 @@ export class PriceFeedNode implements INodeType {
           targetPrice,
           condition,
           hermesEndpoint,
+          abortSignal: context.abortSignal,
           onPriceUpdate: (currentPrice) => {
             console.log(
               `Current price: ${currentPrice}, Target: ${targetPrice}, Condition: ${condition}`,

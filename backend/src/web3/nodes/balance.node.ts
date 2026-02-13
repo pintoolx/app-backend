@@ -22,6 +22,7 @@ export class BalanceNode implements INodeType {
     inputs: ['main'],
     outputs: ['main'],
     telegramNotify: false,
+    isTrigger: false,
     properties: [
       {
         displayName: 'Account ID',

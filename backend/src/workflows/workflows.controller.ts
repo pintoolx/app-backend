@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Param, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { WorkflowsService } from './workflows.service';
+import { WorkflowLifecycleManager } from './workflow-lifecycle.service';
 import { ExecuteWorkflowDto } from './dto/execute-workflow.dto';
 import { AuthService } from '../auth/auth.service';
 
@@ -9,8 +10,24 @@ import { AuthService } from '../auth/auth.service';
 export class WorkflowsController {
   constructor(
     private workflowsService: WorkflowsService,
+    private lifecycleManager: WorkflowLifecycleManager,
     private authService: AuthService,
   ) {}
+
+  @Get('active')
+  @ApiOperation({
+    summary: 'List active workflow instances',
+    description: 'Returns all workflow instances currently held in-memory by the lifecycle manager.',
+  })
+  @ApiResponse({ status: 200, description: 'List of active instances' })
+  getActiveInstances() {
+    const instances = this.lifecycleManager.getActiveInstances();
+    return {
+      success: true,
+      count: instances.length,
+      data: instances,
+    };
+  }
 
   @Post(':id/execute')
   @ApiOperation({

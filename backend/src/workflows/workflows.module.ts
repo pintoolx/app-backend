@@ -12,6 +12,6 @@ import { WorkflowLifecycleManager } from './workflow-lifecycle.service';
   imports: [TelegramModule, CrossmintModule, Web3Module, AuthModule],
   controllers: [WorkflowsController],
   providers: [WorkflowsService, WorkflowExecutorFactory, WorkflowLifecycleManager],
-  exports: [WorkflowsService],
+  exports: [WorkflowsService, WorkflowLifecycleManager],
 })
 export class WorkflowsModule {}

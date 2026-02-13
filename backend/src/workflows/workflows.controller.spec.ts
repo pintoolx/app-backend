@@ -9,7 +9,8 @@ describe('WorkflowsController', () => {
     const authService = {
       verifyAndConsumeChallenge: jest.fn().mockResolvedValue(false),
     } as any;
-    const controller = new WorkflowsController(workflowsService, authService);
+    const lifecycleManager = { getActiveInstances: jest.fn() } as any;
+    const controller = new WorkflowsController(workflowsService, lifecycleManager, authService);
 
     await expect(
       controller.executeWorkflow('wf-1', {
@@ -27,7 +28,8 @@ describe('WorkflowsController', () => {
     const authService = {
       verifyAndConsumeChallenge: jest.fn().mockResolvedValue(true),
     } as any;
-    const controller = new WorkflowsController(workflowsService, authService);
+    const lifecycleManager = { getActiveInstances: jest.fn() } as any;
+    const controller = new WorkflowsController(workflowsService, lifecycleManager, authService);
 
     const result = await controller.executeWorkflow('wf-1', {
       walletAddress: 'wallet-1',

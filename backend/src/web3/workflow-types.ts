@@ -26,6 +26,7 @@ export interface INodeDescription {
   inputs: string[];
   outputs: string[];
   telegramNotify: boolean;
+  isTrigger?: boolean;
   properties: INodeProperty[];
 }
 
@@ -51,6 +52,7 @@ export interface IExecuteContext {
   helpers: {
     returnJsonArray(jsonData: any[]): NodeExecutionData[][];
   };
+  abortSignal?: AbortSignal;
 }
 
 /**
