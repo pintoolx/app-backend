@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { Web3Module } from './web3/web3.module';
+import { AgentModule } from './agent/agent.module';
 import { AppController } from './app.controller';
 import { RootController } from './root.controller';
 
@@ -22,6 +23,7 @@ import { RootController } from './root.controller';
     WorkflowsModule,
     TelegramModule,
     Web3Module,
+    AgentModule,
   ],
   controllers: [RootController, AppController],
 })

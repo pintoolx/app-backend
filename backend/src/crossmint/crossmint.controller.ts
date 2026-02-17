@@ -59,8 +59,8 @@ export class CrossmintController {
       throw new UnauthorizedException('Invalid signature or challenge expired');
     }
 
-    // 2. Perform Delete with Ownership Check
-    await this.crossmintService.deleteWallet(id, dto.walletAddress);
-    return { success: true, message: 'Wallet deleted' };
+    // 2. Perform Delete with Ownership Check + Asset Withdrawal
+    const result = await this.crossmintService.deleteWallet(id, dto.walletAddress);
+    return { success: true, message: 'Account closed and assets withdrawn', data: result.withdrawResult };
   }
 }

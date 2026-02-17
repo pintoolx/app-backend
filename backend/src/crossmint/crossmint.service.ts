@@ -12,6 +12,23 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  LAMPORTS_PER_SOL,
+} from '@solana/web3.js';
+import {
+  TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
+  getAccount,
+  getMint,
+  createTransferInstruction,
+  createCloseAccountInstruction,
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
 import { SupabaseService } from '../database/supabase.service';
 import { CrossmintWalletAdapter, CrossmintSolanaWallet } from './crossmint-wallet.adapter';
 import { WorkflowLifecycleManager } from '../workflows/workflow-lifecycle.service';
@@ -457,9 +474,154 @@ export class CrossmintService implements OnModuleInit {
   }
 
   /**
+   * Withdraw all assets (SPL tokens + SOL) from the Crossmint wallet back to the owner wallet
+   */
+  async withdrawAllAssets(
+    accountId: string,
+    ownerWalletAddress: string,
+  ): Promise<{
+    transfers: Array<{ token: string; amount: number; signature: string }>;
+    errors: string[];
+  }> {
+    const transfers: Array<{ token: string; amount: number; signature: string }> = [];
+    const errors: string[] = [];
+
+    // 1. Get the Crossmint wallet for this account
+    const wallet = await this.getWalletForAccount(accountId);
+
+    // 2. Get RPC connection
+    const rpcUrl = this.configService.get<string>('solana.rpcUrl');
+    const connection = new Connection(rpcUrl);
+    const ownerPubkey = new PublicKey(ownerWalletAddress);
+
+    // 3. Get ALL SPL token accounts owned by this wallet
+    const tokenAccounts = await connection.getTokenAccountsByOwner(wallet.publicKey, {
+      programId: TOKEN_PROGRAM_ID,
+    });
+
+    // 4. For each SPL token account with balance > 0, transfer and close
+    for (const { pubkey, account } of tokenAccounts.value) {
+      try {
+        const tokenAccountInfo = await getAccount(connection, pubkey);
+        const balance = tokenAccountInfo.amount;
+        const mint = tokenAccountInfo.mint;
+
+        if (balance <= 0n) {
+          // No balance, just close the account to reclaim rent
+          const closeIx = createCloseAccountInstruction(
+            pubkey,
+            wallet.publicKey,
+            wallet.publicKey,
+          );
+          const tx = new Transaction().add(closeIx);
+          tx.feePayer = wallet.publicKey;
+          tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+          try {
+            await wallet.signAndSendTransaction(tx);
+          } catch (closeErr) {
+            errors.push(`Failed to close empty token account ${pubkey.toBase58()}: ${closeErr.message}`);
+          }
+          continue;
+        }
+
+        const mintInfo = await getMint(connection, mint);
+        const humanAmount = Number(balance) / 10 ** mintInfo.decimals;
+
+        // Get or create the owner's associated token account
+        const ownerAta = getAssociatedTokenAddressSync(mint, ownerPubkey);
+
+        const tx = new Transaction();
+
+        // Check if owner's ATA exists, if not create it
+        const ownerAtaInfo = await connection.getAccountInfo(ownerAta);
+        if (!ownerAtaInfo) {
+          tx.add(
+            createAssociatedTokenAccountInstruction(
+              wallet.publicKey,
+              ownerAta,
+              ownerPubkey,
+              mint,
+            ),
+          );
+        }
+
+        // Transfer all tokens
+        tx.add(
+          createTransferInstruction(
+            pubkey,
+            ownerAta,
+            wallet.publicKey,
+            balance,
+          ),
+        );
+
+        // Close the now-empty token account to reclaim rent
+        tx.add(
+          createCloseAccountInstruction(
+            pubkey,
+            wallet.publicKey,
+            wallet.publicKey,
+          ),
+        );
+
+        tx.feePayer = wallet.publicKey;
+        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+        const result = await wallet.signAndSendTransaction(tx);
+        transfers.push({
+          token: mint.toBase58(),
+          amount: humanAmount,
+          signature: result.signature,
+        });
+      } catch (err) {
+        errors.push(`Failed to transfer token account ${pubkey.toBase58()}: ${err.message}`);
+      }
+    }
+
+    // 5. LAST: Transfer remaining SOL (after all SPL transfers, so we have SOL for gas)
+    try {
+      const solBalance = await connection.getBalance(wallet.publicKey);
+      // Reserve enough for tx fee + priority fee buffer
+      const minReserve = 100_000; // 0.0001 SOL — conservative buffer for fees
+
+      if (solBalance > minReserve) {
+        const transferAmount = solBalance - minReserve;
+        const tx = new Transaction().add(
+          SystemProgram.transfer({
+            fromPubkey: wallet.publicKey,
+            toPubkey: ownerPubkey,
+            lamports: transferAmount,
+          }),
+        );
+        tx.feePayer = wallet.publicKey;
+        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+        const result = await wallet.signAndSendTransaction(tx);
+        transfers.push({
+          token: 'SOL',
+          amount: transferAmount / LAMPORTS_PER_SOL,
+          signature: result.signature,
+        });
+      } else {
+        this.logger.log(`SOL balance too low to transfer (${solBalance} lamports), skipping`);
+      }
+    } catch (err) {
+      errors.push(`Failed to transfer SOL: ${err.message}`);
+    }
+
+    return { transfers, errors };
+  }
+
+  /**
    * Delete (Archive) an account's wallet
    */
-  async deleteWallet(accountId: string, ownerWalletAddress: string): Promise<void> {
+  async deleteWallet(
+    accountId: string,
+    ownerWalletAddress: string,
+  ): Promise<{
+    withdrawResult: { transfers: any[]; errors: string[] };
+  }> {
     // 1. Verify Ownership
     const { data: account, error } = await this.supabaseService.client
       .from('accounts')
@@ -475,8 +637,22 @@ export class CrossmintService implements OnModuleInit {
       throw new ForbiddenException('Unauthorized: Ownership verification failed');
     }
 
-    // 2. Perform Deletion (Soft Delete to verify Foreign Key Constraints)
-    // We strictly use soft deletes now to update is_active to false.
+    // 2. Withdraw all assets to owner wallet
+    const withdrawResult = await this.withdrawAllAssets(accountId, ownerWalletAddress);
+    this.logger.log(
+      `Assets withdrawn for account ${accountId}: ${withdrawResult.transfers.length} transfers, ${withdrawResult.errors.length} errors`,
+    );
+
+    // 3. Abort if any withdrawal failed (don't close account with assets still inside)
+    if (withdrawResult.errors.length > 0) {
+      this.logger.error(`Withdrawal incomplete for account ${accountId}:`, withdrawResult.errors);
+      throw new BadRequestException({
+        message: 'Cannot close account: some assets failed to withdraw',
+        withdrawResult,
+      });
+    }
+
+    // 4. Perform Deletion (Soft Delete) — only if all assets withdrawn successfully
     const { error: deleteError } = await this.supabaseService.client
       .from('accounts')
       .update({ is_active: false })
@@ -487,5 +663,7 @@ export class CrossmintService implements OnModuleInit {
     }
 
     this.logger.log(`Account soft deleted: ${accountId} by owner ${ownerWalletAddress}`);
+
+    return { withdrawResult };
   }
 }
