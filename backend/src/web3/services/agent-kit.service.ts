@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CrossmintService } from '../../crossmint/crossmint.service';
 import { CrossmintWalletAdapter } from '../../crossmint/crossmint-wallet.adapter';
@@ -58,6 +58,7 @@ export class AgentKitService {
   private rpcUrl: string;
 
   constructor(
+    @Inject(forwardRef(() => CrossmintService))
     private crossmintService: CrossmintService,
     private configService: ConfigService,
   ) {

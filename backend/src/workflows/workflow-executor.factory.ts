@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { TelegramNotifierService } from '../telegram/telegram-notifier.service';
 import { CrossmintService } from '../crossmint/crossmint.service';
 import { AgentKitService } from '../web3/services/agent-kit.service';
@@ -9,6 +9,7 @@ import { getRegisteredNodes } from '../web3/nodes/node-registry';
 export class WorkflowExecutorFactory {
   constructor(
     private telegramNotifier: TelegramNotifierService,
+    @Inject(forwardRef(() => CrossmintService))
     private crossmintService: CrossmintService,
     private agentKitService: AgentKitService,
   ) {}
