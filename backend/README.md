@@ -1,38 +1,54 @@
 # PinTool Backend - Web3 Workflow Automation Platform
 
 A NestJS-based backend service for automating DeFi workflows on Solana blockchain.
-(NOT DONE YET)
 
 ## 🎯 Features
 
 - **Wallet Signature Authentication** - Passwordless authentication using Solana wallet signatures
-- **Workflow Management** - Create, execute, and monitor automated DeFi workflows
-- **Telegram Notifications** - Real-time notifications for workflow executions (All messages in English)
-- **3 Core Nodes**:
-  - **Price Feed Node** - Monitor token prices via Pyth Network
+- **Agent API** - API-key based authentication for programmatic/agent access
+- **Crossmint Custodial Wallets** - Create and manage custodial wallets via Crossmint SDK
+- **Workflow Management** - Create, execute, and monitor automated DeFi workflows with lifecycle management
+- **Telegram Notifications** - Real-time notifications for workflow executions (all messages in English)
+- **11 Workflow Nodes**:
+  - **PriceFeed Node** - Monitor token prices via Pyth Network
   - **Swap Node** - Execute token swaps via Jupiter Aggregator
+  - **LimitOrder Node** - Place limit orders via Jupiter
+  - **Stake Node** - Stake SOL via Jupiter
   - **Kamino Node** - Deposit/withdraw from Kamino lending vaults
-- **Encryption** - AES-256 encryption for private key storage
-- **Supabase Integration** - PostgreSQL database with Row Level Security (RLS)
+  - **Lulo Node** - Lending via Lulo Finance
+  - **Drift Node** - Perpetual trading via Drift Protocol
+  - **Sanctum Node** - LST operations via Sanctum
+  - **Transfer Node** - Native SOL/SPL token transfers
+  - **Balance Node** - Query wallet token balances
+  - **HeliusWebhook Node** - On-chain event triggers via Helius webhooks
+- **Supabase Integration** - PostgreSQL database with Row Level Security (RLS) & migrations
+- **Swagger API Docs** - Auto-generated API documentation at `/api/docs`
 
 ## 📁 Project Structure
 
 ```
 backend/
 ├── src/
-│   ├── auth/                      # Wallet signature authentication
-│   ├── workflows/                 # Workflow CRUD & execution
-│   ├── telegram/                  # Telegram Bot & notifications
-│   ├── web3/                      # Solana nodes & services
-│   │   ├── nodes/                 # PriceFeed, Swap, Kamino nodes
-│   │   └── services/              # Solana connection, Jupiter, etc.
-│   ├── database/                  # Supabase service
-│   ├── encryption/                # AES-256 encryption
-│   ├── common/                    # Guards, decorators, filters
-│   ├── config/                    # Configuration
-│   ├── main.ts                    # Application entry
-│   └── app.module.ts              # Root module
-├── .env.example                   # Environment variables template
+│   ├── agent/                      # Agent API (API-key auth for programmatic access)
+│   ├── auth/                       # Wallet signature authentication
+│   ├── crossmint/                  # Crossmint custodial wallet management
+│   ├── workflows/                  # Workflow CRUD, execution & lifecycle management
+│   ├── telegram/                   # Telegram Bot & notifications
+│   ├── web3/                       # Solana nodes & services
+│   │   ├── nodes/                  # 11 workflow nodes (see Features)
+│   │   ├── services/               # Solana connection, AgentKit, Kamino, token, transaction, etc.
+│   │   ├── types/                  # Web3 type definitions
+│   │   └── utils/                  # Web3 utilities
+│   ├── database/                   # Supabase service & schema
+│   │   ├── schema/                 # SQL schema files
+│   │   └── functions/              # Database functions
+│   ├── common/                     # Guards, decorators, filters, interceptors
+│   ├── config/                     # Configuration
+│   ├── main.ts                     # Application entry
+│   └── app.module.ts               # Root module
+├── supabase/
+│   └── migrations/                 # Supabase database migrations
+├── .env.example                    # Environment variables template
 ├── package.json
 └── README.md
 ```
@@ -56,19 +72,18 @@ cp .env.example .env
 
 Required environment variables:
 - `SUPABASE_URL` & `SUPABASE_SERVICE_KEY` - Supabase credentials
-- `JWT_SECRET` - JWT signing secret (min 32 chars)
-- `ENCRYPTION_SECRET` - Encryption key for private keys (min 32 chars)
-- `TELEGRAM_BOT_TOKEN` - Telegram bot token
+- `CROSSMINT_SERVER_API_KEY` - Crossmint API key for custodial wallets
 - `SOLANA_RPC_URL` - Solana RPC endpoint
+
+Optional environment variables:
+- `TELEGRAM_BOT_TOKEN` - Telegram bot token (for notifications)
+- `HELIUS_API_KEY` - Required for HeliusWebhookNode
+- `LULO_API_KEY` - Required for LuloNode
+- `SANCTUM_API_KEY` - Required for SanctumNode
 
 ### 3. Setup Database
 
-Run the SQL schema from `../database/initial.sql` in your Supabase SQL editor.
-
-This creates 8 tables:
-- `users`, `telegram_mappings`, `accounts`
-- `workflows`, `workflow_executions`, `node_executions`
-- `transaction_history`, `system_config`
+Apply Supabase migrations from `supabase/migrations/` in order, or run the schema files from `src/database/schema/` in your Supabase SQL editor.
 
 ### 4. Start Development Server
 
@@ -76,9 +91,19 @@ This creates 8 tables:
 npm run start:dev
 ```
 
-Server will start on `http://localhost:3000`
+Server will start on `http://localhost:3000`  
+API docs available at `http://localhost:3000/api/docs`
 
 ## 📡 API Endpoints
+
+All endpoints are prefixed with `/api`.
+
+### Health & Root
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Welcome message & doc links |
+| GET | `/api/health` | Health check |
 
 ### Authentication (`/api/auth`)
 
@@ -86,80 +111,46 @@ Server will start on `http://localhost:3000`
 |--------|----------|-------------|
 | POST | `/auth/challenge` | Get signature challenge |
 
-**Example:**
-
 ```bash
-# 1. Get challenge
+# Get challenge
 curl -X POST http://localhost:3000/api/auth/challenge \
   -H "Content-Type: application/json" \
   -d '{"walletAddress":"7xKgF2p3VQa..."}'
-
-# 2. Sign the challenge with your wallet
-# 3. Send the signature to endpoints that require wallet verification
 ```
 
-### Workflows (`/api/workflows`)
+### Agent (`/api/agent`) - API-key based access
 
-All endpoints that mutate data require a signed challenge in the request body.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/agent/register` | Wallet Signature | Register agent & get API key |
+| GET | `/agent/accounts` | API Key | List agent accounts |
+| GET | `/agent/nodes` | None | List all available node types & parameters |
+| POST | `/agent/workflows` | API Key | Create a workflow |
+| POST | `/agent/wallets/init` | API Key | Create account with Crossmint wallet |
+| DELETE | `/agent/wallets/:id` | API Key | Close account (withdraws assets to owner) |
+
+API Key is sent via `X-API-Key` header.
+
+### Crossmint Wallets (`/api/crossmint/wallets`) - Signature-based access
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/workflows` | Get all workflows |
-| POST | `/workflows` | Create workflow |
-| GET | `/workflows/:id` | Get workflow details |
-| PATCH | `/workflows/:id` | Update workflow |
-| DELETE | `/workflows/:id` | Delete workflow |
-| POST | `/workflows/:id/execute` | Execute workflow |
+| POST | `/crossmint/wallets/init` | Initialize new account with Crossmint wallet |
+| DELETE | `/crossmint/wallets/:id` | Delete/close an account |
 
-**Create Workflow Example:**
+### Workflows (`/api/workflows`)
 
-```bash
-curl -X POST http://localhost:3000/api/workflows \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "SOL Price Monitor & Auto Swap",
-    "description": "When SOL > $100, swap 10 USDC to SOL",
-    "definition": {
-      "nodes": [
-        {
-          "id": "priceFeed1",
-          "name": "Monitor SOL Price",
-          "type": "pythPriceFeed",
-          "parameters": {
-            "priceId": "SOL",
-            "targetPrice": "100",
-            "condition": "above"
-          }
-        },
-        {
-          "id": "swap1",
-          "name": "Swap USDC to SOL",
-          "type": "jupiterSwap",
-          "parameters": {
-            "inputToken": "USDC",
-            "outputToken": "SOL",
-            "amount": "10",
-            "slippageBps": "50"
-          }
-        }
-      ],
-      "connections": {
-        "priceFeed1": {
-          "main": [[{"node": "swap1", "type": "main", "index": 0}]]
-        }
-      }
-    }
-  }'
-```
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/workflows/active` | API Key | List active workflow instances |
 
 ### Telegram (`/api/telegram`)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/telegram/webhook` | Telegram webhook (for bot) |
+| POST | `/telegram/webhook` | Telegram webhook (internal) |
 
 **Telegram Bot Commands:**
-
 ```
 /start - Welcome message
 /link <wallet_address> - Link your wallet
@@ -167,38 +158,23 @@ curl -X POST http://localhost:3000/api/workflows \
 /status - Check link status
 ```
 
-**Example:**
+## 🔧 Available Workflow Nodes
 
-1. Open Telegram and find your bot
-2. Send `/link 7xKgF2p3VQa...`
-3. Bot responds: "✅ Successfully linked!"
-4. When workflows execute, you'll receive notifications:
+| Node Type | Key | API Key Required | Description |
+|-----------|-----|:----------------:|-------------|
+| Pyth Price Feed | `pythPriceFeed` | ❌ | Monitor token prices |
+| Jupiter Swap | `jupiterSwap` | ❌ | Token swaps |
+| Jupiter Limit Order | `jupiterLimitOrder` | ❌ | Limit orders |
+| SOL Stake | `stakeSOL` | ❌ | Stake SOL |
+| Kamino | `kamino` | ❌ | Lending vault deposit/withdraw |
+| Transfer | `transfer` | ❌ | SOL/SPL token transfers |
+| Balance | `getBalance` | ❌ | Query wallet balances |
+| Drift Perp | `driftPerp` | ❌ | Perpetual trading |
+| Lulo Lend | `luloLend` | ✅ `LULO_API_KEY` | Lending via Lulo |
+| Sanctum LST | `sanctumLst` | ✅ `SANCTUM_API_KEY` | LST operations |
+| Helius Webhook | `heliusWebhook` | ✅ `HELIUS_API_KEY` | On-chain event triggers |
 
-```
-🚀 Workflow Started
-
-Name: SOL Price Monitor & Auto Swap
-Execution ID: exec_xyz789
-Time: 1/15/2025, 10:05:00 AM
-
----
-
-✅ Node Completed
-
-Node: Monitor SOL Price
-Type: 📊 pythPriceFeed
-Price: $105.5
-Triggered: ✅ Yes
-
----
-
-✅ Node Completed
-
-Node: Swap USDC to SOL
-Type: 🔄 jupiterSwap
-Swap: 10 USDC → 0.0947 SOL
-TX: 5j7s8k9...
-```
+Query all node schemas: `GET /api/agent/nodes`
 
 ## 🔧 Development
 
@@ -208,9 +184,13 @@ TX: 5j7s8k9...
 npm run start          # Start production server
 npm run start:dev      # Start development (watch mode)
 npm run start:debug    # Start with debugger
+npm run start:prod     # Start production build
 npm run build          # Build for production
+npm run format         # Format code with Prettier
 npm run lint           # Run ESLint
 npm run test           # Run unit tests
+npm run test:watch     # Run tests in watch mode
+npm run test:cov       # Run tests with coverage
 npm run test:e2e       # Run E2E tests
 ```
 
@@ -221,7 +201,7 @@ npm run test:e2e       # Run E2E tests
 curl http://localhost:3000/api/health
 
 # Get available node types
-curl http://localhost:3000/api/nodes/types
+curl http://localhost:3000/api/agent/nodes
 ```
 
 ## 🌐 Deployment
@@ -233,32 +213,45 @@ npm run build
 npm run start:prod
 ```
 
+### Docker
+
+```bash
+docker build -t pintool-backend .
+docker run -p 3000:3000 --env-file .env pintool-backend
+```
+
 ### Environment Setup
 
 For production, set:
 - `NODE_ENV=production`
+- `CORS_ORIGIN` to your frontend domain(s)
 - Use `TELEGRAM_WEBHOOK_URL` instead of long polling
-- Use faster Solana RPC providers (Alchemy, Helius, etc.)
+- Use faster Solana RPC providers (Helius, QuickNode, Alchemy, etc.)
 
 ## 🔐 Security
 
-- **Private Keys**: Encrypted with AES-256-GCM before storage
-- **Auth**: Wallet signature challenges
+- **Custodial Wallets**: Managed via Crossmint SDK (no private key storage)
+- **Auth**: Wallet signature challenges (challenge-response)
+- **Agent Auth**: API key authentication with `X-API-Key` header
 - **RLS**: Row Level Security in Supabase ensures users only access their data
-- **Validation**: All inputs validated using class-validator
+- **Validation**: All inputs validated using `class-validator` with whitelist & transform
 
 ## 📚 Tech Stack
 
 - **Framework**: NestJS 10
+- **Language**: TypeScript 5
 - **Database**: PostgreSQL (Supabase)
-- **Blockchain**: Solana (@solana/kit, @solana/web3.js)
+- **API Docs**: Swagger / OpenAPI (`@nestjs/swagger`)
+- **Blockchain**: Solana (`@solana/kit`, `@solana/web3.js`, `@solana/spl-token`)
+- **Custodial Wallets**: Crossmint (`@crossmint/wallets-sdk`)
+- **Agent Toolkit**: `solana-agent-kit`
 - **DeFi Protocols**:
-  - Jupiter Aggregator (@jup-ag/api)
-  - Kamino Finance (@kamino-finance/klend-sdk)
-  - Pyth Network (@pythnetwork/hermes-client)
-- **Notifications**: Telegram Bot API
-- **Authentication**: Wallet Signatures (tweetnacl, bs58)
-- **Encryption**: Node.js Crypto (AES-256-GCM)
+  - Jupiter Aggregator (`@jup-ag/api`)
+  - Kamino Finance (`@kamino-finance/klend-sdk`)
+  - Pyth Network (`@pythnetwork/hermes-client`)
+- **Notifications**: Telegram Bot API (`typescript-telegram-bot-api`)
+- **Authentication**: Wallet Signatures (`tweetnacl`, `bs58`)
+- **Utilities**: `decimal.js`, `axios`, `rxjs`
 
 ## 🐛 Troubleshooting
 
@@ -267,31 +260,25 @@ For production, set:
 **1. "Supabase URL and Service Key must be provided"**
 - Ensure `.env` file exists with `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`
 
-**2. "ENCRYPTION_SECRET must be at least 32 characters long"**
-- Generate a secure random string: `openssl rand -base64 32`
-
-**3. Telegram bot not responding**
+**2. Telegram bot not responding**
 - Check `TELEGRAM_BOT_TOKEN` is correct
 - Verify bot is started: Look for "✅ Telegram bot started" in logs
 
-**4. Workflow execution fails**
+**3. Workflow execution fails**
 - Check Solana RPC is accessible
 - Ensure account has sufficient SOL for transaction fees
-- Verify private keys are correctly encrypted in database
+- Verify Crossmint wallet is properly initialized
+
+**4. Crossmint wallet errors**
+- Check `CROSSMINT_SERVER_API_KEY` is correct
+- Verify `CROSSMINT_ENVIRONMENT` matches your key (staging/production)
 
 ## 📝 Notes
 
 - All console logs, Telegram messages, and API responses are in **English**
-- Legacy code preserved in `../src-legacy/` for reference
-- Database schema in `../database/initial.sql` (8 tables with RLS)
+- Database migrations are managed via `supabase/migrations/`
 - Workflow definitions stored as JSONB in PostgreSQL
-
-## 🤝 Contributing
-
-1. Create feature branch
-2. Make changes
-3. Test thoroughly
-4. Submit pull request
+- Swagger docs auto-generated at `/api/docs`
 
 ## 📄 License
 
