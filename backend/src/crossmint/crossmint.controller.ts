@@ -38,7 +38,7 @@ export class CrossmintController {
     }
 
     // 2. Create Account (Signer becomes Owner)
-    return this.crossmintService.createAccountWithWallet(dto.walletAddress, dto.accountName);
+    return this.crossmintService.createAccountWithWallet(dto.walletAddress, dto.accountName, dto.workflowId);
   }
 
   @Delete(':id')

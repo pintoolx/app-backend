@@ -1,98 +1,105 @@
 ---
 name: pintool
-description: PinTool is a Web3 workflow automation platform on Solana. Use this skill when the user wants to create automated DeFi workflows (price monitoring, token swaps, lending, staking, transfers) using custodial Crossmint wallets. Requires a Solana wallet for registration.
+description: "Automates DeFi workflows on Solana via PinTool REST API — price monitoring, token swaps, lending, staking, and transfers using Crossmint custodial wallets. Use when building or executing automated on-chain strategies on Solana."
 ---
 
 # PinTool Agent API
 
-Automate DeFi workflows on Solana via PinTool's REST API.
+Automate DeFi workflows on Solana through a REST API. Agents authenticate with a Solana wallet signature, create workflow definitions (DAG of on-chain operations), then assign them to custodial accounts for automatic execution.
 
-**Base URL:** `https://api.pintool.xyz/api`
+## Capabilities
 
-## Quick Start
+- Register and authenticate with a Solana wallet to obtain an API key
+- Create workflow definitions composed of connectable DeFi node types
+- Provision Crossmint MPC custodial wallets for isolated execution
+- Automatic workflow execution via backend lifecycle polling (no manual trigger)
+- Close accounts with automatic asset withdrawal back to the owner wallet
 
-```
-1. POST /api/auth/challenge     → Get challenge message
-2. Sign the challenge with your Solana wallet private key
-3. POST /api/agent/register     → Get API key (one-time)
-4. Use X-API-Key header for all subsequent requests
-```
-
-## Authentication
-
-### Step 1: Get Challenge
+## Workflow
 
 ```
+1. POST /api/auth/challenge        → Get challenge message
+2. Sign challenge with Solana wallet (Ed25519 + base58)
+3. POST /api/agent/register        → Get API key (shown once, re-register to rotate)
+4. POST /api/agent/workflows       → Create workflow definition → get workflow_id
+5. POST /api/agent/wallets/init    → Create account with workflowId → auto-executes
+```
+
+All requests after step 3 require the `X-API-Key` header.
+
+> **Tip:** Before creating a workflow, call `GET /api/agent/nodes` to discover all available node types and their exact parameter schemas.
+
+## API Reference
+
+**Base URL:** `https://pintool-api.zeabur.app/api`
+
+### Authentication
+
+#### Get Challenge
+
+```http
 POST /api/auth/challenge
 Content-Type: application/json
 
-{"walletAddress": "<YOUR_SOLANA_WALLET_ADDRESS>"}
+{"walletAddress": "<SOLANA_ADDRESS>"}
 ```
 
-Response:
-```json
-{"success": true, "data": {"challenge": "Sign this message to authenticate with PinTool:\n\nNonce: abc123\nTimestamp: 1699999999999\nWallet: <address>", "expiresIn": 300}}
-```
+Returns a challenge string valid for 5 minutes.
 
-### Step 2: Sign & Register
+#### Register Agent
 
-Sign the challenge string with your Solana wallet's private key using Ed25519 (`nacl.sign.detached`), then base58-encode the signature.
+Sign the challenge with Ed25519 (`nacl.sign.detached`), base58-encode the signature.
 
-```
+```http
 POST /api/agent/register
 Content-Type: application/json
 
-{"walletAddress": "<YOUR_WALLET>", "signature": "<BASE58_SIGNATURE>"}
+{"walletAddress": "<SOLANA_ADDRESS>", "signature": "<BASE58_SIGNATURE>"}
 ```
 
-Response:
+Returns `{"apiKey": "pt_live_..."}`. Save it — only shown once. Re-registering rotates the key.
+
+### Node Discovery
+
+#### List Available Nodes
+
+Returns all registered node types with their parameter schemas. Call this before creating workflows to get the exact parameters each node accepts.
+
+```http
+GET /api/agent/nodes
+```
+
+Returns:
+
 ```json
-{"success": true, "data": {"apiKey": "pt_live_xxxxxxxxxxxx...", "walletAddress": "<YOUR_WALLET>"}}
-```
-
-**Save the API key.** It is only shown once. To rotate, call register again (old key is revoked).
-
-### Step 3: Use API Key
-
-All subsequent requests require:
-```
-X-API-Key: pt_live_xxxxxxxxxxxx...
-```
-
-## Endpoints
-
-### Accounts
-
-#### List Accounts
-```
-GET /api/agent/accounts
-X-API-Key: <key>
-```
-
-#### Create Account (with Crossmint custodial wallet)
-```
-POST /api/agent/wallets/init
-X-API-Key: <key>
-Content-Type: application/json
-
-{"accountName": "My Trading Bot"}
-```
-
-Response:
-```json
-{"success": true, "data": {"id": "<uuid>", "name": "My Trading Bot", "crossmint_wallet_address": "<solana_address>", "crossmint_wallet_locator": "..."}}
-```
-
-#### Close Account (auto-withdraws all assets to your wallet)
-```
-DELETE /api/agent/wallets/<account_id>
-X-API-Key: <key>
+{
+  "success": true,
+  "data": [
+    {
+      "type": "jupiterSwap",
+      "displayName": "Jupiter Swap",
+      "description": "Swap tokens using Jupiter aggregator with Crossmint custodial wallet",
+      "group": ["swap"],
+      "inputs": ["main"],
+      "outputs": ["main"],
+      "isTrigger": false,
+      "telegramNotify": true,
+      "parameters": [
+        {"name": "inputToken", "type": "string", "default": "USDC", "description": "..."},
+        {"name": "outputToken", "type": "string", "default": "SOL", "description": "..."},
+        {"name": "amount", "type": "string", "default": "auto", "description": "..."},
+        {"name": "slippageBps", "type": "string", "default": "50", "description": "..."}
+      ]
+    }
+  ]
+}
 ```
 
 ### Workflows
 
 #### Create Workflow
-```
+
+```http
 POST /api/agent/workflows
 X-API-Key: <key>
 Content-Type: application/json
@@ -122,40 +129,52 @@ Content-Type: application/json
 }
 ```
 
-#### Execute Workflow
+#### Execution Model
+
+Workflows are **not triggered manually**. Execution is automatic:
+
+1. Create a workflow → get `workflow_id`
+2. Create an account with `workflowId` → lifecycle manager starts execution immediately
+3. Backend polls every 60s, re-launches workflows for active accounts after completion
+
+Execution records are persisted in the `workflow_executions` table.
+
+### Accounts
+
+#### List Accounts
+
+```http
+GET /api/agent/accounts
+X-API-Key: <key>
 ```
-POST /api/agent/workflows/<workflow_id>/execute
+
+#### Create Account
+
+Creates a Crossmint MPC custodial wallet and optionally assigns a workflow.
+
+```http
+POST /api/agent/wallets/init
 X-API-Key: <key>
 Content-Type: application/json
 
-{"accountId": "<account_id>"}
+{"accountName": "My Trading Bot", "workflowId": "<workflow_id>"}
 ```
 
-#### Check Execution Status
-```
-GET /api/agent/workflows/<workflow_id>/executions/<execution_id>
+- `accountName` (required): Display name for the account.
+- `workflowId` (optional): Workflow to auto-execute. Omit to create an idle account.
+
+#### Close Account
+
+Withdraws all assets (SPL tokens + SOL) back to the owner wallet, then soft-deletes.
+
+```http
+DELETE /api/agent/wallets/<account_id>
 X-API-Key: <key>
 ```
 
-## Available Node Types
+## Node Types
 
-| Type | Description | Key Parameters |
-|------|-------------|----------------|
-| `pythPriceFeed` | Monitor token price via Pyth | `priceId`, `targetPrice`, `condition` (above/below) |
-| `jupiterSwap` | Swap tokens via Jupiter | `inputToken`, `outputToken`, `amount`, `slippageBps` |
-| `jupiterLimitOrder` | Limit order via Jupiter | `inputToken`, `outputToken`, `amount`, `targetPrice` |
-| `kamino` | Deposit/withdraw from Kamino vaults | `operation` (deposit/withdraw), `vault`, `amount` |
-| `transfer` | Transfer SOL or SPL tokens | `recipient`, `token`, `amount`, `accountId` |
-| `getBalance` | Query wallet balance | `token`, `condition`, `threshold` |
-| `stakeSOL` | Stake SOL | `amount`, `validator` |
-| `luloLend` | Lend via Lulo | `token`, `amount`, `operation` |
-| `driftPerp` | Perpetuals on Drift | `market`, `side`, `amount`, `leverage` |
-| `sanctumLst` | Liquid staking via Sanctum | `operation`, `amount` |
-| `heliusWebhook` | Listen for on-chain events | `webhookUrl`, `transactionTypes` |
-
-## Supported Tokens
-
-SOL, USDC, JITOSOL, mSOL, bSOL, jupSOL, INF, hSOL, stSOL
+Call `GET /api/agent/nodes` to get the full list of available node types with their exact parameter schemas. This endpoint is always in sync with the codebase and should be the source of truth when building workflow definitions.
 
 ## Workflow Definition Format
 
@@ -172,15 +191,14 @@ SOL, USDC, JITOSOL, mSOL, bSOL, jupSOL, INF, hSOL, stSOL
 }
 ```
 
-Nodes execute sequentially following the connection graph. Each node's output is passed as input to the next node.
+Nodes execute as a DAG following the connection graph. Each node's output is passed as input to connected downstream nodes. Set `telegramNotify: true` on a node to receive Telegram notifications for that step.
+
+## Supported Tokens
+
+SOL, USDC, JITOSOL, mSOL, bSOL, jupSOL, INF, hSOL, stSOL
 
 ## Error Format
 
-All errors return:
 ```json
 {"success": false, "error": {"code": "ERROR_TYPE", "message": "description", "timestamp": "ISO8601"}}
 ```
-
-## Rate Limits
-
-API key requests are not rate-limited by default. Abuse will result in key revocation.

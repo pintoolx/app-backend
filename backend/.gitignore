@@ -39,3 +39,8 @@ Thumbs.db
 
 # Build
 *.tsbuildinfo
+
+# Agents
+.agents/*
+.claude/*
+.trae/*

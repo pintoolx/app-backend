@@ -435,6 +435,7 @@ export class CrossmintService implements OnModuleInit {
   async createAccountWithWallet(
     ownerWalletAddress: string,
     accountName: string,
+    workflowId?: string,
   ): Promise<{
     id: string;
     name: string;
@@ -455,6 +456,7 @@ export class CrossmintService implements OnModuleInit {
         name: accountName,
         crossmint_wallet_locator: wallet.locator,
         crossmint_wallet_address: wallet.address,
+        current_workflow_id: workflowId || null,
       })
       .select()
       .single();
@@ -637,13 +639,16 @@ export class CrossmintService implements OnModuleInit {
       throw new ForbiddenException('Unauthorized: Ownership verification failed');
     }
 
-    // 2. Withdraw all assets to owner wallet
+    // 2. Stop any running workflow instance for this account
+    this.lifecycleManager.stopWorkflowForAccount(accountId);
+
+    // 3. Withdraw all assets to owner wallet
     const withdrawResult = await this.withdrawAllAssets(accountId, ownerWalletAddress);
     this.logger.log(
       `Assets withdrawn for account ${accountId}: ${withdrawResult.transfers.length} transfers, ${withdrawResult.errors.length} errors`,
     );
 
-    // 3. Abort if any withdrawal failed (don't close account with assets still inside)
+    // 4. Abort if any withdrawal failed (don't close account with assets still inside)
     if (withdrawResult.errors.length > 0) {
       this.logger.error(`Withdrawal incomplete for account ${accountId}:`, withdrawResult.errors);
       throw new BadRequestException({
@@ -652,7 +657,7 @@ export class CrossmintService implements OnModuleInit {
       });
     }
 
-    // 4. Perform Deletion (Soft Delete) — only if all assets withdrawn successfully
+    // 5. Perform Deletion (Soft Delete) — only if all assets withdrawn successfully
     const { error: deleteError } = await this.supabaseService.client
       .from('accounts')
       .update({ is_active: false })

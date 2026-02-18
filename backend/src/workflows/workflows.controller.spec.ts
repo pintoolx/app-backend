@@ -1,49 +1,28 @@
-import { UnauthorizedException } from '@nestjs/common';
 import { WorkflowsController } from './workflows.controller';
 
 describe('WorkflowsController', () => {
-  it('throws when signature invalid', async () => {
-    const workflowsService = {
-      executeWorkflow: jest.fn(),
+  it('returns active instances from lifecycle manager', () => {
+    const instances = [
+      {
+        accountId: 'acc-1',
+        executionId: 'exec-1',
+        workflowName: 'WF',
+        isRunning: true,
+        nodeCount: 2,
+        startedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ];
+    const lifecycleManager = {
+      getActiveInstances: jest.fn().mockReturnValue(instances),
     } as any;
-    const authService = {
-      verifyAndConsumeChallenge: jest.fn().mockResolvedValue(false),
-    } as any;
-    const lifecycleManager = { getActiveInstances: jest.fn() } as any;
-    const controller = new WorkflowsController(workflowsService, lifecycleManager, authService);
+    const controller = new WorkflowsController(lifecycleManager);
 
-    await expect(
-      controller.executeWorkflow('wf-1', {
-        walletAddress: 'wallet-1',
-        signature: 'sig',
-      } as any),
-    ).rejects.toThrow(UnauthorizedException);
-    expect(workflowsService.executeWorkflow).not.toHaveBeenCalled();
-  });
+    const result = controller.getActiveInstances();
 
-  it('returns execution when signature valid', async () => {
-    const workflowsService = {
-      executeWorkflow: jest.fn().mockResolvedValue({ id: 'exec-1' }),
-    } as any;
-    const authService = {
-      verifyAndConsumeChallenge: jest.fn().mockResolvedValue(true),
-    } as any;
-    const lifecycleManager = { getActiveInstances: jest.fn() } as any;
-    const controller = new WorkflowsController(workflowsService, lifecycleManager, authService);
-
-    const result = await controller.executeWorkflow('wf-1', {
-      walletAddress: 'wallet-1',
-      signature: 'sig',
-    } as any);
-
-    expect(workflowsService.executeWorkflow).toHaveBeenCalledWith(
-      'wf-1',
-      'wallet-1',
-      expect.objectContaining({ walletAddress: 'wallet-1', signature: 'sig' }),
-    );
     expect(result).toEqual({
       success: true,
-      data: { id: 'exec-1' },
+      count: 1,
+      data: instances,
     });
   });
 });

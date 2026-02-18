@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException, Inject, forwardRef } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 import { WorkflowExecutorFactory } from './workflow-executor.factory';
 import { WorkflowDefinition } from '../web3/workflow-types';
@@ -52,6 +52,29 @@ export class WorkflowsService {
 
     if (error || !data) {
       throw new NotFoundException('Workflow not found');
+    }
+
+    return data;
+  }
+
+  async createWorkflow(
+    ownerWalletAddress: string,
+    dto: { name: string; description?: string; definition: any },
+  ) {
+    const { data, error } = await this.supabaseService.client
+      .from('workflows')
+      .insert({
+        owner_wallet_address: ownerWalletAddress,
+        name: dto.name,
+        description: dto.description,
+        definition: dto.definition,
+        is_public: false,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new InternalServerErrorException('Failed to create workflow');
     }
 
     return data;

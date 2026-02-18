@@ -6,20 +6,17 @@ import {
   Body,
   Param,
   UseGuards,
-  InternalServerErrorException,
-  NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { AgentService } from './agent.service';
 import { CrossmintService } from '../crossmint/crossmint.service';
 import { WorkflowsService } from '../workflows/workflows.service';
-import { SupabaseService } from '../database/supabase.service';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import { AgentWallet } from '../common/decorators/agent-wallet.decorator';
 import { AgentRegisterDto } from './dto/agent-register.dto';
 import { AgentInitWalletDto } from './dto/agent-init-wallet.dto';
-import { AgentExecuteWorkflowDto } from './dto/agent-execute-workflow.dto';
 import { CreateWorkflowDto } from '../workflows/dto/create-workflow.dto';
+import { getRegisteredNodes } from '../web3/nodes/node-registry';
 
 @ApiTags('Agent')
 @Controller('agent')
@@ -28,7 +25,6 @@ export class AgentController {
     private agentService: AgentService,
     private crossmintService: CrossmintService,
     private workflowsService: WorkflowsService,
-    private supabaseService: SupabaseService,
   ) {}
 
   @Post('register')
@@ -53,13 +49,52 @@ export class AgentController {
     return { success: true, data: accounts };
   }
 
+  @Get('nodes')
+  @ApiOperation({ summary: 'List all available node types and their parameters' })
+  @ApiResponse({ status: 200, description: 'List of node type schemas' })
+  async listNodes() {
+    const registry = getRegisteredNodes();
+    const nodes = Array.from(registry.entries()).map(([type, factory]) => {
+      const node = factory();
+      const desc = node.description;
+      return {
+        type,
+        displayName: desc.displayName,
+        description: desc.description,
+        group: desc.group,
+        inputs: desc.inputs,
+        outputs: desc.outputs,
+        isTrigger: desc.isTrigger ?? false,
+        telegramNotify: desc.telegramNotify,
+        parameters: desc.properties.map((p) => ({
+          name: p.name,
+          type: p.type,
+          default: p.default,
+          description: p.description,
+          ...(p.options ? { options: p.options } : {}),
+        })),
+      };
+    });
+    return { success: true, data: nodes };
+  }
+
+  @Post('workflows')
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({ summary: 'Create a workflow' })
+  @ApiHeader({ name: 'X-API-Key', required: true })
+  @ApiResponse({ status: 201, description: 'Workflow created' })
+  async createWorkflow(@AgentWallet() walletAddress: string, @Body() dto: CreateWorkflowDto) {
+    const workflow = await this.workflowsService.createWorkflow(walletAddress, dto);
+    return { success: true, data: workflow };
+  }
+
   @Post('wallets/init')
   @UseGuards(ApiKeyGuard)
   @ApiOperation({ summary: 'Create account with Crossmint wallet' })
   @ApiHeader({ name: 'X-API-Key', required: true })
   @ApiResponse({ status: 201, description: 'Account created' })
   async initWallet(@AgentWallet() walletAddress: string, @Body() dto: AgentInitWalletDto) {
-    const account = await this.crossmintService.createAccountWithWallet(walletAddress, dto.accountName);
+    const account = await this.crossmintService.createAccountWithWallet(walletAddress, dto.accountName, dto.workflowId);
     return { success: true, data: account };
   }
 
@@ -71,69 +106,5 @@ export class AgentController {
   async deleteWallet(@Param('id') id: string, @AgentWallet() walletAddress: string) {
     const result = await this.crossmintService.deleteWallet(id, walletAddress);
     return { success: true, message: 'Account closed and assets withdrawn', data: result.withdrawResult };
-  }
-
-  @Post('workflows')
-  @UseGuards(ApiKeyGuard)
-  @ApiOperation({ summary: 'Create a workflow' })
-  @ApiHeader({ name: 'X-API-Key', required: true })
-  @ApiResponse({ status: 201, description: 'Workflow created' })
-  async createWorkflow(@AgentWallet() walletAddress: string, @Body() dto: CreateWorkflowDto) {
-    const { data, error } = await this.supabaseService.client
-      .from('workflows')
-      .insert({
-        owner_wallet_address: walletAddress,
-        name: dto.name,
-        description: dto.description || null,
-        definition: dto.definition,
-        is_public: false,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new InternalServerErrorException(`Failed to create workflow: ${error.message}`);
-    }
-
-    return { success: true, data };
-  }
-
-  @Post('workflows/:id/execute')
-  @UseGuards(ApiKeyGuard)
-  @ApiOperation({ summary: 'Execute a workflow' })
-  @ApiHeader({ name: 'X-API-Key', required: true })
-  @ApiResponse({ status: 200, description: 'Workflow execution started' })
-  async executeWorkflow(
-    @Param('id') id: string,
-    @AgentWallet() walletAddress: string,
-    @Body() dto: AgentExecuteWorkflowDto,
-  ) {
-    const execution = await this.workflowsService.executeWorkflow(id, walletAddress, dto);
-    return { success: true, data: execution };
-  }
-
-  @Get('workflows/:id/executions/:executionId')
-  @UseGuards(ApiKeyGuard)
-  @ApiOperation({ summary: 'Get workflow execution status' })
-  @ApiHeader({ name: 'X-API-Key', required: true })
-  @ApiResponse({ status: 200, description: 'Execution status' })
-  async getExecutionStatus(
-    @Param('id') id: string,
-    @Param('executionId') executionId: string,
-    @AgentWallet() walletAddress: string,
-  ) {
-    const { data, error } = await this.supabaseService.client
-      .from('workflow_executions')
-      .select('*')
-      .eq('id', executionId)
-      .eq('workflow_id', id)
-      .eq('owner_wallet_address', walletAddress)
-      .single();
-
-    if (error || !data) {
-      throw new NotFoundException('Execution not found');
-    }
-
-    return { success: true, data };
   }
 }
