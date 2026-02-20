@@ -27,6 +27,34 @@ Automate DeFi workflows on Solana through a REST API. Agents authenticate with a
 
 All requests after step 3 require the `X-API-Key` header.
 
+### API Key Storage
+
+The API key is **only shown once** upon registration. You must persist it immediately.
+
+- **Environment variable** (recommended for production): Store as `PINTOOL_API_KEY` in `.env` or a secrets manager (e.g., AWS Secrets Manager, Vault, Doppler).
+- **JSON file** (recommended for local/agent use): Store in a local JSON config file (e.g., `~/.pintool/credentials.json`), and add the file to `.gitignore`.
+- **Never** hard-code the key in source code or commit it to version control.
+- **Lost key?** Re-call `POST /api/agent/register` with a new wallet signature. This rotates the key — the previous key is invalidated.
+
+```bash
+# .env
+PINTOOL_API_KEY=pt_live_...
+```
+
+```jsonc
+// ~/.pintool/credentials.json
+{
+  "apiKey": "pt_live_..."
+}
+```
+
+```typescript
+// Load from env or JSON file
+const apiKey = process.env.PINTOOL_API_KEY
+  ?? JSON.parse(fs.readFileSync('~/.pintool/credentials.json', 'utf-8')).apiKey;
+if (!apiKey) throw new Error('Missing PINTOOL_API_KEY');
+```
+
 > **Tip:** Before creating a workflow, call `GET /api/agent/nodes` to discover all available node types and their exact parameter schemas.
 
 ## API Reference
