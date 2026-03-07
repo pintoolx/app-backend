@@ -61,9 +61,9 @@ export class AgentService {
   async getAgentAccounts(walletAddress: string) {
     const { data, error } = await this.supabaseService.client
       .from('accounts')
-      .select('id, name, crossmint_wallet_address, current_workflow_id, is_active, created_at')
+      .select('id, name, crossmint_wallet_address, current_workflow_id, status, created_at')
       .eq('owner_wallet_address', walletAddress)
-      .eq('is_active', true)
+      .eq('status', 'active')
       .order('created_at', { ascending: false });
 
     if (error) {

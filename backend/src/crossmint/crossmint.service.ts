@@ -660,7 +660,7 @@ export class CrossmintService implements OnModuleInit {
     // 5. Perform Deletion (Soft Delete) — only if all assets withdrawn successfully
     const { error: deleteError } = await this.supabaseService.client
       .from('accounts')
-      .update({ is_active: false })
+      .update({ status: 'closed' })
       .eq('id', accountId);
 
     if (deleteError) {

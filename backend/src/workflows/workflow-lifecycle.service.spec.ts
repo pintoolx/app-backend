@@ -5,7 +5,8 @@ describe('WorkflowLifecycleManager', () => {
     jest.useFakeTimers();
     const supabaseService = { client: {} } as any;
     const executorFactory = { createInstance: jest.fn() } as any;
-    const manager = new WorkflowLifecycleManager(supabaseService, executorFactory);
+    const agentKitService = { getRpcUrl: jest.fn() } as any;
+    const manager = new WorkflowLifecycleManager(supabaseService, executorFactory, agentKitService);
 
     const runSyncOnce = jest.fn().mockResolvedValue(undefined);
     (manager as any).runSyncOnce = runSyncOnce;
@@ -25,7 +26,8 @@ describe('WorkflowLifecycleManager', () => {
     jest.useFakeTimers();
     const supabaseService = { client: {} } as any;
     const executorFactory = { createInstance: jest.fn() } as any;
-    const manager = new WorkflowLifecycleManager(supabaseService, executorFactory);
+    const agentKitService = { getRpcUrl: jest.fn() } as any;
+    const manager = new WorkflowLifecycleManager(supabaseService, executorFactory, agentKitService);
 
     const syncInstances = jest.fn(() => new Promise((resolve) => setTimeout(resolve, 10)));
     (manager as any).syncInstances = syncInstances;

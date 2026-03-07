@@ -6,7 +6,7 @@ CREATE TABLE public.accounts (
   owner_wallet_address text NOT NULL,
   name text NOT NULL,
   current_workflow_id uuid,
-  is_active boolean DEFAULT true,
+  status text NOT NULL DEFAULT 'inactive' CHECK (status IN ('inactive', 'active', 'closed')),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   crossmint_wallet_locator character varying,
@@ -14,6 +14,17 @@ CREATE TABLE public.accounts (
   CONSTRAINT accounts_pkey PRIMARY KEY (id),
   CONSTRAINT accounts_owner_wallet_address_fkey FOREIGN KEY (owner_wallet_address) REFERENCES public.users(wallet_address),
   CONSTRAINT accounts_current_workflow_id_fkey FOREIGN KEY (current_workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.canvases (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_wallet_address text NOT NULL,
+  name text NOT NULL,
+  description text,
+  definition jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT canvases_pkey PRIMARY KEY (id),
+  CONSTRAINT canvases_owner_wallet_address_fkey FOREIGN KEY (owner_wallet_address) REFERENCES public.users(wallet_address)
 );
 CREATE TABLE public.auth_challenges (
   wallet_address text NOT NULL,
@@ -132,9 +143,11 @@ CREATE TABLE public.workflows (
   name text NOT NULL,
   description text,
   definition jsonb NOT NULL,
+  canvas_id uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   is_public boolean DEFAULT false,
   CONSTRAINT workflows_pkey PRIMARY KEY (id),
-  CONSTRAINT workflows_owner_wallet_address_fkey FOREIGN KEY (owner_wallet_address) REFERENCES public.users(wallet_address)
+  CONSTRAINT workflows_owner_wallet_address_fkey FOREIGN KEY (owner_wallet_address) REFERENCES public.users(wallet_address),
+  CONSTRAINT workflows_canvas_id_fkey FOREIGN KEY (canvas_id) REFERENCES public.canvases(id) ON DELETE SET NULL
 );
