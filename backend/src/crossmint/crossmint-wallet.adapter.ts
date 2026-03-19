@@ -5,21 +5,7 @@ import {
   SendOptions,
   TransactionSignature,
 } from '@solana/web3.js';
-
-/**
- * Crossmint Wallet 的類型定義
- * 基於 @crossmint/wallets-sdk 的 SolanaWallet
- */
-export interface CrossmintSolanaWallet {
-  address: string;
-  sendTransaction(
-    transaction: Transaction | VersionedTransaction,
-    options?: { experimental_prepareOnly?: boolean },
-  ): Promise<{
-    hash?: string;
-    signedTransaction?: Transaction | VersionedTransaction;
-  }>;
-}
+import { SolanaWallet } from '@crossmint/wallets-sdk';
 
 /**
  * Crossmint Wallet Adapter
@@ -29,9 +15,9 @@ export interface CrossmintSolanaWallet {
  */
 export class CrossmintWalletAdapter {
   public readonly publicKey: PublicKey;
-  private crossmintWallet: CrossmintSolanaWallet;
+  private crossmintWallet: SolanaWallet;
 
-  constructor(crossmintWallet: CrossmintSolanaWallet) {
+  constructor(crossmintWallet: SolanaWallet) {
     this.crossmintWallet = crossmintWallet;
     this.publicKey = new PublicKey(crossmintWallet.address);
   }
@@ -47,15 +33,14 @@ export class CrossmintWalletAdapter {
    * 簽名單一交易（不發送）
    */
   async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
-    const result = await this.crossmintWallet.sendTransaction(transaction, {
-      experimental_prepareOnly: true,
+    const serializedTransaction = Buffer.from(transaction.serialize()).toString('base64');
+
+    await this.crossmintWallet.sendTransaction({
+      serializedTransaction,
+      options: { experimental_prepareOnly: true },
     });
 
-    if (!result.signedTransaction) {
-      throw new Error('Failed to sign transaction with Crossmint wallet');
-    }
-
-    return result.signedTransaction as T;
+    return transaction;
   }
 
   /**
@@ -81,11 +66,11 @@ export class CrossmintWalletAdapter {
     transaction: T,
     _options?: SendOptions,
   ): Promise<{ signature: TransactionSignature }> {
-    const result = await this.crossmintWallet.sendTransaction(transaction);
+    const serializedTransaction = Buffer.from(transaction.serialize()).toString('base64');
 
-    if (!result.hash) {
-      throw new Error('Failed to send transaction with Crossmint wallet');
-    }
+    const result = await this.crossmintWallet.sendTransaction({
+      serializedTransaction,
+    });
 
     return { signature: result.hash as TransactionSignature };
   }

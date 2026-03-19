@@ -26,6 +26,7 @@ export default () => ({
 
   crossmint: {
     serverApiKey: process.env.CROSSMINT_SERVER_API_KEY,
+    signerSecret: process.env.CROSSMINT_SIGNER_SECRET,
     environment: process.env.CROSSMINT_ENVIRONMENT || 'production',
   },
 

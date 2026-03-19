@@ -176,6 +176,18 @@ API Key is sent via `X-API-Key` header.
 
 Query all node schemas: `GET /api/agent/nodes`
 
+### 📘 Full Node Reference (Auto-generated)
+
+A complete, human-readable node reference is generated at:
+
+- `docs/NODES_REFERENCE.md`
+
+Regenerate it anytime with:
+
+```bash
+npm run docs:nodes
+```
+
 ## 🔧 Development
 
 ### Available Scripts
@@ -188,6 +200,7 @@ npm run start:prod     # Start production build
 npm run build          # Build for production
 npm run format         # Format code with Prettier
 npm run lint           # Run ESLint
+npm run docs:nodes     # Generate full node reference markdown
 npm run test           # Run unit tests
 npm run test:watch     # Run tests in watch mode
 npm run test:cov       # Run tests with coverage
