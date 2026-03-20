@@ -43,12 +43,14 @@ async function bootstrap() {
       'PinTool Web3 Workflow Automation API Documentation\n\n' +
         'This API provides endpoints for:\n' +
         '- Wallet-based authentication\n' +
+        '- Referral code generation, quota management, and redemption\n' +
         '- Workflow management and execution\n' +
         '- Telegram bot integration\n' +
         '- Web3 operations (Jupiter swap, Kamino vaults, Pyth price feeds) - Available as Workflow Nodes',
     )
     .setVersion('1.0')
     .addTag('Auth', 'Wallet signature authentication endpoints')
+    .addTag('Referrals', 'Referral code generation, quota, and redemption endpoints')
     .addTag('Workflows', 'Workflow CRUD and execution endpoints')
     .addTag('Telegram', 'Telegram bot management endpoints')
     .build();

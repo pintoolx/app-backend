@@ -4,11 +4,9 @@ import { WorkflowExecutorFactory } from './workflow-executor.factory';
 import { WorkflowInstance } from './workflow-instance';
 import { WorkflowDefinition } from '../web3/workflow-types';
 import { AgentKitService } from '../web3/services/agent-kit.service';
-import { PublicKey, Connection } from '@solana/web3.js';
-import { getAssociatedTokenAddress, getAccount, getMint } from '@solana/spl-token';
-import { TOKEN_ADDRESS } from '../web3/constants';
+import { PublicKey, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
-const MINIMUM_USDC_BALANCE = 10;
+const MINIMUM_SOL_BALANCE = 0.1;
 
 @Injectable()
 export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
@@ -213,31 +211,26 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Check if the account's Crossmint wallet has the minimum USDC balance required to run workflows.
+   * Check if the account's Crossmint wallet has the minimum SOL balance required to run workflows.
    */
   private async hasMinimumBalance(walletAddress: string): Promise<boolean> {
     try {
       const connection = new Connection(this.agentKitService.getRpcUrl());
       const walletPubkey = new PublicKey(walletAddress);
-      const usdcMint = new PublicKey(TOKEN_ADDRESS.USDC);
-      const tokenAccount = await getAssociatedTokenAddress(usdcMint, walletPubkey);
+      const lamports = await connection.getBalance(walletPubkey);
+      const balance = lamports / LAMPORTS_PER_SOL;
 
-      const account = await getAccount(connection, tokenAccount);
-      const mintInfo = await getMint(connection, usdcMint);
-      const balance = Number(account.amount) / Math.pow(10, mintInfo.decimals);
-
-      this.logger.debug(`Wallet ${walletAddress} USDC balance: ${balance}`);
-      return balance >= MINIMUM_USDC_BALANCE;
+      this.logger.debug(`Wallet ${walletAddress} SOL balance: ${balance}`);
+      return balance >= MINIMUM_SOL_BALANCE;
     } catch {
-      // Token account doesn't exist or RPC error → balance is 0
-      this.logger.debug(`Wallet ${walletAddress} has no USDC token account or RPC error`);
+      this.logger.debug(`Failed to fetch SOL balance for wallet ${walletAddress}`);
       return false;
     }
   }
 
   /**
    * Launch a workflow instance for an account:
-   * 0. Check minimum USDC balance
+   * 0. Check minimum SOL balance
    * 1. Create execution record in DB
    * 2. Create and register instance
    * 3. Execute async with cleanup on completion
@@ -250,12 +243,12 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // 0. Check minimum USDC balance
+    // 0. Check minimum SOL balance
     if (account.crossmint_wallet_address) {
       const hasFunds = await this.hasMinimumBalance(account.crossmint_wallet_address);
       if (!hasFunds) {
         this.logger.debug(
-          `Account ${account.id} has less than ${MINIMUM_USDC_BALANCE} USDC. Skipping workflow launch.`,
+          `Account ${account.id} has less than ${MINIMUM_SOL_BALANCE} SOL. Skipping workflow launch.`,
         );
         return;
       }
