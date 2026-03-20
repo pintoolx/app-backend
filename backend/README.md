@@ -144,6 +144,16 @@ API Key is sent via `X-API-Key` header.
 |--------|----------|------|-------------|
 | GET | `/workflows/active` | API Key | List active workflow instances |
 
+### Referrals (`/api/referrals`) - Signature-based access
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/referrals/admin/codes` | Admin generates single-use referral codes for a target wallet |
+| PATCH | `/referrals/admin/quotas/:walletAddress` | Admin sets lifetime quota for user-generated codes |
+| POST | `/referrals/codes` | User generates own referral codes (quota-limited) |
+| POST | `/referrals/redeem` | Redeem a referral code (single-use only) |
+| POST | `/referrals/my-codes` | List codes created by current wallet |
+
 ### Telegram (`/api/telegram`)
 
 | Method | Endpoint | Description |
@@ -216,6 +226,14 @@ curl http://localhost:3000/api/health
 # Get available node types
 curl http://localhost:3000/api/agent/nodes
 ```
+
+### Referral System Notes
+
+- Code format is fixed to `REF-` + 8 chars, uppercase alphanumeric.
+- Each code is single-use (`max_uses = 1`) and remains stored after consumption.
+- Global uniqueness is guaranteed by DB `UNIQUE(code)`; generation retries on collision.
+- Admin authorization is role-based (`users.app_role = 'admin'`).
+- User self-generation is limited by lifetime quota in `referral_user_quotas`.
 
 ## 🌐 Deployment
 

@@ -8,6 +8,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { Web3Module } from './web3/web3.module';
 import { AgentModule } from './agent/agent.module';
+import { ReferralModule } from './referral/referral.module';
 import { AppController } from './app.controller';
 import { RootController } from './root.controller';
 
@@ -24,6 +25,7 @@ import { RootController } from './root.controller';
     TelegramModule,
     Web3Module,
     AgentModule,
+    ReferralModule,
   ],
   controllers: [RootController, AppController],
 })
