@@ -9,6 +9,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { Web3Module } from './web3/web3.module';
 import { AgentModule } from './agent/agent.module';
 import { ReferralModule } from './referral/referral.module';
+import { WorkflowAiModule } from './workflow-ai/workflow-ai.module';
 import { AppController } from './app.controller';
 import { RootController } from './root.controller';
 
@@ -26,6 +27,7 @@ import { RootController } from './root.controller';
     Web3Module,
     AgentModule,
     ReferralModule,
+    WorkflowAiModule,
   ],
   controllers: [RootController, AppController],
 })

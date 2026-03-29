@@ -1,0 +1,144 @@
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { streamText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { ConversationStoreService, Conversation } from './conversation-store.service';
+import { PromptBuilderService } from './prompt-builder.service';
+import { WorkflowValidatorService } from './workflow-validator.service';
+import { WorkflowsService } from '../workflows/workflows.service';
+import { WorkflowDefinition } from '../web3/workflow-types';
+
+@Injectable()
+export class WorkflowAiService {
+  private readonly logger = new Logger(WorkflowAiService.name);
+  private openai: ReturnType<typeof createOpenAI>;
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly conversationStore: ConversationStoreService,
+    private readonly promptBuilder: PromptBuilderService,
+    private readonly validator: WorkflowValidatorService,
+    private readonly workflowsService: WorkflowsService,
+  ) {
+    const apiKey = this.configService.get<string>('openaiApiKey');
+    if (!apiKey) {
+      this.logger.warn('OPENAI_API_KEY is not configured. Workflow AI features will not work.');
+    }
+    this.openai = createOpenAI({ apiKey: apiKey || '' });
+  }
+
+  createConversation(walletAddress: string): Conversation {
+    return this.conversationStore.create(walletAddress);
+  }
+
+  getConversation(id: string): Conversation {
+    const conv = this.conversationStore.get(id);
+    if (!conv) throw new NotFoundException(`Conversation ${id} not found`);
+    return conv;
+  }
+
+  /**
+   * Chat with the AI — returns an async iterable of text chunks for SSE streaming.
+   * After streaming completes, checks if the response contains a workflow JSON and validates it.
+   */
+  async *chat(conversationId: string, userMessage: string): AsyncGenerator<string> {
+    const conversation = this.conversationStore.get(conversationId);
+    if (!conversation) throw new NotFoundException(`Conversation ${conversationId} not found`);
+    if (conversation.status !== 'active')
+      throw new BadRequestException('Conversation is no longer active');
+
+    // Add the user message
+    this.conversationStore.addMessage(conversationId, { role: 'user', content: userMessage });
+
+    const result = streamText({
+      model: this.openai('gpt-4o'),
+      system: this.promptBuilder.getSystemPrompt(),
+      messages: conversation.messages,
+    });
+
+    // Stream chunks to the client while collecting the full response
+    let fullResponse = '';
+    for await (const chunk of result.textStream) {
+      fullResponse += chunk;
+      yield chunk;
+    }
+
+    // Store the assistant's full response
+    this.conversationStore.addMessage(conversationId, { role: 'assistant', content: fullResponse });
+
+    // Check if the response contains a workflow definition JSON
+    const workflow = this.extractWorkflowFromResponse(fullResponse);
+    if (workflow) {
+      const validation = this.validator.validate(workflow);
+      if (validation.valid) {
+        this.conversationStore.setGeneratedWorkflow(conversationId, workflow);
+        this.logger.log(`Valid workflow generated in conversation ${conversationId}`);
+      } else {
+        // Append validation errors to conversation so LLM can self-correct on next turn
+        const errorMsg = `The generated workflow has validation errors:\n${validation.errors.join('\n')}\n\nPlease fix these issues and regenerate the workflow.`;
+        this.conversationStore.addMessage(conversationId, { role: 'user', content: errorMsg });
+        this.logger.warn(
+          `Workflow validation failed in conversation ${conversationId}: ${validation.errors.join('; ')}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Confirm and save the generated workflow
+   */
+  async confirmWorkflow(
+    conversationId: string,
+    walletAddress: string,
+    name: string,
+    description?: string,
+    _telegramChatId?: string,
+  ) {
+    const conversation = this.conversationStore.get(conversationId);
+    if (!conversation) throw new NotFoundException(`Conversation ${conversationId} not found`);
+    if (!conversation.generatedWorkflow) {
+      throw new BadRequestException('No workflow has been generated in this conversation yet');
+    }
+    if (conversation.walletAddress !== walletAddress) {
+      throw new BadRequestException('Wallet address mismatch');
+    }
+
+    const saved = await this.workflowsService.createWorkflow(walletAddress, {
+      name,
+      description,
+      definition: conversation.generatedWorkflow,
+    });
+
+    this.conversationStore.setStatus(conversationId, 'confirmed');
+    this.logger.log(
+      `Workflow confirmed and saved: ${saved.id} from conversation ${conversationId}`,
+    );
+
+    return saved;
+  }
+
+  /**
+   * Extract a WorkflowDefinition JSON from the LLM's response text.
+   * Looks for JSON inside ```json code fences.
+   */
+  private extractWorkflowFromResponse(response: string): WorkflowDefinition | null {
+    // Match ```json ... ``` blocks
+    const jsonBlockRegex = /```json\s*\n([\s\S]*?)\n```/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = jsonBlockRegex.exec(response)) !== null) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        // Check if it looks like a WorkflowDefinition (has nodes array)
+        if (parsed && Array.isArray(parsed.nodes)) {
+          return parsed as WorkflowDefinition;
+        }
+      } catch {
+        // Not valid JSON, try next match
+        continue;
+      }
+    }
+
+    return null;
+  }
+}

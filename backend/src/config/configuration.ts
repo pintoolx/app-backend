@@ -41,4 +41,6 @@ export default () => ({
   sanctum: {
     apiKey: process.env.SANCTUM_API_KEY,
   },
+
+  openaiApiKey: process.env.OPENAI_API_KEY,
 });
