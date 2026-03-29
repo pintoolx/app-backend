@@ -14,7 +14,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # 安裝所有依賴（包含 devDependencies）
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # 複製源代碼
 COPY . .
