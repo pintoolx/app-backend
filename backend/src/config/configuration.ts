@@ -42,5 +42,10 @@ export default () => ({
     apiKey: process.env.SANCTUM_API_KEY,
   },
 
-  openaiApiKey: process.env.OPENAI_API_KEY,
+  // NVIDIA AI API (for DeepSeek and other models)
+  nvidia: {
+    apiKey: process.env.NVIDIA_API_KEY,
+    baseURL: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+    model: process.env.NVIDIA_MODEL || 'deepseek-ai/deepseek-v3.2',
+  },
 });

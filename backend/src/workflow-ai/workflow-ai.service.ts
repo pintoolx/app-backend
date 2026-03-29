@@ -11,7 +11,8 @@ import { WorkflowDefinition } from '../web3/workflow-types';
 @Injectable()
 export class WorkflowAiService {
   private readonly logger = new Logger(WorkflowAiService.name);
-  private openai: ReturnType<typeof createOpenAI>;
+  private nvidia: ReturnType<typeof createOpenAI>;
+  private modelName: string;
 
   constructor(
     private readonly configService: ConfigService,
@@ -20,11 +21,17 @@ export class WorkflowAiService {
     private readonly validator: WorkflowValidatorService,
     private readonly workflowsService: WorkflowsService,
   ) {
-    const apiKey = this.configService.get<string>('openaiApiKey');
+    const apiKey = this.configService.get<string>('nvidia.apiKey');
+    const baseURL = this.configService.get<string>('nvidia.baseURL') || 'https://integrate.api.nvidia.com/v1';
+    this.modelName = this.configService.get<string>('nvidia.model') || 'deepseek-ai/deepseek-v3.2';
+
     if (!apiKey) {
-      this.logger.warn('OPENAI_API_KEY is not configured. Workflow AI features will not work.');
+      this.logger.warn('NVIDIA_API_KEY is not configured. Workflow AI features will not work.');
     }
-    this.openai = createOpenAI({ apiKey: apiKey || '' });
+    this.nvidia = createOpenAI({
+      apiKey: apiKey || '',
+      baseURL,
+    });
   }
 
   createConversation(walletAddress: string): Conversation {
@@ -51,7 +58,7 @@ export class WorkflowAiService {
     this.conversationStore.addMessage(conversationId, { role: 'user', content: userMessage });
 
     const result = streamText({
-      model: this.openai('gpt-4o'),
+      model: this.nvidia(this.modelName),
       system: this.promptBuilder.getSystemPrompt(),
       messages: conversation.messages,
     });

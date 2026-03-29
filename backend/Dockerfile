@@ -42,7 +42,9 @@ RUN addgroup -g 1001 -S nodejs && \
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force && chown -R nodejs:nodejs /app
+# Use npm install instead of npm ci due to peer dependency conflicts
+# npm ci fails with legacy peer deps from @kamino-finance and @crossmint packages
+RUN npm install --omit=dev --legacy-peer-deps && npm cache clean --force && chown -R nodejs:nodejs /app
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
 # 切換到非 root 用戶
