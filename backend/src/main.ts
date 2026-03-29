@@ -53,6 +53,7 @@ async function bootstrap() {
     .addTag('Referrals', 'Referral code generation, quota, and redemption endpoints')
     .addTag('Workflows', 'Workflow CRUD and execution endpoints')
     .addTag('Telegram', 'Telegram bot management endpoints')
+    .addTag('Workflow AI', 'AI-powered workflow generation and conversation endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

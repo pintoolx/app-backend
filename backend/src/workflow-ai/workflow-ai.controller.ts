@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Param, Body, Res, HttpCode, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiParam } from '@nestjs/swagger';
 import { Response } from 'express';
 import { WorkflowAiService } from './workflow-ai.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
@@ -6,17 +7,16 @@ import { ConfirmWorkflowDto } from './dto/confirm-workflow.dto';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import { AgentWallet } from '../common/decorators/agent-wallet.decorator';
 
+@ApiTags('Workflow AI')
+@ApiHeader({ name: 'X-API-Key', description: 'Agent API key', required: true })
 @Controller('workflow-ai')
 @UseGuards(ApiKeyGuard)
 export class WorkflowAiController {
   constructor(private readonly workflowAiService: WorkflowAiService) {}
 
-  /**
-   * POST /workflow-ai/conversations
-   * Start a new AI conversation. Expects walletAddress in body (or from auth).
-   * For now, accept walletAddress in body for simplicity.
-   */
   @Post('conversations')
+  @ApiOperation({ summary: 'Create a new AI conversation for workflow generation' })
+  @ApiResponse({ status: 201, description: 'Conversation created successfully' })
   createConversation(@AgentWallet() walletAddress: string) {
     const conversation = this.workflowAiService.createConversation(walletAddress);
     return {
@@ -26,12 +26,11 @@ export class WorkflowAiController {
     };
   }
 
-  /**
-   * POST /workflow-ai/conversations/:id/messages
-   * Send a message and stream the AI response via SSE.
-   */
   @Post('conversations/:id/messages')
   @HttpCode(200)
+  @ApiOperation({ summary: 'Send a message and stream AI response via SSE' })
+  @ApiParam({ name: 'id', description: 'Conversation ID' })
+  @ApiResponse({ status: 200, description: 'SSE stream with text chunks and optional workflow_ready event' })
   async chat(@Param('id') id: string, @Body() dto: ChatMessageDto, @Res() res: Response) {
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -63,11 +62,11 @@ export class WorkflowAiController {
     }
   }
 
-  /**
-   * POST /workflow-ai/conversations/:id/confirm
-   * Confirm and save the generated workflow.
-   */
   @Post('conversations/:id/confirm')
+  @ApiOperation({ summary: 'Confirm and save the generated workflow' })
+  @ApiParam({ name: 'id', description: 'Conversation ID' })
+  @ApiResponse({ status: 201, description: 'Workflow confirmed and saved' })
+  @ApiResponse({ status: 400, description: 'No workflow generated yet or wallet mismatch' })
   async confirm(
     @Param('id') id: string,
     @Body() dto: ConfirmWorkflowDto,
@@ -82,11 +81,11 @@ export class WorkflowAiController {
     );
   }
 
-  /**
-   * GET /workflow-ai/conversations/:id
-   * Get conversation history and status.
-   */
   @Get('conversations/:id')
+  @ApiOperation({ summary: 'Get conversation history and status' })
+  @ApiParam({ name: 'id', description: 'Conversation ID' })
+  @ApiResponse({ status: 200, description: 'Conversation details' })
+  @ApiResponse({ status: 404, description: 'Conversation not found' })
   getConversation(@Param('id') id: string) {
     return this.workflowAiService.getConversation(id);
   }
