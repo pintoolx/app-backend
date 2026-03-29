@@ -1,4 +1,5 @@
-import { Injectable, Inject, forwardRef, InternalServerErrorException, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, InternalServerErrorException, UnauthorizedException, OnModuleDestroy } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import { SupabaseService } from '../database/supabase.service';
 import { PublicKey } from '@solana/web3.js';
@@ -12,6 +13,7 @@ export class AuthService implements OnModuleDestroy {
   constructor(
     @Inject(forwardRef(() => SupabaseService))
     private supabaseService: SupabaseService,
+    private jwtService: JwtService,
   ) {
     // Clean expired challenges every 5 minutes
     this.cleanupInterval = setInterval(() => this.cleanExpiredChallenges(), 5 * 60 * 1000);
@@ -153,6 +155,18 @@ export class AuthService implements OnModuleDestroy {
     if (!error && count && count > 0) {
       console.log(`🧹 Cleaned ${count} expired challenges`);
     }
+  }
+
+  /**
+   * Login with wallet signature — verify and return JWT
+   */
+  async loginWithSignature(walletAddress: string, signature: string): Promise<{ accessToken: string }> {
+    const isValid = await this.verifyAndConsumeChallenge(walletAddress, signature);
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid signature or expired challenge');
+    }
+    const accessToken = this.jwtService.sign({ walletAddress });
+    return { accessToken };
   }
 
   /**

@@ -1,23 +1,23 @@
 import { Controller, Post, Get, Param, Body, Res, HttpCode, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { Response } from 'express';
 import { WorkflowAiService } from './workflow-ai.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
 import { ConfirmWorkflowDto } from './dto/confirm-workflow.dto';
-import { ApiKeyGuard } from '../common/guards/api-key.guard';
-import { AgentWallet } from '../common/decorators/agent-wallet.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Workflow AI')
-@ApiHeader({ name: 'X-API-Key', description: 'Agent API key', required: true })
+@ApiBearerAuth()
 @Controller('workflow-ai')
-@UseGuards(ApiKeyGuard)
+@UseGuards(JwtAuthGuard)
 export class WorkflowAiController {
   constructor(private readonly workflowAiService: WorkflowAiService) {}
 
   @Post('conversations')
   @ApiOperation({ summary: 'Create a new AI conversation for workflow generation' })
   @ApiResponse({ status: 201, description: 'Conversation created successfully' })
-  createConversation(@AgentWallet() walletAddress: string) {
+  createConversation(@CurrentUser('walletAddress') walletAddress: string) {
     const conversation = this.workflowAiService.createConversation(walletAddress);
     return {
       id: conversation.id,
@@ -70,7 +70,7 @@ export class WorkflowAiController {
   async confirm(
     @Param('id') id: string,
     @Body() dto: ConfirmWorkflowDto,
-    @AgentWallet() walletAddress: string,
+    @CurrentUser('walletAddress') walletAddress: string,
   ) {
     return this.workflowAiService.confirmWorkflow(
       id,

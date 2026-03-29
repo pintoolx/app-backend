@@ -54,6 +54,7 @@ async function bootstrap() {
     .addTag('Workflows', 'Workflow CRUD and execution endpoints')
     .addTag('Telegram', 'Telegram bot management endpoints')
     .addTag('Workflow AI', 'AI-powered workflow generation and conversation endpoints')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

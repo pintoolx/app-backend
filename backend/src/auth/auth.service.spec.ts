@@ -1,6 +1,8 @@
 import { InternalServerErrorException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
+const mockJwtService = { sign: jest.fn().mockReturnValue('mock-token'), verifyAsync: jest.fn() } as any;
+
 const buildSupabaseClient = (rows: any[] = []) => {
   const authTable: any = {
     select: jest.fn().mockReturnThis(),
@@ -38,7 +40,7 @@ describe('AuthService', () => {
 
   it('generates and stores challenge', async () => {
     const { from, authTable } = buildSupabaseClient();
-    const service = new AuthService({ client: { from } } as any);
+    const service = new AuthService({ client: { from } } as any, mockJwtService);
     const challenge = await service.generateChallenge('wallet-1');
 
     expect(challenge).toContain('wallet-1');
@@ -48,7 +50,7 @@ describe('AuthService', () => {
   it('throws when challenge storage fails', async () => {
     const { from, authTable } = buildSupabaseClient();
     authTable.upsert.mockResolvedValue({ error: new Error('fail') });
-    const service = new AuthService({ client: { from } } as any);
+    const service = new AuthService({ client: { from } } as any, mockJwtService);
 
     await expect(service.generateChallenge('wallet-1')).rejects.toThrow(
       InternalServerErrorException,
@@ -57,7 +59,7 @@ describe('AuthService', () => {
 
   it('returns false when no challenge found', async () => {
     const { from } = buildSupabaseClient([]);
-    const service = new AuthService({ client: { from } } as any);
+    const service = new AuthService({ client: { from } } as any, mockJwtService);
 
     const result = await service.verifyAndConsumeChallenge('wallet-1', 'sig');
 
@@ -70,7 +72,7 @@ describe('AuthService', () => {
       expires_at: new Date(Date.now() - 1000).toISOString(),
     };
     const { from } = buildSupabaseClient([expired]);
-    const service = new AuthService({ client: { from } } as any);
+    const service = new AuthService({ client: { from } } as any, mockJwtService);
     const deleteSpy = jest.spyOn(service as any, 'deleteChallenge').mockResolvedValue(undefined);
 
     const result = await service.verifyAndConsumeChallenge('wallet-1', 'sig');
@@ -85,7 +87,7 @@ describe('AuthService', () => {
       expires_at: new Date(Date.now() + 1000).toISOString(),
     };
     const { from } = buildSupabaseClient([valid]);
-    const service = new AuthService({ client: { from } } as any);
+    const service = new AuthService({ client: { from } } as any, mockJwtService);
     jest.spyOn(service as any, 'verifyWalletSignature').mockReturnValue(true);
     const deleteSpy = jest.spyOn(service as any, 'deleteChallenge').mockResolvedValue(undefined);
     const createSpy = jest.spyOn(service as any, 'createOrUpdateUser').mockResolvedValue(undefined);
@@ -103,7 +105,7 @@ describe('AuthService', () => {
       expires_at: new Date(Date.now() + 1000).toISOString(),
     };
     const { from } = buildSupabaseClient([valid]);
-    const service = new AuthService({ client: { from } } as any);
+    const service = new AuthService({ client: { from } } as any, mockJwtService);
     jest.spyOn(service as any, 'verifyWalletSignature').mockReturnValue(false);
     const deleteSpy = jest.spyOn(service as any, 'deleteChallenge').mockResolvedValue(undefined);
 

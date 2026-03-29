@@ -42,6 +42,11 @@ export default () => ({
     apiKey: process.env.SANCTUM_API_KEY,
   },
 
+  jwt: {
+    secret: process.env.JWT_SECRET || 'pintool-dev-secret-change-in-production',
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  },
+
   // NVIDIA AI API (for DeepSeek and other models)
   nvidia: {
     apiKey: process.env.NVIDIA_API_KEY,

@@ -2,6 +2,7 @@ import { Controller, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { WalletChallengeDto } from './dto/wallet-challenge.dto';
+import { WalletLoginDto } from './dto/wallet-login.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -44,5 +45,28 @@ export class AuthController {
         expiresIn: 300, // 5 minutes in seconds
       },
     };
+  }
+
+  @Post('login')
+  @ApiOperation({
+    summary: 'Login with wallet signature',
+    description: 'Verify wallet signature against a previously requested challenge and receive a JWT access token.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Login successful, JWT token returned',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          accessToken: 'eyJhbGciOiJIUzI1NiIs...',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Invalid signature or expired challenge' })
+  async login(@Body() dto: WalletLoginDto) {
+    const result = await this.authService.loginWithSignature(dto.walletAddress, dto.signature);
+    return { success: true, data: result };
   }
 }
