@@ -354,7 +354,7 @@ export class CrossmintService implements OnModuleInit {
   }> {
     await this.assertAccountOwnership(accountId, ownerWalletAddress);
     this.lifecycleManager.stopWorkflowForAccount(accountId);
-    const withdrawResult = await this.withdrawWallet(accountId, ownerWalletAddress);
+    const withdrawResult = await this.withdrawAllAssets(accountId, ownerWalletAddress);
 
     const { error: deleteError } = await this.supabaseService.client
       .from('accounts')
@@ -370,29 +370,47 @@ export class CrossmintService implements OnModuleInit {
     return { withdrawResult };
   }
 
-  async withdrawWallet(
+  async withdrawSol(
     accountId: string,
     ownerWalletAddress: string,
-  ): Promise<{
-    transfers: Array<{ token: string; amount: number; signature: string }>;
-    errors: string[];
-  }> {
+    amountSol: number,
+  ): Promise<{ amount: number; signature: string }> {
     await this.assertAccountOwnership(accountId, ownerWalletAddress);
 
-    const withdrawResult = await this.withdrawAllAssets(accountId, ownerWalletAddress);
-    this.logger.log(
-      `Assets withdrawn for account ${accountId}: ${withdrawResult.transfers.length} transfers, ${withdrawResult.errors.length} errors`,
-    );
+    const wallet = await this.getWalletForAccount(accountId);
+    const rpcUrl = this.configService.get<string>('solana.rpcUrl');
+    const connection = new Connection(rpcUrl);
+    const ownerPubkey = new PublicKey(ownerWalletAddress);
 
-    if (withdrawResult.errors.length > 0) {
-      this.logger.error(`Withdrawal incomplete for account ${accountId}:`, withdrawResult.errors);
-      throw new BadRequestException({
-        message: 'Cannot withdraw account assets: some transfers failed',
-        withdrawResult,
-      });
+    const solBalance = await connection.getBalance(wallet.publicKey);
+    const lamportsToSend = Math.round(amountSol * LAMPORTS_PER_SOL);
+    const feeReserve = 10_000; // 0.00001 SOL for tx fee
+
+    if (lamportsToSend <= 0) {
+      throw new BadRequestException('Withdraw amount must be greater than 0');
     }
 
-    return withdrawResult;
+    if (lamportsToSend + feeReserve > solBalance) {
+      const available = Math.max(0, solBalance - feeReserve) / LAMPORTS_PER_SOL;
+      throw new BadRequestException(
+        `Insufficient SOL balance. Available: ${available} SOL, requested: ${amountSol} SOL`,
+      );
+    }
+
+    const tx = new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: wallet.publicKey,
+        toPubkey: ownerPubkey,
+        lamports: lamportsToSend,
+      }),
+    );
+    tx.feePayer = wallet.publicKey;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    const result = await wallet.signAndSendTransaction(tx);
+    this.logger.log(`SOL withdrawn for account ${accountId}: ${amountSol} SOL, tx: ${result.signature}`);
+
+    return { amount: amountSol, signature: result.signature };
   }
 
   private async assertAccountOwnership(accountId: string, ownerWalletAddress: string): Promise<void> {

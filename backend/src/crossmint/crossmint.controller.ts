@@ -11,6 +11,7 @@ import { CrossmintService } from './crossmint.service';
 import { AuthService } from '../auth/auth.service';
 import { InitWalletDto } from './dto/init-wallet.dto';
 import { SignedRequestDto } from './dto/signed-request.dto';
+import { WithdrawRequestDto } from './dto/withdraw-request.dto';
 
 @ApiTags('Crossmint')
 @Controller('crossmint/wallets')
@@ -57,16 +58,17 @@ export class CrossmintController {
 
   @Post(':id/withdraw')
   @ApiOperation({
-    summary: 'Withdraw all account assets back to owner wallet',
-    description: 'Requires valid signature from the owner wallet',
+    summary: 'Withdraw SOL from account wallet back to owner wallet',
+    description: 'Withdraws the specified amount of SOL. Requires valid signature from the owner wallet.',
   })
-  @ApiResponse({ status: 200, description: 'Assets withdrawn' })
+  @ApiResponse({ status: 200, description: 'SOL withdrawn' })
+  @ApiResponse({ status: 400, description: 'Insufficient SOL balance' })
   @ApiResponse({ status: 401, description: 'Invalid signature' })
   @ApiResponse({ status: 403, description: 'Not authorized (Not the owner)' })
-  async withdrawWallet(@Param('id') id: string, @Body() dto: SignedRequestDto) {
+  async withdrawWallet(@Param('id') id: string, @Body() dto: WithdrawRequestDto) {
     await this.verifySignature(dto.walletAddress, dto.signature);
-    const data = await this.crossmintService.withdrawWallet(id, dto.walletAddress);
-    return { success: true, message: 'Assets withdrawn to owner wallet', data };
+    const data = await this.crossmintService.withdrawSol(id, dto.walletAddress, dto.amount);
+    return { success: true, message: 'SOL withdrawn to owner wallet', data };
   }
 
   private async verifySignature(walletAddress: string, signature: string): Promise<void> {
