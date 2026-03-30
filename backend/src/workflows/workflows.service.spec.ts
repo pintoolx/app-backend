@@ -9,6 +9,7 @@ const createSupabaseClient = (options: { runningExecution?: any }) => {
   };
 
   const workflowTable = {
+    insert: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     single: jest.fn().mockResolvedValue({ data: workflowRow, error: null }),
@@ -33,6 +34,7 @@ const createSupabaseClient = (options: { runningExecution?: any }) => {
   };
 
   const telegramTable = {
+    upsert: jest.fn().mockResolvedValue({ error: null }),
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     single: jest.fn().mockResolvedValue({ data: { chat_id: 'chat-1' }, error: null }),
@@ -56,12 +58,46 @@ const createSupabaseClient = (options: { runningExecution?: any }) => {
 
   return {
     from,
+    workflowTable,
     workflowExecutionsTable,
+    telegramTable,
     updateQuery,
   };
 };
 
 describe('WorkflowsService', () => {
+  it('creates workflow with isPublic and telegram mapping support', async () => {
+    const { from, workflowTable, telegramTable } = createSupabaseClient({});
+    const supabaseService = { client: { from } } as any;
+    const executorFactory = { createInstance: jest.fn() } as any;
+    const service = new WorkflowsService(supabaseService, executorFactory);
+
+    const definition = { nodes: [], connections: {} } as WorkflowDefinition;
+    const result = await service.createWorkflow('wallet-1', {
+      name: 'WF',
+      description: 'desc',
+      definition,
+      isPublic: true,
+      telegramChatId: '123456',
+    });
+
+    expect(telegramTable.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wallet_address: 'wallet-1',
+        chat_id: '123456',
+        notifications_enabled: true,
+      }),
+    );
+    expect(workflowTable.insert).toHaveBeenCalledWith({
+      owner_wallet_address: 'wallet-1',
+      name: 'WF',
+      description: 'desc',
+      definition,
+      is_public: true,
+    });
+    expect(result.id).toBe('wf-1');
+  });
+
   it('returns existing running execution without creating a new one', async () => {
     const running = { id: 'running-1', status: 'running' };
     const { from, workflowExecutionsTable } = createSupabaseClient({ runningExecution: running });

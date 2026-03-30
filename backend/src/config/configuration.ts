@@ -7,12 +7,15 @@ export default () => ({
     url: process.env.SUPABASE_URL,
     anonKey: process.env.SUPABASE_ANON_KEY,
     serviceKey: process.env.SUPABASE_SERVICE_KEY,
+    jwtIssuer: process.env.SUPABASE_JWT_ISSUER || `${process.env.SUPABASE_URL}/auth/v1`,
+    jwtAudience: process.env.SUPABASE_JWT_AUDIENCE || 'authenticated',
   },
 
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
     notifyEnabled: process.env.TELEGRAM_NOTIFY_ENABLED === 'true',
     webhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
+    webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET,
   },
 
   solana: {
@@ -40,11 +43,6 @@ export default () => ({
 
   sanctum: {
     apiKey: process.env.SANCTUM_API_KEY,
-  },
-
-  jwt: {
-    secret: process.env.JWT_SECRET || 'pintool-dev-secret-change-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
 
   // NVIDIA AI API (for DeepSeek and other models)

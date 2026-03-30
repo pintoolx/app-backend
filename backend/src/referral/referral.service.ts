@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PostgrestError } from '@supabase/supabase-js';
-import { AuthService } from '../auth/auth.service';
 import { SupabaseService } from '../database/supabase.service';
 import { ReferralCodeGeneratorService } from './referral-code-generator.service';
 
@@ -43,18 +42,15 @@ const REFERRAL_CODE_SELECT_COLUMNS =
 @Injectable()
 export class ReferralService {
   constructor(
-    private readonly authService: AuthService,
     private readonly supabaseService: SupabaseService,
     private readonly codeGenerator: ReferralCodeGeneratorService,
   ) {}
 
   async setUserQuota(
     adminWalletAddress: string,
-    signature: string,
     targetWalletAddress: string,
     maxCodes: number,
   ): Promise<QuotaRow> {
-    await this.verifySignedWallet(adminWalletAddress, signature);
     await this.assertAdmin(adminWalletAddress);
     await this.ensureUserExists(targetWalletAddress);
 
@@ -83,16 +79,13 @@ export class ReferralService {
 
   async adminGenerateCodes(params: {
     adminWalletAddress: string;
-    signature: string;
     targetWalletAddress: string;
     count: number;
     expiresAt?: string;
     metadata?: Record<string, unknown>;
   }): Promise<ReferralCodeRow[]> {
-    const { adminWalletAddress, signature, targetWalletAddress, count, expiresAt, metadata } =
-      params;
+    const { adminWalletAddress, targetWalletAddress, count, expiresAt, metadata } = params;
 
-    await this.verifySignedWallet(adminWalletAddress, signature);
     await this.assertAdmin(adminWalletAddress);
     await this.ensureUserExists(targetWalletAddress);
 
@@ -108,14 +101,12 @@ export class ReferralService {
 
   async userGenerateCodes(params: {
     walletAddress: string;
-    signature: string;
     count: number;
     expiresAt?: string;
     metadata?: Record<string, unknown>;
   }): Promise<ReferralCodeRow[]> {
-    const { walletAddress, signature, count, expiresAt, metadata } = params;
+    const { walletAddress, count, expiresAt, metadata } = params;
 
-    await this.verifySignedWallet(walletAddress, signature);
     await this.ensureUserExists(walletAddress);
 
     const reserved = await this.reserveUserQuota(walletAddress, count);
@@ -139,11 +130,9 @@ export class ReferralService {
 
   async redeemCode(
     walletAddress: string,
-    signature: string,
     code: string,
     metadata?: Record<string, unknown>,
   ): Promise<ReferralCodeRow> {
-    await this.verifySignedWallet(walletAddress, signature);
     await this.ensureUserExists(walletAddress);
 
     const normalizedCode = code.trim().toUpperCase();
@@ -192,9 +181,7 @@ export class ReferralService {
     return row;
   }
 
-  async listMyCodes(walletAddress: string, signature: string): Promise<ReferralCodeRow[]> {
-    await this.verifySignedWallet(walletAddress, signature);
-
+  async listMyCodes(walletAddress: string): Promise<ReferralCodeRow[]> {
     const { data, error } = await this.supabaseService.client
       .from('referral_codes')
       .select(REFERRAL_CODE_SELECT_COLUMNS)
@@ -206,13 +193,6 @@ export class ReferralService {
     }
 
     return (data ?? []) as ReferralCodeRow[];
-  }
-
-  private async verifySignedWallet(walletAddress: string, signature: string): Promise<void> {
-    const isValid = await this.authService.verifyAndConsumeChallenge(walletAddress, signature);
-    if (!isValid) {
-      throw new ForbiddenException('Invalid signature or challenge expired');
-    }
   }
 
   private async assertAdmin(walletAddress: string): Promise<void> {

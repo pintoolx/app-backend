@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -44,15 +44,32 @@ export class WorkflowAiService {
     return conv;
   }
 
+  getConversationForWallet(id: string, walletAddress: string): Conversation {
+    const conversation = this.getConversation(id);
+    if (conversation.walletAddress !== walletAddress) {
+      throw new ForbiddenException('Conversation does not belong to the authenticated wallet');
+    }
+    return conversation;
+  }
+
+  getActiveConversationForWallet(id: string, walletAddress: string): Conversation {
+    const conversation = this.getConversationForWallet(id, walletAddress);
+    if (conversation.status !== 'active') {
+      throw new BadRequestException('Conversation is no longer active');
+    }
+    return conversation;
+  }
+
   /**
    * Chat with the AI — returns an async iterable of text chunks for SSE streaming.
    * After streaming completes, checks if the response contains a workflow JSON and validates it.
    */
-  async *chat(conversationId: string, userMessage: string): AsyncGenerator<string> {
-    const conversation = this.conversationStore.get(conversationId);
-    if (!conversation) throw new NotFoundException(`Conversation ${conversationId} not found`);
-    if (conversation.status !== 'active')
-      throw new BadRequestException('Conversation is no longer active');
+  async *chat(
+    conversationId: string,
+    walletAddress: string,
+    userMessage: string,
+  ): AsyncGenerator<string> {
+    const conversation = this.getActiveConversationForWallet(conversationId, walletAddress);
 
     // Add the user message
     this.conversationStore.addMessage(conversationId, { role: 'user', content: userMessage });
@@ -99,21 +116,18 @@ export class WorkflowAiService {
     walletAddress: string,
     name: string,
     description?: string,
-    _telegramChatId?: string,
+    telegramChatId?: string,
   ) {
-    const conversation = this.conversationStore.get(conversationId);
-    if (!conversation) throw new NotFoundException(`Conversation ${conversationId} not found`);
+    const conversation = this.getConversationForWallet(conversationId, walletAddress);
     if (!conversation.generatedWorkflow) {
       throw new BadRequestException('No workflow has been generated in this conversation yet');
-    }
-    if (conversation.walletAddress !== walletAddress) {
-      throw new BadRequestException('Wallet address mismatch');
     }
 
     const saved = await this.workflowsService.createWorkflow(walletAddress, {
       name,
       description,
       definition: conversation.generatedWorkflow,
+      telegramChatId,
     });
 
     this.conversationStore.setStatus(conversationId, 'confirmed');

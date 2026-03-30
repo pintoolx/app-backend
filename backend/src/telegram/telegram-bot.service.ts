@@ -1,10 +1,11 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TelegramBot } from 'typescript-telegram-bot-api';
 import { SupabaseService } from '../database/supabase.service';
 
 @Injectable()
 export class TelegramBotService {
+  private readonly logger = new Logger(TelegramBotService.name);
   private bot: TelegramBot;
 
   constructor(
@@ -17,7 +18,7 @@ export class TelegramBotService {
     if (token) {
       this.bot = new TelegramBot({ botToken: token });
       this.setupCommands();
-      console.log('✅ Telegram Bot initialized');
+      this.logger.log('Telegram Bot initialized');
     }
   }
 
@@ -115,9 +116,9 @@ After linking, you'll receive real-time workflow execution notifications.
         parse_mode: 'Markdown',
       });
 
-      console.log(`✅ Wallet linked: ${walletAddress} → ${chatId}`);
+      this.logger.log(`Wallet linked: ${walletAddress} → ${chatId}`);
     } catch (error) {
-      console.error('❌ Link wallet error:', error);
+      this.logger.error('Link wallet error:', error);
       await this.bot.sendMessage({
         chat_id: chatId,
         text: '❌ Failed to link wallet. Please try again later.',
@@ -144,7 +145,7 @@ After linking, you'll receive real-time workflow execution notifications.
       text: '✅ Wallet unlinked successfully.',
     });
 
-    console.log(`✅ Wallet unlinked for chat: ${chatId}`);
+    this.logger.log(`Wallet unlinked for chat: ${chatId}`);
   }
 
   private async handleStatusCommand(chatId: string) {
@@ -230,9 +231,9 @@ Linked: ${new Date(mapping.created_at).toLocaleString('en-US')}
         text: `✅ Email linked successfully!\n\nEmail: ${email}`,
       });
 
-      console.log(`✅ Email linked: ${email} → ${mapping.wallet_address}`);
+      this.logger.log(`Email linked: ${email} → ${mapping.wallet_address}`);
     } catch (error) {
-      console.error('❌ Link email error:', error);
+      this.logger.error('Link email error:', error);
       await this.bot.sendMessage({
         chat_id: chatId,
         text: '❌ Failed to link email. Please try again later.',
@@ -244,11 +245,12 @@ Linked: ${new Date(mapping.created_at).toLocaleString('en-US')}
     const webhookUrl = this.configService.get<string>('telegram.webhookUrl');
 
     if (webhookUrl) {
-      await this.bot.setWebhook({ url: webhookUrl });
-      console.log(`✅ Telegram webhook set: ${webhookUrl}`);
+      const secret = this.configService.get<string>('telegram.webhookSecret');
+      await this.bot.setWebhook({ url: webhookUrl, ...(secret && { secret_token: secret }) });
+      this.logger.log(`Telegram webhook set: ${webhookUrl}`);
     } else {
       await this.bot.startPolling();
-      console.log('✅ Telegram bot started (polling mode)');
+      this.logger.log('Telegram bot started (polling mode)');
     }
   }
 

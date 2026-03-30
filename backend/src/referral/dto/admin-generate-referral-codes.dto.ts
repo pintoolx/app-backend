@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsInt,
   IsISO8601,
-  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -13,25 +12,6 @@ import {
 import { REFERRAL_MAX_BATCH_SIZE, SOLANA_WALLET_REGEX } from '../referral.constants';
 
 export class AdminGenerateReferralCodesDto {
-  @ApiProperty({
-    description: 'Admin wallet address',
-    example: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
-    pattern: '^[1-9A-HJ-NP-Za-km-z]{32,44}$',
-  })
-  @IsString()
-  @Matches(SOLANA_WALLET_REGEX, {
-    message: 'Invalid Solana wallet address',
-  })
-  adminWalletAddress: string;
-
-  @ApiProperty({
-    description: 'Signature of the active challenge',
-    example: '5...signature...base58',
-  })
-  @IsString()
-  @IsNotEmpty()
-  signature: string;
-
   @ApiProperty({
     description: 'Target customer wallet address that can redeem these codes',
     example: '8XQk8F4YJ6xH3aKx5v2Fq2wM6k7V2ZrD8QWf7BwSx8g4',

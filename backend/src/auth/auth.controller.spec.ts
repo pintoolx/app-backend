@@ -18,4 +18,27 @@ describe('AuthController', () => {
       },
     });
   });
+
+  it('returns signature verification result for login', async () => {
+    const authService = {
+      authenticateWithSignature: jest.fn().mockResolvedValue({
+        authenticated: true,
+        walletAddress: 'wallet-1',
+        authMode: 'signature_verification',
+      }),
+    } as any;
+    const controller = new AuthController(authService);
+
+    const result = await controller.login({ walletAddress: 'wallet-1', signature: 'sig' } as any);
+
+    expect(authService.authenticateWithSignature).toHaveBeenCalledWith('wallet-1', 'sig');
+    expect(result).toEqual({
+      success: true,
+      data: {
+        authenticated: true,
+        walletAddress: 'wallet-1',
+        authMode: 'signature_verification',
+      },
+    });
+  });
 });

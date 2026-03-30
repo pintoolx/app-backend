@@ -22,6 +22,10 @@ async function bootstrap() {
     credentials: true,
   });
 
+  if (corsOrigin === '*' && process.env.NODE_ENV === 'production') {
+    console.warn('⚠️  CORS_ORIGIN is set to "*" in production. Consider restricting to specific origins.');
+  }
+
   // Global pipes
   app.useGlobalPipes(
     new ValidationPipe({
@@ -42,18 +46,19 @@ async function bootstrap() {
     .setDescription(
       'PinTool Web3 Workflow Automation API Documentation\n\n' +
         'This API provides endpoints for:\n' +
-        '- Wallet-based authentication\n' +
-        '- Referral code generation, quota management, and redemption\n' +
+        '- Wallet signature challenge flows and Supabase Bearer authentication\n' +
+        '- Referral code generation, quota management, and redemption (Bearer protected)\n' +
         '- Workflow management and execution\n' +
+        '- Workflow AI conversations (Bearer protected, single-instance memory store)\n' +
         '- Telegram bot integration\n' +
         '- Web3 operations (Jupiter swap, Kamino vaults, Pyth price feeds) - Available as Workflow Nodes',
     )
     .setVersion('1.0')
-    .addTag('Auth', 'Wallet signature authentication endpoints')
-    .addTag('Referrals', 'Referral code generation, quota, and redemption endpoints')
+    .addTag('Auth', 'Wallet signature challenge verification endpoints')
+    .addTag('Referrals', 'Bearer-protected referral code generation, quota, and redemption endpoints')
     .addTag('Workflows', 'Workflow CRUD and execution endpoints')
     .addTag('Telegram', 'Telegram bot management endpoints')
-    .addTag('Workflow AI', 'AI-powered workflow generation and conversation endpoints')
+    .addTag('Workflow AI', 'Bearer-protected AI workflow generation and conversation endpoints')
     .addBearerAuth()
     .build();
 

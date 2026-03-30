@@ -14,7 +14,7 @@ export class AuthController {
     summary: 'Request authentication challenge',
     description:
       'Generate a challenge message for wallet signature authentication. ' +
-      'The client should sign this message and submit it to endpoints that require a signature.',
+      'The client should sign this message for signature-protected flows. Bearer-protected APIs require a Supabase access token.',
   })
   @ApiResponse({
     status: 201,
@@ -49,24 +49,30 @@ export class AuthController {
 
   @Post('login')
   @ApiOperation({
-    summary: 'Login with wallet signature',
-    description: 'Verify wallet signature against a previously requested challenge and receive a JWT access token.',
+    summary: 'Verify wallet signature challenge',
+    description:
+      'Verify a previously requested challenge and confirm wallet ownership. This endpoint does not mint a Bearer token for protected APIs. Use a Supabase access token when calling Bearer-protected endpoints.',
   })
   @ApiResponse({
     status: 201,
-    description: 'Login successful, JWT token returned',
+    description: 'Signature verified successfully',
     schema: {
       example: {
         success: true,
         data: {
-          accessToken: 'eyJhbGciOiJIUzI1NiIs...',
+          authenticated: true,
+          walletAddress: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+          authMode: 'signature_verification',
         },
       },
     },
   })
   @ApiResponse({ status: 401, description: 'Invalid signature or expired challenge' })
   async login(@Body() dto: WalletLoginDto) {
-    const result = await this.authService.loginWithSignature(dto.walletAddress, dto.signature);
+    const result = await this.authService.authenticateWithSignature(
+      dto.walletAddress,
+      dto.signature,
+    );
     return { success: true, data: result };
   }
 }

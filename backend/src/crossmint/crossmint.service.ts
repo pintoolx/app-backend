@@ -352,7 +352,50 @@ export class CrossmintService implements OnModuleInit {
   ): Promise<{
     withdrawResult: { transfers: any[]; errors: string[] };
   }> {
-    // 1. Verify Ownership
+    await this.assertAccountOwnership(accountId, ownerWalletAddress);
+    this.lifecycleManager.stopWorkflowForAccount(accountId);
+    const withdrawResult = await this.withdrawWallet(accountId, ownerWalletAddress);
+
+    const { error: deleteError } = await this.supabaseService.client
+      .from('accounts')
+      .update({ status: 'closed' })
+      .eq('id', accountId);
+
+    if (deleteError) {
+      throw new InternalServerErrorException(`Failed to delete account: ${deleteError.message}`);
+    }
+
+    this.logger.log(`Account soft deleted: ${accountId} by owner ${ownerWalletAddress}`);
+
+    return { withdrawResult };
+  }
+
+  async withdrawWallet(
+    accountId: string,
+    ownerWalletAddress: string,
+  ): Promise<{
+    transfers: Array<{ token: string; amount: number; signature: string }>;
+    errors: string[];
+  }> {
+    await this.assertAccountOwnership(accountId, ownerWalletAddress);
+
+    const withdrawResult = await this.withdrawAllAssets(accountId, ownerWalletAddress);
+    this.logger.log(
+      `Assets withdrawn for account ${accountId}: ${withdrawResult.transfers.length} transfers, ${withdrawResult.errors.length} errors`,
+    );
+
+    if (withdrawResult.errors.length > 0) {
+      this.logger.error(`Withdrawal incomplete for account ${accountId}:`, withdrawResult.errors);
+      throw new BadRequestException({
+        message: 'Cannot withdraw account assets: some transfers failed',
+        withdrawResult,
+      });
+    }
+
+    return withdrawResult;
+  }
+
+  private async assertAccountOwnership(accountId: string, ownerWalletAddress: string): Promise<void> {
     const { data: account, error } = await this.supabaseService.client
       .from('accounts')
       .select('owner_wallet_address')
@@ -366,37 +409,5 @@ export class CrossmintService implements OnModuleInit {
     if (account.owner_wallet_address !== ownerWalletAddress) {
       throw new ForbiddenException('Unauthorized: Ownership verification failed');
     }
-
-    // 2. Stop any running workflow instance for this account
-    this.lifecycleManager.stopWorkflowForAccount(accountId);
-
-    // 3. Withdraw all assets to owner wallet
-    const withdrawResult = await this.withdrawAllAssets(accountId, ownerWalletAddress);
-    this.logger.log(
-      `Assets withdrawn for account ${accountId}: ${withdrawResult.transfers.length} transfers, ${withdrawResult.errors.length} errors`,
-    );
-
-    // 4. Abort if any withdrawal failed (don't close account with assets still inside)
-    if (withdrawResult.errors.length > 0) {
-      this.logger.error(`Withdrawal incomplete for account ${accountId}:`, withdrawResult.errors);
-      throw new BadRequestException({
-        message: 'Cannot close account: some assets failed to withdraw',
-        withdrawResult,
-      });
-    }
-
-    // 5. Perform Deletion (Soft Delete) — only if all assets withdrawn successfully
-    const { error: deleteError } = await this.supabaseService.client
-      .from('accounts')
-      .update({ status: 'closed' })
-      .eq('id', accountId);
-
-    if (deleteError) {
-      throw new InternalServerErrorException(`Failed to delete account: ${deleteError.message}`);
-    }
-
-    this.logger.log(`Account soft deleted: ${accountId} by owner ${ownerWalletAddress}`);
-
-    return { withdrawResult };
   }
 }

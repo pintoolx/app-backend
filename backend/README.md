@@ -109,7 +109,8 @@ All endpoints are prefixed with `/api`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/auth/challenge` | Get signature challenge |
+| POST | `/auth/challenge` | Get signature challenge for signature-protected flows |
+| POST | `/auth/login` | Verify signature challenge and confirm wallet ownership |
 
 ```bash
 # Get challenge
@@ -117,6 +118,8 @@ curl -X POST http://localhost:3000/api/auth/challenge \
   -H "Content-Type: application/json" \
   -d '{"walletAddress":"7xKgF2p3VQa..."}'
 ```
+
+`/auth/login` verifies wallet ownership only. Bearer-protected APIs use a Supabase access token in the `Authorization: Bearer <token>` header.
 
 ### Agent (`/api/agent`) - API-key based access
 
@@ -131,11 +134,14 @@ curl -X POST http://localhost:3000/api/auth/challenge \
 
 API Key is sent via `X-API-Key` header.
 
+`POST /agent/workflows` accepts optional `isPublic` and `telegramChatId`. `isPublic` controls `workflows.is_public`, and `telegramChatId` upserts the wallet's `telegram_mappings` entry for workflow notifications.
+
 ### Crossmint Wallets (`/api/crossmint/wallets`) - Signature-based access
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/crossmint/wallets/init` | Initialize new account with Crossmint wallet |
+| POST | `/crossmint/wallets/:id/withdraw` | Withdraw assets from an account wallet back to the owner wallet |
 | DELETE | `/crossmint/wallets/:id` | Delete/close an account |
 
 ### Workflows (`/api/workflows`)
@@ -144,15 +150,27 @@ API Key is sent via `X-API-Key` header.
 |--------|----------|------|-------------|
 | GET | `/workflows/active` | API Key | List active workflow instances |
 
-### Referrals (`/api/referrals`) - Signature-based access
+### Referrals (`/api/referrals`) - Bearer-protected access
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/referrals/admin/codes` | Admin generates single-use referral codes for a target wallet |
-| PATCH | `/referrals/admin/quotas/:walletAddress` | Admin sets lifetime quota for user-generated codes |
-| POST | `/referrals/codes` | User generates own referral codes (quota-limited) |
-| POST | `/referrals/redeem` | Redeem a referral code (single-use only) |
-| POST | `/referrals/my-codes` | List codes created by current wallet |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/referrals/admin/codes` | Supabase Bearer | Admin generates single-use referral codes for a target wallet |
+| PATCH | `/referrals/admin/quotas/:walletAddress` | Supabase Bearer | Admin sets lifetime quota for user-generated codes |
+| POST | `/referrals/codes` | Supabase Bearer | User generates own referral codes (quota-limited) |
+| POST | `/referrals/redeem` | Supabase Bearer | Redeem a referral code (single-use only) |
+| POST | `/referrals/my-codes` | Supabase Bearer | List codes created by current wallet |
+
+### Workflow AI (`/api/workflow-ai`) - Bearer-protected access
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/workflow-ai/conversations` | Supabase Bearer | Create a new AI conversation |
+| POST | `/workflow-ai/conversations/:id/messages` | Supabase Bearer | Send a message to a conversation you own |
+| POST | `/workflow-ai/conversations/:id/confirm` | Supabase Bearer | Save the generated workflow from a conversation you own |
+| GET | `/workflow-ai/conversations/:id` | Supabase Bearer | Fetch a conversation you own |
+
+Workflow AI conversations are stored in memory on a single backend instance. Ownership is checked per wallet, but conversations are not durable across restarts or multi-instance deployments.
+Conversation lookup, ownership, and active-state failures return normal HTTP `400/403/404` responses before SSE starts. Only errors during an active stream are emitted as SSE `type:error` events.
 
 ### Telegram (`/api/telegram`)
 
@@ -214,7 +232,7 @@ npm run docs:nodes     # Generate full node reference markdown
 npm run test           # Run unit tests
 npm run test:watch     # Run tests in watch mode
 npm run test:cov       # Run tests with coverage
-npm run test:e2e       # Run E2E tests
+npm run test:e2e       # Run E2E smoke and route checks
 ```
 
 ### Testing API with cURL
@@ -262,7 +280,7 @@ For production, set:
 ## 🔐 Security
 
 - **Custodial Wallets**: Managed via Crossmint SDK (no private key storage)
-- **Auth**: Wallet signature challenges (challenge-response)
+- **Auth**: Wallet signature challenges plus Supabase Bearer token verification
 - **Agent Auth**: API key authentication with `X-API-Key` header
 - **RLS**: Row Level Security in Supabase ensures users only access their data
 - **Validation**: All inputs validated using `class-validator` with whitelist & transform
@@ -281,7 +299,7 @@ For production, set:
   - Kamino Finance (`@kamino-finance/klend-sdk`)
   - Pyth Network (`@pythnetwork/hermes-client`)
 - **Notifications**: Telegram Bot API (`typescript-telegram-bot-api`)
-- **Authentication**: Wallet Signatures (`tweetnacl`, `bs58`)
+- **Authentication**: Wallet Signatures (`tweetnacl`, `bs58`) + Supabase JWT verification (`jose`)
 - **Utilities**: `decimal.js`, `axios`, `rxjs`
 
 ## 🐛 Troubleshooting

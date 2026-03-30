@@ -17,6 +17,7 @@ export class WorkflowAiController {
   @Post('conversations')
   @ApiOperation({ summary: 'Create a new AI conversation for workflow generation' })
   @ApiResponse({ status: 201, description: 'Conversation created successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
   createConversation(@CurrentUser('walletAddress') walletAddress: string) {
     const conversation = this.workflowAiService.createConversation(walletAddress);
     return {
@@ -31,8 +32,18 @@ export class WorkflowAiController {
   @ApiOperation({ summary: 'Send a message and stream AI response via SSE' })
   @ApiParam({ name: 'id', description: 'Conversation ID' })
   @ApiResponse({ status: 200, description: 'SSE stream with text chunks and optional workflow_ready event' })
-  async chat(@Param('id') id: string, @Body() dto: ChatMessageDto, @Res() res: Response) {
-    // Set SSE headers
+  @ApiResponse({ status: 400, description: 'Conversation is no longer active' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  @ApiResponse({ status: 403, description: 'Conversation belongs to a different wallet' })
+  @ApiResponse({ status: 404, description: 'Conversation not found' })
+  async chat(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: ChatMessageDto,
+    @Res() res: Response,
+  ) {
+    this.workflowAiService.getActiveConversationForWallet(id, walletAddress);
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -40,13 +51,13 @@ export class WorkflowAiController {
     res.flushHeaders();
 
     try {
-      const stream = this.workflowAiService.chat(id, dto.message);
+      const stream = this.workflowAiService.chat(id, walletAddress, dto.message);
       for await (const chunk of stream) {
         res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
       }
 
       // Check if a workflow was generated after streaming
-      const conversation = this.workflowAiService.getConversation(id);
+      const conversation = this.workflowAiService.getConversationForWallet(id, walletAddress);
       if (conversation.generatedWorkflow) {
         res.write(
           `data: ${JSON.stringify({ type: 'workflow_ready', workflow: conversation.generatedWorkflow })}\n\n`,
@@ -66,7 +77,9 @@ export class WorkflowAiController {
   @ApiOperation({ summary: 'Confirm and save the generated workflow' })
   @ApiParam({ name: 'id', description: 'Conversation ID' })
   @ApiResponse({ status: 201, description: 'Workflow confirmed and saved' })
-  @ApiResponse({ status: 400, description: 'No workflow generated yet or wallet mismatch' })
+  @ApiResponse({ status: 400, description: 'No workflow generated yet' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  @ApiResponse({ status: 403, description: 'Conversation belongs to a different wallet' })
   async confirm(
     @Param('id') id: string,
     @Body() dto: ConfirmWorkflowDto,
@@ -85,8 +98,13 @@ export class WorkflowAiController {
   @ApiOperation({ summary: 'Get conversation history and status' })
   @ApiParam({ name: 'id', description: 'Conversation ID' })
   @ApiResponse({ status: 200, description: 'Conversation details' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  @ApiResponse({ status: 403, description: 'Conversation belongs to a different wallet' })
   @ApiResponse({ status: 404, description: 'Conversation not found' })
-  getConversation(@Param('id') id: string) {
-    return this.workflowAiService.getConversation(id);
+  getConversation(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    return this.workflowAiService.getConversationForWallet(id, walletAddress);
   }
 }

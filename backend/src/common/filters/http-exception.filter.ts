@@ -1,8 +1,10 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -22,10 +24,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error = (exceptionResponse as any).error || error;
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // Log the real error internally but do NOT expose it to the client
+      this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
     }
-
-    console.error(`❌ [${error}] ${message}`, exception);
 
     response.status(status).json({
       success: false,

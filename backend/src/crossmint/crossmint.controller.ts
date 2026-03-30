@@ -50,17 +50,29 @@ export class CrossmintController {
   @ApiResponse({ status: 401, description: 'Invalid signature' })
   @ApiResponse({ status: 403, description: 'Not authorized (Not the owner)' })
   async deleteWallet(@Param('id') id: string, @Body() dto: SignedRequestDto) {
-    // 1. Verify Signature
-    const isValid = await this.authService.verifyAndConsumeChallenge(
-      dto.walletAddress,
-      dto.signature,
-    );
+    await this.verifySignature(dto.walletAddress, dto.signature);
+    const result = await this.crossmintService.deleteWallet(id, dto.walletAddress);
+    return { success: true, message: 'Account closed and assets withdrawn', data: result.withdrawResult };
+  }
+
+  @Post(':id/withdraw')
+  @ApiOperation({
+    summary: 'Withdraw all account assets back to owner wallet',
+    description: 'Requires valid signature from the owner wallet',
+  })
+  @ApiResponse({ status: 200, description: 'Assets withdrawn' })
+  @ApiResponse({ status: 401, description: 'Invalid signature' })
+  @ApiResponse({ status: 403, description: 'Not authorized (Not the owner)' })
+  async withdrawWallet(@Param('id') id: string, @Body() dto: SignedRequestDto) {
+    await this.verifySignature(dto.walletAddress, dto.signature);
+    const data = await this.crossmintService.withdrawWallet(id, dto.walletAddress);
+    return { success: true, message: 'Assets withdrawn to owner wallet', data };
+  }
+
+  private async verifySignature(walletAddress: string, signature: string): Promise<void> {
+    const isValid = await this.authService.verifyAndConsumeChallenge(walletAddress, signature);
     if (!isValid) {
       throw new UnauthorizedException('Invalid signature or challenge expired');
     }
-
-    // 2. Perform Delete with Ownership Check + Asset Withdrawal
-    const result = await this.crossmintService.deleteWallet(id, dto.walletAddress);
-    return { success: true, message: 'Account closed and assets withdrawn', data: result.withdrawResult };
   }
 }

@@ -84,9 +84,6 @@ const validRow = {
 };
 
 describe('ReferralService', () => {
-  const authService = {
-    verifyAndConsumeChallenge: jest.fn(),
-  };
   const generator = {
     generate: jest.fn(),
   };
@@ -95,11 +92,10 @@ describe('ReferralService', () => {
     jest.clearAllMocks();
   });
 
-  it('sets quota when admin signature and role are valid', async () => {
+  it('sets quota when caller has admin role', async () => {
     const { client, mocks } = buildSupabaseMock();
-    const service = new ReferralService(authService as any, { client } as any, generator as any);
+    const service = new ReferralService({ client } as any, generator as any);
 
-    authService.verifyAndConsumeChallenge.mockResolvedValue(true);
     mocks.usersSingle.mockResolvedValue({ data: { app_role: 'admin' }, error: null });
     mocks.quotasSingle.mockResolvedValue({
       data: {
@@ -112,22 +108,41 @@ describe('ReferralService', () => {
       error: null,
     });
 
-    const result = await service.setUserQuota('admin-wallet', 'sig', 'target-wallet', 20);
+    const result = await service.setUserQuota('admin-wallet', 'target-wallet', 20);
 
     expect(result.max_codes).toBe(20);
   });
 
+  it('blocks backend-managed admin referral codes for non-admin callers', async () => {
+    const { client, mocks } = buildSupabaseMock();
+    const service = new ReferralService({ client } as any, generator as any);
+
+    generator.generate.mockResolvedValue(['REF-ADMIN01']);
+    mocks.usersSingle.mockResolvedValue({ data: { app_role: 'user' }, error: null });
+
+    await expect(
+      service.adminGenerateCodes({
+        adminWalletAddress: 'regular-user-wallet',
+        targetWalletAddress: 'target-wallet',
+        count: 1,
+        metadata: { source: 'backend-hardcoded-admin-code' },
+      }),
+    ).rejects.toThrow(new ForbiddenException('Admin permission required'));
+
+    expect(generator.generate).not.toHaveBeenCalled();
+    expect(mocks.usersUpsert).not.toHaveBeenCalled();
+    expect(mocks.referralInsertSelect).not.toHaveBeenCalled();
+  });
+
   it('rejects user generation when quota reserve fails', async () => {
     const { client, mocks } = buildSupabaseMock();
-    const service = new ReferralService(authService as any, { client } as any, generator as any);
+    const service = new ReferralService({ client } as any, generator as any);
 
-    authService.verifyAndConsumeChallenge.mockResolvedValue(true);
     mocks.rpc.mockResolvedValue({ data: false, error: null });
 
     await expect(
       service.userGenerateCodes({
         walletAddress: 'user-wallet',
-        signature: 'sig',
         count: 2,
       }),
     ).rejects.toThrow(ForbiddenException);
@@ -135,9 +150,8 @@ describe('ReferralService', () => {
 
   it('releases quota when insert fails after reserve', async () => {
     const { client, mocks } = buildSupabaseMock();
-    const service = new ReferralService(authService as any, { client } as any, generator as any);
+    const service = new ReferralService({ client } as any, generator as any);
 
-    authService.verifyAndConsumeChallenge.mockResolvedValue(true);
     generator.generate.mockResolvedValue(['REF-AAA11111']);
     mocks.rpc
       .mockResolvedValueOnce({ data: true, error: null })
@@ -150,7 +164,6 @@ describe('ReferralService', () => {
     await expect(
       service.userGenerateCodes({
         walletAddress: 'user-wallet',
-        signature: 'sig',
         count: 1,
       }),
     ).rejects.toThrow(InternalServerErrorException);
@@ -164,15 +177,14 @@ describe('ReferralService', () => {
 
   it('returns redeemed row when consume_referral_code succeeds', async () => {
     const { client, mocks } = buildSupabaseMock();
-    const service = new ReferralService(authService as any, { client } as any, generator as any);
+    const service = new ReferralService({ client } as any, generator as any);
 
-    authService.verifyAndConsumeChallenge.mockResolvedValue(true);
     mocks.rpc.mockResolvedValue({
       data: [{ ...validRow, status: 'used', used_count: 1 }],
       error: null,
     });
 
-    const result = await service.redeemCode('target-wallet', 'sig', 'ref-abc12345');
+    const result = await service.redeemCode('target-wallet', 'ref-abc12345');
 
     expect(result.status).toBe('used');
     expect(mocks.rpc).toHaveBeenCalledWith('consume_referral_code', {
@@ -183,9 +195,8 @@ describe('ReferralService', () => {
 
   it('throws bad request when code cannot be redeemed', async () => {
     const { client, mocks } = buildSupabaseMock();
-    const service = new ReferralService(authService as any, { client } as any, generator as any);
+    const service = new ReferralService({ client } as any, generator as any);
 
-    authService.verifyAndConsumeChallenge.mockResolvedValue(true);
     mocks.rpc.mockResolvedValue({ data: [], error: null });
     mocks.referralMaybeSingle.mockResolvedValue({
       data: {
@@ -199,7 +210,7 @@ describe('ReferralService', () => {
       error: null,
     });
 
-    await expect(service.redeemCode('target-wallet', 'sig', 'REF-ABC12345')).rejects.toThrow(
+    await expect(service.redeemCode('target-wallet', 'REF-ABC12345')).rejects.toThrow(
       BadRequestException,
     );
   });

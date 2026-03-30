@@ -26,12 +26,12 @@ export class UpdateWorkflowDto {
   definition?: any;
 
   @ApiPropertyOptional({
-    description: 'Whether the workflow is active',
-    example: false,
+    description: 'Whether the workflow is publicly visible',
+    example: true,
   })
   @IsBoolean()
   @IsOptional()
-  isActive?: boolean;
+  isPublic?: boolean;
 
   @ApiPropertyOptional({
     description: 'Telegram chat ID for notifications',

@@ -2,36 +2,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsInt,
   IsISO8601,
-  IsNotEmpty,
   IsObject,
   IsOptional,
-  IsString,
-  Matches,
   Max,
   Min,
 } from 'class-validator';
-import { REFERRAL_MAX_BATCH_SIZE, SOLANA_WALLET_REGEX } from '../referral.constants';
+import { REFERRAL_MAX_BATCH_SIZE } from '../referral.constants';
 
 export class GenerateUserReferralCodesDto {
-  @ApiProperty({
-    description: 'User wallet address',
-    example: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
-    pattern: '^[1-9A-HJ-NP-Za-km-z]{32,44}$',
-  })
-  @IsString()
-  @Matches(SOLANA_WALLET_REGEX, {
-    message: 'Invalid Solana wallet address',
-  })
-  walletAddress: string;
-
-  @ApiProperty({
-    description: 'Signature of the active challenge',
-    example: '5...signature...base58',
-  })
-  @IsString()
-  @IsNotEmpty()
-  signature: string;
-
   @ApiProperty({
     description: 'How many single-use codes to generate within user lifetime quota',
     minimum: 1,

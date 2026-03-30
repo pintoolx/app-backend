@@ -1,5 +1,13 @@
-import { Injectable, Inject, forwardRef, InternalServerErrorException, UnauthorizedException, OnModuleDestroy } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import {
+  Injectable,
+  Inject,
+  forwardRef,
+  InternalServerErrorException,
+  UnauthorizedException,
+  OnModuleDestroy,
+  OnModuleInit,
+  Logger,
+} from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { SupabaseService } from '../database/supabase.service';
 import { PublicKey } from '@solana/web3.js';
@@ -7,20 +15,26 @@ import * as nacl from 'tweetnacl';
 import bs58 from 'bs58';
 
 @Injectable()
-export class AuthService implements OnModuleDestroy {
-  private cleanupInterval: NodeJS.Timeout;
+export class AuthService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(AuthService.name);
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(
     @Inject(forwardRef(() => SupabaseService))
     private supabaseService: SupabaseService,
-    private jwtService: JwtService,
-  ) {
-    // Clean expired challenges every 5 minutes
-    this.cleanupInterval = setInterval(() => this.cleanExpiredChallenges(), 5 * 60 * 1000);
+  ) {}
+
+  onModuleInit() {
+    if (!this.cleanupInterval) {
+      this.cleanupInterval = setInterval(() => this.cleanExpiredChallenges(), 5 * 60 * 1000);
+    }
   }
 
   onModuleDestroy() {
-    clearInterval(this.cleanupInterval);
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
   }
 
   /**
@@ -42,13 +56,11 @@ export class AuthService implements OnModuleDestroy {
     });
 
     if (error) {
-      console.error('❌ Failed to store challenge:', error);
+      this.logger.error('Failed to store challenge', error);
       throw new InternalServerErrorException('Failed to generate challenge');
-    } else {
-      console.log('DEBUG: Upsert success for wallet:', walletAddress);
     }
 
-    console.log(`✅ Generated challenge for wallet: ${walletAddress}`);
+    this.logger.log(`Generated challenge for wallet: ${walletAddress}`);
     return challenge;
   }
 
@@ -57,7 +69,6 @@ export class AuthService implements OnModuleDestroy {
    * Returns true if valid, false otherwise.
    */
   async verifyAndConsumeChallenge(walletAddress: string, signature: string): Promise<boolean> {
-    // 1. Get Challenge from DB
     // 1. Get Challenge from DB
     const cleanAddress = walletAddress.trim();
     const { data: rows, error } = await this.supabaseService.client
@@ -107,7 +118,7 @@ export class AuthService implements OnModuleDestroy {
 
       return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
     } catch (error) {
-      console.error('❌ Signature verification failed:', error.message);
+      this.logger.error('Signature verification failed', error.message);
       return false;
     }
   }
@@ -128,7 +139,7 @@ export class AuthService implements OnModuleDestroy {
     );
 
     if (error) {
-      console.error('❌ Failed to create/update user:', error);
+      this.logger.error('Failed to create/update user', error);
       throw new InternalServerErrorException('Failed to create user');
     }
   }
@@ -153,20 +164,28 @@ export class AuthService implements OnModuleDestroy {
       .lt('expires_at', new Date().toISOString());
 
     if (!error && count && count > 0) {
-      console.log(`🧹 Cleaned ${count} expired challenges`);
+      this.logger.log(`Cleaned ${count} expired challenges`);
     }
   }
 
-  /**
-   * Login with wallet signature — verify and return JWT
-   */
-  async loginWithSignature(walletAddress: string, signature: string): Promise<{ accessToken: string }> {
+  async authenticateWithSignature(
+    walletAddress: string,
+    signature: string,
+  ): Promise<{
+    authenticated: true;
+    walletAddress: string;
+    authMode: 'signature_verification';
+  }> {
     const isValid = await this.verifyAndConsumeChallenge(walletAddress, signature);
     if (!isValid) {
       throw new UnauthorizedException('Invalid signature or expired challenge');
     }
-    const accessToken = this.jwtService.sign({ walletAddress });
-    return { accessToken };
+
+    return {
+      authenticated: true,
+      walletAddress: walletAddress.trim(),
+      authMode: 'signature_verification',
+    };
   }
 
   /**
