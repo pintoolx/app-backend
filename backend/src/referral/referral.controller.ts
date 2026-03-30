@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { ReferralService } from './referral.service';
 import { AdminGenerateReferralCodesDto } from './dto/admin-generate-referral-codes.dto';
 import { SetReferralQuotaDto } from './dto/set-referral-quota.dto';
+import { IncreaseReferralQuotaDto } from './dto/increase-referral-quota.dto';
 import { GenerateUserReferralCodesDto } from './dto/generate-user-referral-codes.dto';
 import { RedeemReferralCodeDto } from './dto/redeem-referral-code.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -50,6 +51,23 @@ export class ReferralController {
     @Body() dto: SetReferralQuotaDto,
   ) {
     const data = await this.referralService.setUserQuota(adminWalletAddress, walletAddress, dto.maxCodes);
+
+    return { success: true, data };
+  }
+
+  @Patch('admin/quotas/:walletAddress/increase')
+  @ApiOperation({
+    summary: 'Admin: increase referral-code quota for a user wallet by a given amount',
+  })
+  @ApiResponse({ status: 200, description: 'Quota increased' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  @ApiResponse({ status: 403, description: 'Admin permission required' })
+  async increaseQuota(
+    @CurrentUser('walletAddress') adminWalletAddress: string,
+    @Param('walletAddress') walletAddress: string,
+    @Body() dto: IncreaseReferralQuotaDto,
+  ) {
+    const data = await this.referralService.increaseUserQuota(adminWalletAddress, walletAddress, dto.amount);
 
     return { success: true, data };
   }

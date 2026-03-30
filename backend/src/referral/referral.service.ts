@@ -77,6 +77,42 @@ export class ReferralService {
     return data as QuotaRow;
   }
 
+  async increaseUserQuota(
+    adminWalletAddress: string,
+    targetWalletAddress: string,
+    amount: number,
+  ): Promise<QuotaRow> {
+    await this.assertAdmin(adminWalletAddress);
+    await this.ensureUserExists(targetWalletAddress);
+
+    const { data: current } = await this.supabaseService.client
+      .from('referral_user_quotas')
+      .select('max_codes')
+      .eq('wallet_address', targetWalletAddress)
+      .maybeSingle();
+
+    const currentMax = current?.max_codes ?? 0;
+
+    const { data, error } = await this.supabaseService.client
+      .from('referral_user_quotas')
+      .upsert(
+        {
+          wallet_address: targetWalletAddress,
+          max_codes: currentMax + amount,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'wallet_address' },
+      )
+      .select('wallet_address, max_codes, issued_count, created_at, updated_at')
+      .single();
+
+    if (error || !data) {
+      throw new InternalServerErrorException('Failed to increase referral quota');
+    }
+
+    return data as QuotaRow;
+  }
+
   async adminGenerateCodes(params: {
     adminWalletAddress: string;
     targetWalletAddress: string;
