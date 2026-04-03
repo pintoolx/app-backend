@@ -27,28 +27,26 @@ type JwtPayloadWithMetadata = JWTPayload & {
 
 @Injectable()
 export class SupabaseJwtVerifierService {
-  private readonly jwksUrl: URL;
+  private readonly secret: Uint8Array;
   private readonly issuer: string;
   private readonly audience: string;
-  private jwks?: unknown;
 
   constructor(private readonly configService: ConfigService) {
-    const supabaseUrl = this.configService.get<string>('supabase.url');
+    const jwtSecret = this.configService.get<string>('supabase.jwtSecret');
     this.issuer = this.configService.get<string>('supabase.jwtIssuer');
     this.audience = this.configService.get<string>('supabase.jwtAudience') || 'authenticated';
 
-    if (!supabaseUrl || !this.issuer) {
+    if (!jwtSecret || !this.issuer) {
       throw new InternalServerErrorException('Supabase JWT configuration is missing');
     }
 
-    this.jwksUrl = new URL(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json`);
+    this.secret = new TextEncoder().encode(jwtSecret);
   }
 
   async verify(token: string): Promise<SupabaseJwtUser> {
     try {
       const { jwtVerify } = await import('jose');
-      const payloadKeySet = await this.getJwks();
-      const { payload } = await jwtVerify(token, payloadKeySet as never, {
+      const { payload } = await jwtVerify(token, this.secret, {
         issuer: this.issuer,
         audience: this.audience,
       });
@@ -72,16 +70,6 @@ export class SupabaseJwtVerifierService {
       }
       throw new UnauthorizedException('Invalid or expired token');
     }
-  }
-
-  private async getJwks(): Promise<unknown> {
-    if (this.jwks) {
-      return this.jwks;
-    }
-
-    const { createRemoteJWKSet } = await import('jose');
-    this.jwks = createRemoteJWKSet(this.jwksUrl);
-    return this.jwks;
   }
 
   private extractWalletAddress(payload: JwtPayloadWithMetadata): string | null {

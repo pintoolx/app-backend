@@ -7,6 +7,7 @@ export default () => ({
     url: process.env.SUPABASE_URL,
     anonKey: process.env.SUPABASE_ANON_KEY,
     serviceKey: process.env.SUPABASE_SERVICE_KEY,
+    jwtSecret: process.env.JWT_SECRET,
     jwtIssuer: process.env.SUPABASE_JWT_ISSUER || `${process.env.SUPABASE_URL}/auth/v1`,
     jwtAudience: process.env.SUPABASE_JWT_AUDIENCE || 'authenticated',
   },
