@@ -58,7 +58,8 @@ export class SupabaseJwtVerifierService {
       const jwtPayload = payload as JwtPayloadWithMetadata;
       console.log('[JWT Debug] payload keys:', Object.keys(payload));
       console.log('[JWT Debug] sub:', payload.sub);
-      console.log('[JWT Debug] custom_claims:', JSON.stringify(jwtPayload.custom_claims));
+      console.log('[JWT Debug] app_metadata:', JSON.stringify(jwtPayload.app_metadata));
+      console.log('[JWT Debug] user_metadata:', JSON.stringify(jwtPayload.user_metadata));
       const walletAddress = this.extractWalletAddress(jwtPayload);
       if (!walletAddress) {
         throw new UnauthorizedException('Token is missing wallet address claim');
