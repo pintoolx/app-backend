@@ -26,6 +26,10 @@ type JwtPayloadWithMetadata = JWTPayload & {
   user_metadata?: {
     walletAddress?: unknown;
     wallet_address?: unknown;
+    custom_claims?: {
+      address?: unknown;
+    };
+    sub?: unknown;
   };
 };
 
@@ -56,10 +60,6 @@ export class SupabaseJwtVerifierService {
       });
 
       const jwtPayload = payload as JwtPayloadWithMetadata;
-      console.log('[JWT Debug] payload keys:', Object.keys(payload));
-      console.log('[JWT Debug] sub:', payload.sub);
-      console.log('[JWT Debug] app_metadata:', JSON.stringify(jwtPayload.app_metadata));
-      console.log('[JWT Debug] user_metadata:', JSON.stringify(jwtPayload.user_metadata));
       const walletAddress = this.extractWalletAddress(jwtPayload);
       if (!walletAddress) {
         throw new UnauthorizedException('Token is missing wallet address claim');
@@ -82,6 +82,7 @@ export class SupabaseJwtVerifierService {
 
   private extractWalletAddress(payload: JwtPayloadWithMetadata): string | null {
     const candidates = [
+      payload.user_metadata?.custom_claims?.address,
       payload.custom_claims?.address,
       payload.walletAddress,
       payload.wallet_address,
@@ -97,9 +98,10 @@ export class SupabaseJwtVerifierService {
       }
     }
 
-    // Fallback: parse from sub (e.g. "web3:solana:<address>")
-    if (typeof payload.sub === 'string') {
-      const parts = payload.sub.split(':');
+    // Fallback: parse from user_metadata.sub (e.g. "web3:solana:<address>")
+    const metaSub = payload.user_metadata?.sub;
+    if (typeof metaSub === 'string') {
+      const parts = metaSub.split(':');
       if (parts.length === 3 && parts[0] === 'web3' && parts[2]) {
         return parts[2];
       }
