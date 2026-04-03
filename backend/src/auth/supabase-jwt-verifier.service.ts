@@ -15,6 +15,10 @@ type JwtPayloadWithMetadata = JWTPayload & {
   wallet_address?: unknown;
   email?: unknown;
   role?: unknown;
+  custom_claims?: {
+    address?: unknown;
+    chain?: unknown;
+  };
   app_metadata?: {
     walletAddress?: unknown;
     wallet_address?: unknown;
@@ -74,6 +78,7 @@ export class SupabaseJwtVerifierService {
 
   private extractWalletAddress(payload: JwtPayloadWithMetadata): string | null {
     const candidates = [
+      payload.custom_claims?.address,
       payload.walletAddress,
       payload.wallet_address,
       payload.app_metadata?.walletAddress,
@@ -85,6 +90,14 @@ export class SupabaseJwtVerifierService {
     for (const candidate of candidates) {
       if (typeof candidate === 'string' && candidate.trim()) {
         return candidate.trim();
+      }
+    }
+
+    // Fallback: parse from sub (e.g. "web3:solana:<address>")
+    if (typeof payload.sub === 'string') {
+      const parts = payload.sub.split(':');
+      if (parts.length === 3 && parts[0] === 'web3' && parts[2]) {
+        return parts[2];
       }
     }
 
