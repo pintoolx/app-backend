@@ -212,6 +212,7 @@
   "a11y": {
     "skipToContent": "跳至主要內容",
     "mainNavigation": "主要導覽",
+    "openNavigation": "開啟導覽",
     "accountMenu": "帳號選單",
     "languageSwitcher": "語言切換",
     "deploymentActions": "開啟部署 {id} 的動作選單"

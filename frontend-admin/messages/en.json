@@ -212,6 +212,7 @@
   "a11y": {
     "skipToContent": "Skip to main content",
     "mainNavigation": "Main navigation",
+    "openNavigation": "Open navigation",
     "accountMenu": "Account menu",
     "languageSwitcher": "Language switcher",
     "deploymentActions": "Open actions for deployment {id}"
