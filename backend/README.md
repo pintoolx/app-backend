@@ -94,6 +94,31 @@ npm run start:dev
 Server will start on `http://localhost:3000`  
 API docs available at `http://localhost:3000/api/docs`
 
+## 🛡️ Admin Frontend
+
+The repository also contains a Next.js admin console in `../frontend-admin` (see `../frontend-admin/README.md`). It uses HTTP-only cookies plus a local BFF (`/api/admin/*`) to call the backend's `/admin/*` endpoints.
+
+To run the backend together with the admin UI locally:
+
+```bash
+# terminal 1
+cd backend
+npm run start:dev
+
+# terminal 2
+cd frontend-admin
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Important settings for the frontend:
+
+- `ADMIN_BACKEND_URL=http://localhost:3000`
+- `ADMIN_JWT_SECRET` must match the backend's admin JWT secret exactly
+
+The admin UI defaults to `http://localhost:3100`, ships with `en` / `zh-TW` locale switching, and includes Playwright smoke coverage for login rendering, validation, and redirect guards.
+
 ## 📡 API Endpoints
 
 All endpoints are prefixed with `/api`.
