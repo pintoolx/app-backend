@@ -25,6 +25,7 @@ import {
 import { truncateMiddle } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { AdminRole } from '@/lib/auth';
+import { KeyRound, Clock, Camera, Server, ShieldCheck, Lightbulb, CheckCircle, AlertCircle, XCircle, HelpCircle } from 'lucide-react';
 
 interface DialogState {
   kind: 'revoke-token' | 'revoke-deployment';
@@ -53,30 +54,46 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
 
       {o ? (
         <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <KPI label={t('perActive')} value={o.perTokens.byStatus.active} />
-          <KPI label={t('expiring24h')} value={o.perTokens.expiringIn24h} />
-          <KPI label={t('snapshots24h')} value={o.snapshots.totalLast24h} />
-          <KPI label={t('erDelegated')} value={o.er.delegatedDeployments} />
+          <KPI label={t('perActive')} value={o.perTokens.byStatus.active} icon={<KeyRound className="h-4 w-4 text-muted-foreground" />} />
+          <KPI label={t('expiring24h')} value={o.perTokens.expiringIn24h} icon={<Clock className="h-4 w-4 text-amber-500" />} />
+          <KPI label={t('snapshots24h')} value={o.snapshots.totalLast24h} icon={<Camera className="h-4 w-4 text-muted-foreground" />} />
+          <KPI label={t('erDelegated')} value={o.er.delegatedDeployments} icon={<Server className="h-4 w-4 text-muted-foreground" />} />
         </section>
       ) : null}
 
       {o ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t('adapterStatus')}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {Object.entries(o.adapters).map(([k, v]) => (
-              <div
-                key={k}
-                className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2"
-              >
-                <span className="font-mono uppercase">{k}</span>
-                <Badge variant={v === 'real' ? 'success' : 'secondary'}>{v}</Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">{t('adapterStatus')}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-2">
+              {Object.entries(o.adapters).map(([k, v]) => (
+                <div
+                  key={k}
+                  className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2"
+                >
+                  <span className="font-mono uppercase">{k}</span>
+                  <Badge variant={v === 'real' ? 'success' : 'secondary'}>{v}</Badge>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">{t('umbraRegistrations')}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-2">
+              <UmbraStat label={t('umbraConfirmed')} value={o.umbra.registrations.confirmed} icon={<CheckCircle className="h-3.5 w-3.5 text-emerald-500" />} />
+              <UmbraStat label={t('umbraPending')} value={o.umbra.registrations.pending} icon={<AlertCircle className="h-3.5 w-3.5 text-amber-500" />} />
+              <UmbraStat label={t('umbraFailed')} value={o.umbra.registrations.failed} icon={<XCircle className="h-3.5 w-3.5 text-destructive" />} />
+              <UmbraStat label={t('umbraUnset')} value={o.umbra.registrations.unset} icon={<HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />} />
+            </CardContent>
+          </Card>
+        </div>
       ) : null}
 
       <Tabs defaultValue="per-tokens" className="space-y-4">
@@ -207,13 +224,28 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
   );
 }
 
-function KPI({ label, value }: { label: string; value: number }) {
+function KPI({ label, value, icon }: { label: string; value: number; icon?: React.ReactNode }) {
   return (
     <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+      <CardContent className="flex flex-col gap-2 py-4">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+        </div>
         <span className="text-3xl font-semibold">{value.toLocaleString()}</span>
       </CardContent>
     </Card>
+  );
+}
+
+function UmbraStat({ label, value, icon }: { label: string; value: number; icon?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2">
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <span className="font-mono text-sm font-semibold">{value}</span>
+    </div>
   );
 }

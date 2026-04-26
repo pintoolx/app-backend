@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useOverview } from '@/lib/api-hooks';
 import { formatDistanceToNow } from 'date-fns';
 import { DATE_FNS_LOCALES, normalizeLocale } from '@/i18n/config';
+import { Users, Workflow, Boxes, Activity, Lightbulb } from 'lucide-react';
 
 export function OverviewClient() {
   const locale = useLocale();
@@ -34,13 +35,14 @@ export function OverviewClient() {
       </header>
 
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <KPI label={t('users')} value={overview.counts.users} />
-        <KPI label={t('strategies')} value={overview.counts.strategies.total} />
+        <KPI label={t('users')} value={overview.counts.users} icon={<Users className="h-4 w-4 text-muted-foreground" />} />
+        <KPI label={t('strategies')} value={overview.counts.strategies.total} icon={<Workflow className="h-4 w-4 text-muted-foreground" />} />
         <KPI
           label={t('deployments')}
           value={Object.values(overview.counts.deployments).reduce((a, b) => a + b, 0)}
+          icon={<Boxes className="h-4 w-4 text-muted-foreground" />}
         />
-        <KPI label={t('runningExecutions')} value={overview.counts.runningExecutions} highlight />
+        <KPI label={t('runningExecutions')} value={overview.counts.runningExecutions} highlight icon={<Activity className="h-4 w-4 text-emerald-500" />} />
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
@@ -52,10 +54,18 @@ export function OverviewClient() {
             {overview.adapters.map((a) => (
               <div
                 key={a.adapter}
-                className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2"
+                className="flex flex-col gap-1 rounded-md border bg-card/50 px-3 py-2"
               >
-                <span className="font-mono text-sm uppercase">{a.adapter}</span>
-                <Badge variant={a.mode === 'real' ? 'success' : 'secondary'}>{a.mode}</Badge>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm uppercase">{a.adapter}</span>
+                  <Badge variant={a.mode === 'real' ? 'success' : 'secondary'}>{a.mode}</Badge>
+                </div>
+                {a.mode === 'noop' && a.hint ? (
+                  <p className="flex items-start gap-1 text-xs text-muted-foreground">
+                    <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" />
+                    <span>{a.hint}</span>
+                  </p>
+                ) : null}
               </div>
             ))}
           </CardContent>
@@ -68,7 +78,9 @@ export function OverviewClient() {
           <CardContent className="space-y-2">
             {Object.entries(overview.counts.deployments).map(([status, count]) => (
               <div key={status} className="flex items-center justify-between text-sm">
-                <span className="capitalize text-muted-foreground">{status}</span>
+                <Badge variant={status === 'deployed' ? 'success' : status === 'paused' ? 'warning' : status === 'stopped' ? 'destructive' : 'secondary'} className="capitalize">
+                  {status}
+                </Badge>
                 <span className="font-mono">{count}</span>
               </div>
             ))}
@@ -113,19 +125,24 @@ function KPI({
   label,
   value,
   highlight,
+  icon,
 }: {
   label: string;
   value: number;
   highlight?: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
     <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+      <CardContent className="flex flex-col gap-2 py-4">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+        </div>
         <span
           className={
             highlight
-              ? 'text-3xl font-semibold text-[hsl(var(--success))]'
+              ? 'text-3xl font-semibold text-emerald-500'
               : 'text-3xl font-semibold'
           }
         >

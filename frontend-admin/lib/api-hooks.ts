@@ -365,9 +365,15 @@ export function useAdapterMatrix() {
   });
 }
 
+export interface ProbeResult {
+  status: 'ok' | 'degraded' | 'fail' | 'skipped';
+  latencyMs: number;
+  note?: string;
+}
+
 export interface SystemHealthReport {
   status: string;
-  checks: Record<string, unknown>;
+  checks: Record<string, ProbeResult>;
 }
 
 export function useSystemHealth() {

@@ -14,9 +14,11 @@ import {
   useMaintenance,
   useSetMaintenance,
   useSystemHealth,
+  type ProbeResult,
 } from '@/lib/api-hooks';
 import { format } from 'date-fns';
 import type { AdminRole } from '@/lib/auth';
+import { Activity, Wallet, Lightbulb, CheckCircle, AlertTriangle, XCircle, MinusCircle } from 'lucide-react';
 
 export function SystemClient({ role }: { role: AdminRole }) {
   const t = useTranslations('system');
@@ -59,22 +61,41 @@ export function SystemClient({ role }: { role: AdminRole }) {
 
       <section className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base">{t('healthTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
             {health.isLoading ? (
               <p className="text-muted-foreground">{tCommon('loading')}</p>
             ) : (
-              <pre className="max-h-72 overflow-auto rounded-md bg-muted p-3 text-xs">
-                {JSON.stringify(health.data?.data ?? {}, null, 2)}
-              </pre>
+              <div className="space-y-2">
+                {Object.entries(health.data?.data?.checks ?? {}).map(([name, check]) => {
+                  const probe = check as ProbeResult;
+                  return (
+                    <div key={name} className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <HealthIcon status={probe.status} />
+                        <span className="font-mono text-xs uppercase">{name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {probe.note ? <span className="text-xs text-muted-foreground hidden sm:inline">{probe.note}</span> : null}
+                        <Badge variant={probe.status === 'ok' ? 'success' : probe.status === 'skipped' ? 'secondary' : 'destructive'}>
+                          {probe.status}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground font-mono">{probe.latencyMs}ms</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Wallet className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base">{t('keeperTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
@@ -123,12 +144,20 @@ export function SystemClient({ role }: { role: AdminRole }) {
           {a.map((entry) => (
             <div
               key={entry.adapter}
-              className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2"
+              className="flex flex-col gap-1 rounded-md border bg-card/50 px-3 py-2"
             >
-              <span className="font-mono uppercase">{entry.adapter}</span>
-              <Badge variant={entry.mode === 'real' ? 'success' : 'secondary'}>
-                {entry.mode}
-              </Badge>
+              <div className="flex items-center justify-between">
+                <span className="font-mono uppercase">{entry.adapter}</span>
+                <Badge variant={entry.mode === 'real' ? 'success' : 'secondary'}>
+                  {entry.mode}
+                </Badge>
+              </div>
+              {entry.mode === 'noop' && entry.hint ? (
+                <p className="flex items-start gap-1 text-xs text-muted-foreground">
+                  <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" />
+                  <span>{entry.hint}</span>
+                </p>
+              ) : null}
             </div>
           ))}
         </CardContent>
@@ -210,4 +239,11 @@ function Mono({ children }: { children: React.ReactNode }) {
       {typeof children === 'string' ? children.slice(0, 12) + '…' : children}
     </span>
   );
+}
+
+function HealthIcon({ status }: { status: string }) {
+  if (status === 'ok') return <CheckCircle className="h-4 w-4 text-emerald-500" />;
+  if (status === 'skipped') return <MinusCircle className="h-4 w-4 text-muted-foreground" />;
+  if (status === 'degraded') return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+  return <XCircle className="h-4 w-4 text-destructive" />;
 }
