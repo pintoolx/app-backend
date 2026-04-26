@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -7,6 +13,8 @@ import { PromptBuilderService } from './prompt-builder.service';
 import { WorkflowValidatorService } from './workflow-validator.service';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { WorkflowDefinition } from '../web3/workflow-types';
+import { StrategiesService } from '../strategies/strategies.service';
+import { StrategyCompilerService } from '../strategy-compiler/strategy-compiler.service';
 
 @Injectable()
 export class WorkflowAiService {
@@ -20,9 +28,12 @@ export class WorkflowAiService {
     private readonly promptBuilder: PromptBuilderService,
     private readonly validator: WorkflowValidatorService,
     private readonly workflowsService: WorkflowsService,
+    private readonly strategiesService: StrategiesService,
+    private readonly strategyCompilerService: StrategyCompilerService,
   ) {
     const apiKey = this.configService.get<string>('nvidia.apiKey');
-    const baseURL = this.configService.get<string>('nvidia.baseURL') || 'https://integrate.api.nvidia.com/v1';
+    const baseURL =
+      this.configService.get<string>('nvidia.baseURL') || 'https://integrate.api.nvidia.com/v1';
     this.modelName = this.configService.get<string>('nvidia.model') || 'deepseek-ai/deepseek-v3.2';
 
     if (!apiKey) {
@@ -136,6 +147,66 @@ export class WorkflowAiService {
     );
 
     return saved;
+  }
+
+  /**
+   * Preview the AI-generated workflow as a draft strategy proposal.
+   * Sanitises sensitive parameters via the strategy compiler so the caller
+   * receives only the public surface plus suggested deployment hints.
+   */
+  draftStrategyFromConversation(conversationId: string, walletAddress: string) {
+    const conversation = this.getConversationForWallet(conversationId, walletAddress);
+    if (!conversation.generatedWorkflow) {
+      throw new BadRequestException('No workflow has been generated in this conversation yet');
+    }
+
+    const compiled = this.strategyCompilerService.compileStrategyIR(conversation.generatedWorkflow);
+    return {
+      conversationId,
+      workflow: conversation.generatedWorkflow,
+      proposedStrategy: {
+        visibilityMode: 'private' as const,
+        publicMetadata: compiled.publicMetadata,
+        publicDefinition: compiled.publicDefinition,
+        deploymentHints: compiled.deploymentHints,
+        executionRequirements: compiled.executionRequirements,
+      },
+    };
+  }
+
+  /**
+   * Confirm a conversation and persist the generated workflow as a strategy.
+   * Marks the conversation as confirmed (idempotent with confirmWorkflow).
+   */
+  async confirmStrategyFromConversation(
+    conversationId: string,
+    walletAddress: string,
+    dto: {
+      name: string;
+      description?: string;
+      visibilityMode?: 'private' | 'public';
+      telegramChatId?: string;
+    },
+  ) {
+    const conversation = this.getConversationForWallet(conversationId, walletAddress);
+    if (!conversation.generatedWorkflow) {
+      throw new BadRequestException('No workflow has been generated in this conversation yet');
+    }
+
+    const created = await this.strategiesService.createStrategy(walletAddress, {
+      name: dto.name,
+      description: dto.description,
+      definition: conversation.generatedWorkflow,
+      visibilityMode: dto.visibilityMode,
+      telegramChatId: dto.telegramChatId,
+    });
+
+    this.conversationStore.setStatus(conversationId, 'confirmed');
+    this.logger.log(
+      `Strategy ${created.id} created from conversation ${conversationId} (wallet ${walletAddress})`,
+    );
+
+    return created;
   }
 
   /**

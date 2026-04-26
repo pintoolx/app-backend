@@ -62,10 +62,14 @@ export async function monitorPrice(options: PriceMonitorOptions): Promise<PriceM
     }
 
     if (abortSignal) {
-      abortSignal.addEventListener('abort', () => {
-        cleanup();
-        reject(new Error('Aborted'));
-      }, { once: true });
+      abortSignal.addEventListener(
+        'abort',
+        () => {
+          cleanup();
+          reject(new Error('Aborted'));
+        },
+        { once: true },
+      );
     }
 
     // 开始监听价格

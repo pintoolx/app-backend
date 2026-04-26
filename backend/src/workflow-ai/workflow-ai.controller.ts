@@ -4,6 +4,7 @@ import { Response } from 'express';
 import { WorkflowAiService } from './workflow-ai.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
 import { ConfirmWorkflowDto } from './dto/confirm-workflow.dto';
+import { StrategyFromConversationDto } from './dto/strategy-from-conversation.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -31,7 +32,10 @@ export class WorkflowAiController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Send a message and stream AI response via SSE' })
   @ApiParam({ name: 'id', description: 'Conversation ID' })
-  @ApiResponse({ status: 200, description: 'SSE stream with text chunks and optional workflow_ready event' })
+  @ApiResponse({
+    status: 200,
+    description: 'SSE stream with text chunks and optional workflow_ready event',
+  })
   @ApiResponse({ status: 400, description: 'Conversation is no longer active' })
   @ApiResponse({ status: 401, description: 'Invalid or expired token' })
   @ApiResponse({ status: 403, description: 'Conversation belongs to a different wallet' })
@@ -101,10 +105,40 @@ export class WorkflowAiController {
   @ApiResponse({ status: 401, description: 'Invalid or expired token' })
   @ApiResponse({ status: 403, description: 'Conversation belongs to a different wallet' })
   @ApiResponse({ status: 404, description: 'Conversation not found' })
-  getConversation(
+  getConversation(@Param('id') id: string, @CurrentUser('walletAddress') walletAddress: string) {
+    return this.workflowAiService.getConversationForWallet(id, walletAddress);
+  }
+
+  @Post('conversations/:id/draft-strategy')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Preview the generated workflow as a draft strategy with sanitized public metadata',
+  })
+  @ApiParam({ name: 'id', description: 'Conversation ID' })
+  @ApiResponse({ status: 200, description: 'Draft strategy preview returned' })
+  @ApiResponse({ status: 400, description: 'No workflow generated yet' })
+  draftStrategy(@Param('id') id: string, @CurrentUser('walletAddress') walletAddress: string) {
+    const data = this.workflowAiService.draftStrategyFromConversation(id, walletAddress);
+    return { success: true, data };
+  }
+
+  @Post('conversations/:id/confirm-strategy')
+  @ApiOperation({
+    summary: 'Persist the generated workflow as a new strategy and mark the conversation confirmed',
+  })
+  @ApiParam({ name: 'id', description: 'Conversation ID' })
+  @ApiResponse({ status: 201, description: 'Strategy created from conversation' })
+  @ApiResponse({ status: 400, description: 'No workflow generated yet' })
+  async confirmStrategy(
     @Param('id') id: string,
     @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: StrategyFromConversationDto,
   ) {
-    return this.workflowAiService.getConversationForWallet(id, walletAddress);
+    const data = await this.workflowAiService.confirmStrategyFromConversation(
+      id,
+      walletAddress,
+      dto,
+    );
+    return { success: true, data };
   }
 }

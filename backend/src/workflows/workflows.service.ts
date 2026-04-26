@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException, InternalServerErrorException, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 import { WorkflowExecutorFactory } from './workflow-executor.factory';
 import { WorkflowDefinition } from '../web3/workflow-types';
@@ -33,7 +41,12 @@ export class WorkflowsService {
         throw new BadRequestException('Each workflow node must have a non-empty string "type"');
       }
     }
-    if (definition.connections !== undefined && (typeof definition.connections !== 'object' || definition.connections === null || Array.isArray(definition.connections))) {
+    if (
+      definition.connections !== undefined &&
+      (typeof definition.connections !== 'object' ||
+        definition.connections === null ||
+        Array.isArray(definition.connections))
+    ) {
       throw new BadRequestException('Workflow connections must be an object');
     }
   }
@@ -239,7 +252,10 @@ export class WorkflowsService {
 
         this.logger.log(`Workflow execution completed: ${execution.id}`);
       } catch (err) {
-        this.logger.error(`Workflow execution failed: ${execution.id}`, err instanceof Error ? err.stack : err);
+        this.logger.error(
+          `Workflow execution failed: ${execution.id}`,
+          err instanceof Error ? err.stack : err,
+        );
 
         // Update status to failed with logs
         await this.supabaseService.client

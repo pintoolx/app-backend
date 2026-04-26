@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { AuthService } from '../auth/auth.service';
 import { SupabaseService } from '../database/supabase.service';
@@ -12,7 +17,10 @@ export class AgentService {
     private supabaseService: SupabaseService,
   ) {}
 
-  async registerAgent(walletAddress: string, signature: string): Promise<{ apiKey: string; walletAddress: string }> {
+  async registerAgent(
+    walletAddress: string,
+    signature: string,
+  ): Promise<{ apiKey: string; walletAddress: string }> {
     // 1. Verify signature (same as human auth)
     const isValid = await this.authService.verifyAndConsumeChallenge(walletAddress, signature);
     if (!isValid) {

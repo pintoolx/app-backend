@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ConversationStoreService } from './conversation-store.service';
 import { PromptBuilderService } from './prompt-builder.service';
 import { WorkflowAiService } from './workflow-ai.service';
+import { StrategyCompilerService } from '../strategy-compiler/strategy-compiler.service';
 
 describe('WorkflowAiService', () => {
   const configService = {
@@ -20,6 +21,10 @@ describe('WorkflowAiService', () => {
   const workflowsService = {
     createWorkflow: jest.fn(),
   };
+  const strategiesService = {
+    createStrategy: jest.fn(),
+  };
+  const strategyCompilerService = new StrategyCompilerService();
 
   let conversationStore: ConversationStoreService;
   let service: WorkflowAiService;
@@ -33,6 +38,8 @@ describe('WorkflowAiService', () => {
       promptBuilder,
       validator as any,
       workflowsService as any,
+      strategiesService as any,
+      strategyCompilerService,
     );
   });
 
@@ -103,5 +110,66 @@ describe('WorkflowAiService', () => {
         telegramChatId: '123456',
       }),
     );
+  });
+
+  it('returns a draft strategy preview without leaking sensitive parameters', () => {
+    const conversation = service.createConversation('wallet-1');
+    conversation.generatedWorkflow = {
+      nodes: [
+        {
+          id: 'guard-1',
+          name: 'Guard',
+          type: 'getBalance',
+          parameters: { token: 'USDC', condition: 'gte', threshold: '1000' },
+        },
+      ],
+      connections: {},
+    } as any;
+
+    const preview = service.draftStrategyFromConversation(conversation.id, 'wallet-1');
+    const previewJson = JSON.stringify(preview);
+
+    expect(preview.workflow).toBeDefined();
+    expect(preview.proposedStrategy.publicMetadata.privacyModel.hidesImplementation).toBe(true);
+    // The sanitized publicDefinition must not leak threshold values.
+    const publicJson = JSON.stringify(preview.proposedStrategy.publicDefinition);
+    expect(publicJson).not.toContain('1000');
+    // The raw workflow is still returned so the FE can show the creator their own draft
+    // — this is fine because draft-strategy is owner-only.
+    expect(previewJson).toContain('1000');
+  });
+
+  it('rejects draft preview when no workflow is generated yet', () => {
+    const conversation = service.createConversation('wallet-1');
+    expect(() => service.draftStrategyFromConversation(conversation.id, 'wallet-1')).toThrow(
+      new BadRequestException('No workflow has been generated in this conversation yet'),
+    );
+  });
+
+  it('confirm-strategy persists via StrategiesService and marks conversation confirmed', async () => {
+    const conversation = service.createConversation('wallet-1');
+    conversation.generatedWorkflow = {
+      nodes: [{ id: 'guard-1', name: 'G', type: 'getBalance', parameters: {} }],
+      connections: {},
+    } as any;
+
+    strategiesService.createStrategy = jest.fn().mockResolvedValue({ id: 'strategy-1' });
+
+    const result = await service.confirmStrategyFromConversation(conversation.id, 'wallet-1', {
+      name: 'Test Strategy',
+      description: 'desc',
+      visibilityMode: 'private',
+    });
+
+    expect(result).toEqual({ id: 'strategy-1' });
+    expect(strategiesService.createStrategy).toHaveBeenCalledWith(
+      'wallet-1',
+      expect.objectContaining({
+        name: 'Test Strategy',
+        description: 'desc',
+        visibilityMode: 'private',
+      }),
+    );
+    expect(conversation.status).toBe('confirmed');
   });
 });

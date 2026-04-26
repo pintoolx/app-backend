@@ -52,4 +52,17 @@ export default () => ({
     baseURL: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
     model: process.env.NVIDIA_MODEL || 'deepseek-ai/deepseek-v3.2',
   },
+
+  // Admin Dashboard (Phase 1)
+  admin: {
+    jwtSecret: process.env.ADMIN_JWT_SECRET,
+    accessTokenTtl: process.env.ADMIN_ACCESS_TOKEN_TTL || '15m',
+    refreshTokenTtl: process.env.ADMIN_REFRESH_TOKEN_TTL || '7d',
+    tempTokenTtl: process.env.ADMIN_TEMP_TOKEN_TTL || '5m',
+    totpEncKey: process.env.ADMIN_TOTP_ENC_KEY, // 32-byte hex (64 chars)
+    totpIssuer: process.env.ADMIN_TOTP_ISSUER || 'PinTool Admin',
+    maxFailedLogins: parseInt(process.env.ADMIN_MAX_FAILED_LOGINS, 10) || 5,
+    lockoutMinutes: parseInt(process.env.ADMIN_LOCKOUT_MINUTES, 10) || 15,
+    ipAllowlist: process.env.ADMIN_IP_ALLOWLIST || '',
+  },
 });

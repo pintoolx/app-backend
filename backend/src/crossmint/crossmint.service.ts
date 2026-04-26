@@ -20,7 +20,6 @@ import {
 } from '@solana/web3.js';
 import {
   TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddress,
   getAccount,
   getMint,
   createTransferInstruction,
@@ -107,9 +106,7 @@ export class CrossmintService implements OnModuleInit {
       };
     } catch (error) {
       this.logger.error(`Failed to create Crossmint wallet: ${error.message}`);
-      throw new InternalServerErrorException(
-        `Failed to create Crossmint wallet: ${error.message}`,
-      );
+      throw new InternalServerErrorException(`Failed to create Crossmint wallet: ${error.message}`);
     }
   }
 
@@ -230,7 +227,7 @@ export class CrossmintService implements OnModuleInit {
     });
 
     // 4. For each SPL token account with balance > 0, transfer and close
-    for (const { pubkey, account } of tokenAccounts.value) {
+    for (const { pubkey } of tokenAccounts.value) {
       try {
         const tokenAccountInfo = await getAccount(connection, pubkey);
         const balance = tokenAccountInfo.amount;
@@ -238,11 +235,7 @@ export class CrossmintService implements OnModuleInit {
 
         if (balance <= 0n) {
           // No balance, just close the account to reclaim rent
-          const closeIx = createCloseAccountInstruction(
-            pubkey,
-            wallet.publicKey,
-            wallet.publicKey,
-          );
+          const closeIx = createCloseAccountInstruction(pubkey, wallet.publicKey, wallet.publicKey);
           const tx = new Transaction().add(closeIx);
           tx.feePayer = wallet.publicKey;
           tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
@@ -250,7 +243,9 @@ export class CrossmintService implements OnModuleInit {
           try {
             await wallet.signAndSendTransaction(tx);
           } catch (closeErr) {
-            errors.push(`Failed to close empty token account ${pubkey.toBase58()}: ${closeErr.message}`);
+            errors.push(
+              `Failed to close empty token account ${pubkey.toBase58()}: ${closeErr.message}`,
+            );
           }
           continue;
         }
@@ -267,33 +262,15 @@ export class CrossmintService implements OnModuleInit {
         const ownerAtaInfo = await connection.getAccountInfo(ownerAta);
         if (!ownerAtaInfo) {
           tx.add(
-            createAssociatedTokenAccountInstruction(
-              wallet.publicKey,
-              ownerAta,
-              ownerPubkey,
-              mint,
-            ),
+            createAssociatedTokenAccountInstruction(wallet.publicKey, ownerAta, ownerPubkey, mint),
           );
         }
 
         // Transfer all tokens
-        tx.add(
-          createTransferInstruction(
-            pubkey,
-            ownerAta,
-            wallet.publicKey,
-            balance,
-          ),
-        );
+        tx.add(createTransferInstruction(pubkey, ownerAta, wallet.publicKey, balance));
 
         // Close the now-empty token account to reclaim rent
-        tx.add(
-          createCloseAccountInstruction(
-            pubkey,
-            wallet.publicKey,
-            wallet.publicKey,
-          ),
-        );
+        tx.add(createCloseAccountInstruction(pubkey, wallet.publicKey, wallet.publicKey));
 
         tx.feePayer = wallet.publicKey;
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
@@ -408,12 +385,17 @@ export class CrossmintService implements OnModuleInit {
     tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
     const result = await wallet.signAndSendTransaction(tx);
-    this.logger.log(`SOL withdrawn for account ${accountId}: ${amountSol} SOL, tx: ${result.signature}`);
+    this.logger.log(
+      `SOL withdrawn for account ${accountId}: ${amountSol} SOL, tx: ${result.signature}`,
+    );
 
     return { amount: amountSol, signature: result.signature };
   }
 
-  private async assertAccountOwnership(accountId: string, ownerWalletAddress: string): Promise<void> {
+  private async assertAccountOwnership(
+    accountId: string,
+    ownerWalletAddress: string,
+  ): Promise<void> {
     const { data: account, error } = await this.supabaseService.client
       .from('accounts')
       .select('owner_wallet_address')

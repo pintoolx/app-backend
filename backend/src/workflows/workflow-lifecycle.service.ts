@@ -280,9 +280,7 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
 
     // 2. Create instance with real execution ID
     const userMappings = account?.users?.telegram_mappings;
-    const chatId = Array.isArray(userMappings)
-      ? userMappings[0]?.chat_id
-      : userMappings?.chat_id;
+    const chatId = Array.isArray(userMappings) ? userMappings[0]?.chat_id : userMappings?.chat_id;
 
     const instance = this.executorFactory.createInstance({
       workflowDefinition: workflow.definition as WorkflowDefinition,
@@ -332,7 +330,10 @@ export class WorkflowLifecycleManager implements OnModuleInit, OnModuleDestroy {
           .eq('id', execution.id)
           .eq('status', 'running');
 
-        this.logger.error(`Workflow execution failed: ${execution.id} (Account: ${account.id})`, err);
+        this.logger.error(
+          `Workflow execution failed: ${execution.id} (Account: ${account.id})`,
+          err,
+        );
       } finally {
         // Remove from active instances so next polling cycle can restart if needed
         this.activeInstances.delete(account.id);

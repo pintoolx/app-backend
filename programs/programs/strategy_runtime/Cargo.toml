@@ -1,0 +1,31 @@
+[package]
+name = "strategy_runtime"
+version = "0.1.0"
+description = "Strategy runtime registry for Anchor-backed deployments"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "strategy_runtime"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
+
+# Pin serde_json to a version before it pulled in `zmij`, which uses the
+# unstable `select_unpredictable` rustc feature (incompatible with the
+# platform-tools rustc shipped by Solana 3.1.x).
+serde_json = "=1.0.140"
+
+# Note: ephemeral-rollups-sdk integration is intentionally deferred. The Week
+# 4 ER adapter operates at the wallet / token-account layer via Magic Router,
+# without requiring strategy_runtime PDA delegation. A future ticket can add
+# the SDK dep + delegate_strategy_state ix once the dep tree is reconciled
+# with our Solana 3.1.x platform-tools.

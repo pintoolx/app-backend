@@ -45,14 +45,13 @@ const buildSupabaseClient = () => {
 const buildConfigService = (overrides: Record<string, any> = {}) => {
   const defaults: Record<string, any> = {
     'crossmint.serverApiKey': 'sk_test_key',
-    'crossmint.signerSecret': 'xmsk1_0000000000000000000000000000000000000000000000000000000000000000',
+    'crossmint.signerSecret':
+      'xmsk1_0000000000000000000000000000000000000000000000000000000000000000',
     'crossmint.environment': 'staging',
     'solana.rpcUrl': 'https://api.devnet.solana.com',
   };
   return {
-    get: jest.fn((key: string) =>
-      key in overrides ? overrides[key] : defaults[key],
-    ),
+    get: jest.fn((key: string) => (key in overrides ? overrides[key] : defaults[key])),
   };
 };
 
@@ -205,9 +204,7 @@ describe('CrossmintService', () => {
         error: null,
       });
 
-      await expect(service.getWalletForAccount('no-wallet')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.getWalletForAccount('no-wallet')).rejects.toThrow(BadRequestException);
     });
 
     it('throws InternalServerErrorException on SDK getWallet failure', async () => {
@@ -258,9 +255,9 @@ describe('CrossmintService', () => {
         error: { message: 'duplicate key' },
       });
 
-      await expect(
-        service.createAccountWithWallet('owner', 'name'),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(service.createAccountWithWallet('owner', 'name')).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 });

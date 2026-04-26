@@ -12,7 +12,8 @@ export class WorkflowsController {
   @UseGuards(ApiKeyGuard)
   @ApiOperation({
     summary: 'List active workflow instances',
-    description: 'Returns all workflow instances currently held in-memory by the lifecycle manager.',
+    description:
+      'Returns all workflow instances currently held in-memory by the lifecycle manager.',
   })
   @ApiHeader({ name: 'X-API-Key', required: true })
   @ApiResponse({ status: 200, description: 'List of active instances' })

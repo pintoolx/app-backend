@@ -1,12 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsISO8601,
-  IsObject,
-  IsOptional,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsInt, IsISO8601, IsObject, IsOptional, Max, Min } from 'class-validator';
 import { REFERRAL_MAX_BATCH_SIZE } from '../referral.constants';
 
 export class GenerateUserReferralCodesDto {

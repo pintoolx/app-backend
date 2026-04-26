@@ -1,5 +1,12 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { Response } from 'express';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -8,8 +15,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request & { correlationId?: string }>();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let error = 'INTERNAL_ERROR';
 
@@ -24,8 +32,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error = (exceptionResponse as any).error || error;
       }
     } else if (exception instanceof Error) {
-      // Log the real error internally but do NOT expose it to the client
-      this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
+      // Log the real error internally but do NOT expose it to the client.
+      this.logger.error(
+        `Unhandled exception (correlationId=${request.correlationId ?? 'none'}): ${exception.message}`,
+        exception.stack,
+      );
     }
 
     response.status(status).json({
@@ -33,6 +44,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error: {
         code: error,
         message,
+        correlationId: request.correlationId ?? null,
         timestamp: new Date().toISOString(),
       },
     });

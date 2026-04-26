@@ -1,0 +1,970 @@
+{
+  "address": "FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF",
+  "metadata": {
+    "name": "strategy_runtime",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Strategy runtime registry for Anchor-backed deployments"
+  },
+  "instructions": [
+    {
+      "name": "close_deployment",
+      "docs": [
+        "Phase 1 — close a stopped deployment, returning rent to the creator."
+      ],
+      "discriminator": [
+        0,
+        65,
+        162,
+        218,
+        47,
+        208,
+        26,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "deployment",
+          "writable": true
+        },
+        {
+          "name": "strategy_state",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "commit_state",
+      "docs": [
+        "Phase 1 — append a new private state commitment with replay protection."
+      ],
+      "discriminator": [
+        201,
+        80,
+        148,
+        145,
+        9,
+        196,
+        225,
+        56
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "signer": true
+        },
+        {
+          "name": "deployment"
+        },
+        {
+          "name": "strategy_state",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_revision",
+          "type": "u32"
+        },
+        {
+          "name": "new_private_state_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "last_result_code",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "initialize_deployment",
+      "docs": [
+        "Phase 1 — bind a deployment record (DB UUID -> on-chain account) to",
+        "a published strategy version. Lifecycle starts at draft."
+      ],
+      "discriminator": [
+        170,
+        47,
+        77,
+        172,
+        226,
+        183,
+        47,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "strategy_version"
+        },
+        {
+          "name": "deployment",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  97,
+                  116,
+                  101,
+                  103,
+                  121,
+                  95,
+                  100,
+                  101,
+                  112,
+                  108,
+                  111,
+                  121,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "deployment_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "deployment_id",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        },
+        {
+          "name": "execution_mode",
+          "type": "u8"
+        },
+        {
+          "name": "deployment_nonce",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize_strategy_state",
+      "docs": [
+        "Phase 1 — initialise the private state pointer with revision = 0."
+      ],
+      "discriminator": [
+        17,
+        112,
+        180,
+        5,
+        104,
+        112,
+        237,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "deployment"
+        },
+        {
+          "name": "strategy_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  97,
+                  116,
+                  101,
+                  103,
+                  121,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "deployment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_strategy_version",
+      "docs": [
+        "Phase 1 — register an immutable strategy version with hashes."
+      ],
+      "discriminator": [
+        90,
+        125,
+        163,
+        166,
+        179,
+        178,
+        143,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "strategy_version",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  97,
+                  116,
+                  101,
+                  103,
+                  121,
+                  95,
+                  118,
+                  101,
+                  114,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "strategy_id"
+              },
+              {
+                "kind": "arg",
+                "path": "version"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "strategy_id",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        },
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "public_metadata_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "private_definition_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize_vault_authority",
+      "docs": [
+        "Phase 1 — register a vault authority PDA owned by the deployment."
+      ],
+      "discriminator": [
+        47,
+        125,
+        11,
+        209,
+        248,
+        240,
+        52,
+        77
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "deployment",
+          "writable": true
+        },
+        {
+          "name": "vault_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "deployment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "custody_mode",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "set_lifecycle_status",
+      "docs": [
+        "Phase 1 — apply a lifecycle transition (state machine enforced)."
+      ],
+      "discriminator": [
+        213,
+        110,
+        41,
+        59,
+        63,
+        128,
+        0,
+        162
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "signer": true
+        },
+        {
+          "name": "deployment",
+          "writable": true
+        },
+        {
+          "name": "strategy_state",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_status",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "set_public_snapshot",
+      "docs": [
+        "Phase 1 — publish/update the public snapshot (monotonic revision)."
+      ],
+      "discriminator": [
+        150,
+        34,
+        45,
+        243,
+        165,
+        224,
+        1,
+        232
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "deployment"
+        },
+        {
+          "name": "public_snapshot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  98,
+                  108,
+                  105,
+                  99,
+                  95,
+                  115,
+                  110,
+                  97,
+                  112,
+                  115,
+                  104,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "deployment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_snapshot_revision",
+          "type": "u32"
+        },
+        {
+          "name": "status_code",
+          "type": "u8"
+        },
+        {
+          "name": "risk_band",
+          "type": "u8"
+        },
+        {
+          "name": "pnl_summary_bps",
+          "type": "i32"
+        },
+        {
+          "name": "public_metrics_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "PublicSnapshot",
+      "discriminator": [
+        181,
+        191,
+        251,
+        130,
+        141,
+        12,
+        185,
+        59
+      ]
+    },
+    {
+      "name": "StrategyDeployment",
+      "discriminator": [
+        254,
+        129,
+        110,
+        2,
+        29,
+        29,
+        89,
+        139
+      ]
+    },
+    {
+      "name": "StrategyState",
+      "discriminator": [
+        83,
+        18,
+        224,
+        109,
+        174,
+        100,
+        39,
+        139
+      ]
+    },
+    {
+      "name": "StrategyVersion",
+      "discriminator": [
+        96,
+        218,
+        183,
+        254,
+        179,
+        87,
+        232,
+        175
+      ]
+    },
+    {
+      "name": "VaultAuthority",
+      "discriminator": [
+        132,
+        34,
+        187,
+        202,
+        202,
+        195,
+        211,
+        53
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidLifecycleTransition",
+      "msg": "Lifecycle status transition is not allowed for the current state"
+    },
+    {
+      "code": 6001,
+      "name": "StaleRevision",
+      "msg": "Strategy state revision is not the expected next value (replay protection)"
+    },
+    {
+      "code": 6002,
+      "name": "SnapshotNotMonotonic",
+      "msg": "Public snapshot revision must be strictly greater than the current value"
+    },
+    {
+      "code": 6003,
+      "name": "DeploymentNotStopped",
+      "msg": "Deployment must be in stopped state before it can be closed"
+    },
+    {
+      "code": 6004,
+      "name": "UnauthorizedCreator",
+      "msg": "Provided authority does not match the deployment creator"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidExecutionMode",
+      "msg": "Provided execution mode is not recognised"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidLifecycleCode",
+      "msg": "Provided lifecycle status code is not recognised"
+    }
+  ],
+  "types": [
+    {
+      "name": "PublicSnapshot",
+      "docs": [
+        "Public snapshot — sanitised view of the deployment for marketplace/leaderboard."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "deployment",
+            "type": "pubkey"
+          },
+          {
+            "name": "snapshot_revision",
+            "type": "u32"
+          },
+          {
+            "name": "published_slot",
+            "type": "u64"
+          },
+          {
+            "name": "status_code",
+            "docs": [
+              "0=running, 1=paused, 2=stopped, 3=closed (mirrors a subset of LifecycleStatus)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "risk_band",
+            "docs": [
+              "Risk band code: 0=unknown,1=low,2=medium,3=high"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "pnl_summary_bps",
+            "docs": [
+              "PnL summary in bps (signed, can be negative)."
+            ],
+            "type": "i32"
+          },
+          {
+            "name": "public_metrics_hash",
+            "docs": [
+              "Hash over the larger off-chain metrics blob."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "StrategyDeployment",
+      "docs": [
+        "Anchored deployment record. The DB authoritative `id` is mirrored here as a",
+        "16-byte UUID so PDAs can be derived without depending on Postgres."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "strategy_version",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "deployment_id",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "execution_mode",
+            "type": "u8"
+          },
+          {
+            "name": "lifecycle_status",
+            "type": "u8"
+          },
+          {
+            "name": "deployment_nonce",
+            "type": "u64"
+          },
+          {
+            "name": "initialized_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "StrategyState",
+      "docs": [
+        "Private state pointer — holds the latest commitment and a monotonic",
+        "revision so off-chain runs (or the ER session) can append-only update."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "deployment",
+            "type": "pubkey"
+          },
+          {
+            "name": "lifecycle_status",
+            "type": "u8"
+          },
+          {
+            "name": "state_revision",
+            "type": "u32"
+          },
+          {
+            "name": "private_state_commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "last_result_code",
+            "type": "u32"
+          },
+          {
+            "name": "last_commit_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "StrategyVersion",
+      "docs": [
+        "Anchored representation of a published strategy version.",
+        "Holds the public/private commitment hashes so deployments can prove they",
+        "reference an immutable revision."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "docs": [
+              "Wallet that authored the strategy."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "strategy_id",
+            "docs": [
+              "16-byte UUID identifying the parent strategy in the off-chain DB."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "version",
+            "docs": [
+              "Monotonic version number assigned at publish time."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "public_metadata_hash",
+            "docs": [
+              "Hash over the sanitised public metadata (display surface)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "private_definition_commitment",
+            "docs": [
+              "Commitment over the private definition (full IR)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "registered_slot",
+            "docs": [
+              "Slot the version was registered on chain."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved bytes for forward compatibility."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultAuthority",
+      "docs": [
+        "Vault authority PDA — owns custodial assets when treasury_mode requires",
+        "program-controlled custody. Phase 1 only persists routing fields; transfer",
+        "instructions land in Phase 2."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "deployment",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "custody_mode",
+            "docs": [
+              "0=public_self_custody, 1=program_owned, 2=private_payments_relay"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "0=active, 1=frozen"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "allowed_mint_config_hash",
+            "docs": [
+              "Hash over the allowed mint config — empty until configured."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

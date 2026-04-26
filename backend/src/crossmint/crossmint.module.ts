@@ -7,7 +7,12 @@ import { DatabaseModule } from '../database/database.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
-  imports: [ConfigModule, forwardRef(() => DatabaseModule), AuthModule, forwardRef(() => WorkflowsModule)],
+  imports: [
+    ConfigModule,
+    forwardRef(() => DatabaseModule),
+    AuthModule,
+    forwardRef(() => WorkflowsModule),
+  ],
   providers: [CrossmintService],
   controllers: [CrossmintController],
   exports: [CrossmintService],

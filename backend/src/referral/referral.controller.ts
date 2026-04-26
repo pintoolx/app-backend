@@ -50,7 +50,11 @@ export class ReferralController {
     @Param('walletAddress') walletAddress: string,
     @Body() dto: SetReferralQuotaDto,
   ) {
-    const data = await this.referralService.setUserQuota(adminWalletAddress, walletAddress, dto.maxCodes);
+    const data = await this.referralService.setUserQuota(
+      adminWalletAddress,
+      walletAddress,
+      dto.maxCodes,
+    );
 
     return { success: true, data };
   }
@@ -67,7 +71,11 @@ export class ReferralController {
     @Param('walletAddress') walletAddress: string,
     @Body() dto: IncreaseReferralQuotaDto,
   ) {
-    const data = await this.referralService.increaseUserQuota(adminWalletAddress, walletAddress, dto.amount);
+    const data = await this.referralService.increaseUserQuota(
+      adminWalletAddress,
+      walletAddress,
+      dto.amount,
+    );
 
     return { success: true, data };
   }

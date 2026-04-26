@@ -1,11 +1,16 @@
 import { WorkflowsService } from './workflows.service';
 import { type WorkflowDefinition } from '../web3/workflow-types';
 
+const createWorkflowDefinition = (): WorkflowDefinition => ({
+  nodes: [{ id: 'node-1', name: 'Start', type: 'manualTrigger', parameters: {} }],
+  connections: {},
+});
+
 const createSupabaseClient = (options: { runningExecution?: any }) => {
   const workflowRow = {
     id: 'wf-1',
     name: 'WF',
-    definition: { nodes: [], connections: {} } as WorkflowDefinition,
+    definition: createWorkflowDefinition(),
   };
 
   const workflowTable = {
@@ -72,7 +77,7 @@ describe('WorkflowsService', () => {
     const executorFactory = { createInstance: jest.fn() } as any;
     const service = new WorkflowsService(supabaseService, executorFactory);
 
-    const definition = { nodes: [], connections: {} } as WorkflowDefinition;
+    const definition = createWorkflowDefinition();
     const result = await service.createWorkflow('wallet-1', {
       name: 'WF',
       description: 'desc',

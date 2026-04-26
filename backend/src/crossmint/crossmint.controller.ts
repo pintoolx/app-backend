@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Post,
-  Delete,
-  Body,
-  Param,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Controller, Post, Delete, Body, Param, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CrossmintService } from './crossmint.service';
 import { AuthService } from '../auth/auth.service';
@@ -39,7 +32,11 @@ export class CrossmintController {
     }
 
     // 2. Create Account (Signer becomes Owner)
-    return this.crossmintService.createAccountWithWallet(dto.walletAddress, dto.accountName, dto.workflowId);
+    return this.crossmintService.createAccountWithWallet(
+      dto.walletAddress,
+      dto.accountName,
+      dto.workflowId,
+    );
   }
 
   @Delete(':id')
@@ -53,13 +50,18 @@ export class CrossmintController {
   async deleteWallet(@Param('id') id: string, @Body() dto: SignedRequestDto) {
     await this.verifySignature(dto.walletAddress, dto.signature);
     const result = await this.crossmintService.deleteWallet(id, dto.walletAddress);
-    return { success: true, message: 'Account closed and assets withdrawn', data: result.withdrawResult };
+    return {
+      success: true,
+      message: 'Account closed and assets withdrawn',
+      data: result.withdrawResult,
+    };
   }
 
   @Post(':id/withdraw')
   @ApiOperation({
     summary: 'Withdraw SOL from account wallet back to owner wallet',
-    description: 'Withdraws the specified amount of SOL. Requires valid signature from the owner wallet.',
+    description:
+      'Withdraws the specified amount of SOL. Requires valid signature from the owner wallet.',
   })
   @ApiResponse({ status: 200, description: 'SOL withdrawn' })
   @ApiResponse({ status: 400, description: 'Insufficient SOL balance' })

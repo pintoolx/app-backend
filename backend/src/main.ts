@@ -2,13 +2,24 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { makeLogger } from './observability/json-logger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: makeLogger(),
+  });
   const configService = app.get(ConfigService);
+
+  // Week 6.4 — security headers (CSP defaults loosened for Swagger UI).
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // Global prefix
   app.setGlobalPrefix('api', {
@@ -23,14 +34,18 @@ async function bootstrap() {
   });
 
   if (corsOrigin === '*' && process.env.NODE_ENV === 'production') {
-    console.warn('⚠️  CORS_ORIGIN is set to "*" in production. Consider restricting to specific origins.');
+    console.warn(
+      '⚠️  CORS_ORIGIN is set to "*" in production. Consider restricting to specific origins.',
+    );
   }
 
-  // Global pipes
+  // Global pipes (Week 6.4 — strict whitelist + reject unknown fields).
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
+      forbidNonWhitelisted: true,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
@@ -55,10 +70,32 @@ async function bootstrap() {
     )
     .setVersion('1.0')
     .addTag('Auth', 'Wallet signature challenge verification endpoints')
-    .addTag('Referrals', 'Bearer-protected referral code generation, quota, and redemption endpoints')
+    .addTag(
+      'Referrals',
+      'Bearer-protected referral code generation, quota, and redemption endpoints',
+    )
     .addTag('Workflows', 'Workflow CRUD and execution endpoints')
     .addTag('Telegram', 'Telegram bot management endpoints')
     .addTag('Workflow AI', 'Bearer-protected AI workflow generation and conversation endpoints')
+    .addTag('Admin Auth', 'Admin login (email + password + TOTP), token refresh and logout')
+    .addTag('Admin Overview', 'Admin dashboard KPI snapshot and adapter matrix')
+    .addTag('Admin Users', 'Admin views over end-user wallets and accounts')
+    .addTag('Admin Strategies', 'Admin views over strategies and version history')
+    .addTag('Admin Deployments', 'Admin views over strategy deployments and recent runs')
+    .addTag('Admin System', 'Adapter matrix, readiness probe, keeper status')
+    .addTag(
+      'Admin Privacy',
+      'Privacy and encryption observability: PER tokens, public snapshots, Umbra registrations, key inventory',
+    )
+    .addTag('Admin Audit', 'Append-only admin action audit log')
+    .addTag(
+      'Admin Ops · Deployments',
+      'Lifecycle write operations: pause / resume / stop / force-close',
+    )
+    .addTag('Admin Ops · Privacy', 'PER token revoke (single + bulk by deployment)')
+    .addTag('Admin Ops · Executions', 'Kill running workflow_executions')
+    .addTag('Admin Ops · Users', 'Wallet ban / unban (superadmin)')
+    .addTag('Admin Ops · System', 'Maintenance mode toggle (superadmin) — affects user routes only')
     .addBearerAuth()
     .build();
 
