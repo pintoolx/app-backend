@@ -1,12 +1,13 @@
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
-import { Keypair } from '@solana/web3.js';
-import bs58 from 'bs58';
-import * as nacl from 'tweetnacl';
+import axios from 'axios';
 import { MagicBlockPerRealAdapter } from './magicblock-per-real.adapter';
 import { MagicBlockPerClientService } from './magicblock-per-client.service';
 import { PerGroupsRepository, type PerGroupRow } from './per-groups.repository';
 import { PerAuthTokensRepository, type PerAuthTokenRow } from './per-auth-tokens.repository';
+
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 const buildPerClientStub = () =>
   ({
@@ -40,15 +41,19 @@ const buildTokensRepoStub = () =>
     revokeAllForDeployment: jest.fn(),
   }) as unknown as PerAuthTokensRepository & {
     insertChallenge: jest.Mock;
+    insertActive: jest.Mock;
     getByToken: jest.Mock;
     getActiveOrThrow: jest.Mock;
-    promoteChallenge: jest.Mock;
   };
 
 const config = (env: Record<string, string | undefined>) =>
   ({ get: jest.fn((k: string) => env[k]) }) as unknown as ConfigService;
 
 describe('MagicBlockPerRealAdapter', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('createPermissionGroup posts to PER and returns groupId/signature', async () => {
     const client = buildPerClientStub();
     client.post.mockResolvedValue({ groupId: 'g1', signature: 'sig1' });
@@ -69,14 +74,22 @@ describe('MagicBlockPerRealAdapter', () => {
     });
   });
 
-  it('requestAuthChallenge persists a challenge token row and returns the nonce', async () => {
+  it('requestAuthChallenge proxies to TEE /auth/challenge', async () => {
+    mockedAxios.get.mockResolvedValue({ data: { challenge: 'tee-challenge-123' } });
     const tokens = buildTokensRepoStub();
     const groups = buildGroupsRepoStub();
     groups.getByDeployment.mockResolvedValue({ group_id: 'g1' } as unknown as PerGroupRow);
-    const adapter = new MagicBlockPerRealAdapter(config({}), buildPerClientStub(), groups, tokens);
+
+    const adapter = new MagicBlockPerRealAdapter(
+      config({ MAGICBLOCK_PER_ENDPOINT: 'https://devnet-tee.magicblock.app' }),
+      buildPerClientStub(),
+      groups,
+      tokens,
+    );
+
     const res = await adapter.requestAuthChallenge({ deploymentId: 'd1', walletAddress: 'w1' });
-    expect(res.challenge).toBeTruthy();
-    expect(typeof res.expiresAt).toBe('string');
+    expect(res.challenge).toBe('tee-challenge-123');
+    expect(res.teeUrl).toBe('https://devnet-tee.magicblock.app');
     expect(tokens.insertChallenge).toHaveBeenCalledWith(
       expect.objectContaining({
         deploymentId: 'd1',
@@ -87,102 +100,27 @@ describe('MagicBlockPerRealAdapter', () => {
     );
   });
 
-  it('verifyAuthSignature promotes the challenge after a valid signature', async () => {
-    const tokens = buildTokensRepoStub();
-    const groups = buildGroupsRepoStub();
-
-    const wallet = Keypair.generate();
-    const walletAddress = wallet.publicKey.toBase58();
-
-    // Generate a 32-byte challenge nonce, base58-encode and sign
-    const nonce = nacl.randomBytes(32);
-    const challenge = bs58.encode(nonce);
-    const sig = nacl.sign.detached(nonce, wallet.secretKey);
-    const signature = bs58.encode(sig);
-
-    tokens.getByToken.mockResolvedValue({
-      token: challenge,
-      deployment_id: 'd1',
-      wallet: walletAddress,
-      group_id: 'g1',
-      status: 'challenge',
-      scopes: [],
-      issued_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 60_000).toISOString(),
-      revoked_at: null,
-    } as PerAuthTokenRow);
-    groups.findMembership.mockResolvedValue({ wallet: walletAddress, role: 'creator' });
-    tokens.promoteChallenge.mockResolvedValue({
-      token: challenge,
-      deployment_id: 'd1',
-      wallet: walletAddress,
-      group_id: 'g1',
-      status: 'active',
-      scopes: [],
-      issued_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 60_000).toISOString(),
-      revoked_at: null,
-    } as PerAuthTokenRow);
-
-    const adapter = new MagicBlockPerRealAdapter(config({}), buildPerClientStub(), groups, tokens);
-
-    const res = await adapter.verifyAuthSignature({
-      deploymentId: 'd1',
-      walletAddress,
-      challenge,
-      signature,
-    });
-    expect(res.authToken).toBe(challenge);
-    expect(typeof res.expiresAt).toBe('string');
-  });
-
-  it('verifyAuthSignature rejects an invalid signature', async () => {
-    const tokens = buildTokensRepoStub();
-    const groups = buildGroupsRepoStub();
-    const wallet = Keypair.generate();
-    const walletAddress = wallet.publicKey.toBase58();
-    const nonce = nacl.randomBytes(32);
-    const challenge = bs58.encode(nonce);
-
-    tokens.getByToken.mockResolvedValue({
-      token: challenge,
-      deployment_id: 'd1',
-      wallet: walletAddress,
-      group_id: 'g1',
-      status: 'challenge',
-      scopes: [],
-      issued_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 60_000).toISOString(),
-      revoked_at: null,
-    } as PerAuthTokenRow);
-
-    const adapter = new MagicBlockPerRealAdapter(config({}), buildPerClientStub(), groups, tokens);
-
-    const otherKp = Keypair.generate();
-    const sig = nacl.sign.detached(nacl.randomBytes(32), otherKp.secretKey);
+  it('requestAuthChallenge throws when TEE returns an error', async () => {
+    mockedAxios.get.mockResolvedValue({ data: { error: 'pubkey banned' } });
+    const adapter = new MagicBlockPerRealAdapter(
+      config({ MAGICBLOCK_PER_ENDPOINT: 'https://devnet-tee.magicblock.app' }),
+      buildPerClientStub(),
+      buildGroupsRepoStub(),
+      buildTokensRepoStub(),
+    );
     await expect(
-      adapter.verifyAuthSignature({
-        deploymentId: 'd1',
-        walletAddress,
-        challenge,
-        signature: bs58.encode(sig),
-      }),
+      adapter.requestAuthChallenge({ deploymentId: 'd1', walletAddress: 'w1' }),
     ).rejects.toThrow(UnauthorizedException);
   });
 
-  it('verifyAuthSignature rejects when wallet is not a member', async () => {
+  it('verifyAuthSignature proxies to TEE /auth/login and stores the token', async () => {
     const tokens = buildTokensRepoStub();
     const groups = buildGroupsRepoStub();
-    const wallet = Keypair.generate();
-    const walletAddress = wallet.publicKey.toBase58();
-    const nonce = nacl.randomBytes(32);
-    const challenge = bs58.encode(nonce);
-    const signature = bs58.encode(nacl.sign.detached(nonce, wallet.secretKey));
 
     tokens.getByToken.mockResolvedValue({
-      token: challenge,
+      token: 'tee-challenge-123',
       deployment_id: 'd1',
-      wallet: walletAddress,
+      wallet: 'w1',
       group_id: 'g1',
       status: 'challenge',
       scopes: [],
@@ -190,17 +128,79 @@ describe('MagicBlockPerRealAdapter', () => {
       expires_at: new Date(Date.now() + 60_000).toISOString(),
       revoked_at: null,
     } as PerAuthTokenRow);
-    groups.findMembership.mockResolvedValue(null);
+    groups.findMembership.mockResolvedValue({ wallet: 'w1', role: 'creator' });
+    mockedAxios.post.mockResolvedValue({
+      data: { token: 'tee-token-abc', expiresAt: '2026-01-01T00:00:00Z' },
+    });
 
-    const adapter = new MagicBlockPerRealAdapter(config({}), buildPerClientStub(), groups, tokens);
+    const adapter = new MagicBlockPerRealAdapter(
+      config({ MAGICBLOCK_PER_ENDPOINT: 'https://devnet-tee.magicblock.app' }),
+      buildPerClientStub(),
+      groups,
+      tokens,
+    );
+
+    const res = await adapter.verifyAuthSignature({
+      deploymentId: 'd1',
+      walletAddress: 'w1',
+      challenge: 'tee-challenge-123',
+      signature: 'sig123',
+    });
+
+    expect(res.authToken).toBe('tee-token-abc');
+    expect(res.expiresAt).toBe('2026-01-01T00:00:00Z');
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      'https://devnet-tee.magicblock.app/auth/login',
+      {
+        pubkey: 'w1',
+        challenge: 'tee-challenge-123',
+        signature: 'sig123',
+      },
+      expect.any(Object),
+    );
+    expect(tokens.insertActive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: 'tee-token-abc',
+        deploymentId: 'd1',
+        wallet: 'w1',
+        scopes: ['per:private-state'],
+      }),
+    );
+  });
+
+  it('verifyAuthSignature rejects when TEE login fails', async () => {
+    const tokens = buildTokensRepoStub();
+    const groups = buildGroupsRepoStub();
+
+    tokens.getByToken.mockResolvedValue({
+      token: 'c1',
+      deployment_id: 'd1',
+      wallet: 'w1',
+      group_id: 'g1',
+      status: 'challenge',
+      scopes: [],
+      issued_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      revoked_at: null,
+    } as PerAuthTokenRow);
+    groups.findMembership.mockResolvedValue({ wallet: 'w1', role: 'creator' });
+    mockedAxios.post.mockRejectedValue(new Error('network'));
+
+    const adapter = new MagicBlockPerRealAdapter(
+      config({ MAGICBLOCK_PER_ENDPOINT: 'https://devnet-tee.magicblock.app' }),
+      buildPerClientStub(),
+      groups,
+      tokens,
+    );
+
     await expect(
       adapter.verifyAuthSignature({
         deploymentId: 'd1',
-        walletAddress,
-        challenge,
-        signature,
+        walletAddress: 'w1',
+        challenge: 'c1',
+        signature: 'sig',
       }),
-    ).rejects.toThrow('not a member');
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it('getPrivateState returns state when token is active and bound to deployment', async () => {
@@ -218,7 +218,12 @@ describe('MagicBlockPerRealAdapter', () => {
     } as PerAuthTokenRow);
     const client = buildPerClientStub();
     client.get.mockResolvedValue({ state: { foo: 'bar' }, logs: [] });
-    const adapter = new MagicBlockPerRealAdapter(config({}), client, buildGroupsRepoStub(), tokens);
+    const adapter = new MagicBlockPerRealAdapter(
+      config({}),
+      client,
+      buildGroupsRepoStub(),
+      tokens,
+    );
     const res = await adapter.getPrivateState({ deploymentId: 'd1', authToken: 't1' });
     expect(res.state).toEqual({ foo: 'bar' });
     expect(res.logs).toEqual([]);

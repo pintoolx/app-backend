@@ -169,16 +169,37 @@ const buildService = (overrides?: {
   };
 
   const pp: MagicBlockPrivatePaymentsAdapterPort = overrides?.pp ?? {
-    deposit: jest
-      .fn()
-      .mockResolvedValue({ signature: null, status: 'pending', encryptedBalanceRef: null }),
-    transfer: jest
-      .fn()
-      .mockResolvedValue({ signature: null, status: 'pending', encryptedBalanceRef: null }),
-    withdraw: jest
-      .fn()
-      .mockResolvedValue({ signature: null, status: 'pending', encryptedBalanceRef: null }),
-    getBalance: jest.fn().mockResolvedValue({ encryptedBalanceRef: null, ciphertext: null }),
+    deposit: jest.fn().mockResolvedValue({
+      kind: 'deposit',
+      version: 'legacy',
+      transactionBase64: '',
+      sendTo: 'base',
+      recentBlockhash: '',
+      lastValidBlockHeight: 0,
+      instructionCount: 0,
+      requiredSigners: [],
+    } as unknown as ReturnType<MagicBlockPrivatePaymentsAdapterPort['deposit']>),
+    transfer: jest.fn().mockResolvedValue({
+      kind: 'transfer',
+      version: 'legacy',
+      transactionBase64: '',
+      sendTo: 'base',
+      recentBlockhash: '',
+      lastValidBlockHeight: 0,
+      instructionCount: 0,
+      requiredSigners: [],
+    } as unknown as ReturnType<MagicBlockPrivatePaymentsAdapterPort['transfer']>),
+    withdraw: jest.fn().mockResolvedValue({
+      kind: 'withdraw',
+      version: 'legacy',
+      transactionBase64: '',
+      sendTo: 'base',
+      recentBlockhash: '',
+      lastValidBlockHeight: 0,
+      instructionCount: 0,
+      requiredSigners: [],
+    } as unknown as ReturnType<MagicBlockPrivatePaymentsAdapterPort['withdraw']>),
+    getBalance: jest.fn().mockResolvedValue({ balance: '0', decimals: 0 }),
   };
 
   const perGroupsRepo = {
@@ -213,8 +234,8 @@ const buildService = (overrides?: {
     registerEncryptedUserAccount: jest.fn().mockResolvedValue({
       encryptedUserAccount: null,
       x25519PublicKey: null,
-      queueSignature: null,
-      callbackSignature: null,
+      signerPubkey: null,
+      txSignatures: [],
       status: 'pending',
     }),
     deposit: jest
@@ -311,8 +332,8 @@ describe('StrategyDeploymentsService', () => {
       registerEncryptedUserAccount: jest.fn().mockResolvedValue({
         encryptedUserAccount: 'eua-pk',
         x25519PublicKey: 'x25519-pk',
-        queueSignature: 'qsig-1',
-        callbackSignature: null,
+        signerPubkey: 'signer-pk',
+        txSignatures: [],
         status: 'pending',
       }),
       deposit: jest.fn(),

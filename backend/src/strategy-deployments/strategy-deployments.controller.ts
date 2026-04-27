@@ -274,7 +274,7 @@ export class StrategyDeploymentsController {
 
   @Post('deployments/:id/pp/deposit')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Enqueue a Private Payments deposit for the deployment treasury' })
+  @ApiOperation({ summary: 'Build an unsigned Private Payments deposit transaction' })
   async ppDeposit(
     @Param('id') id: string,
     @CurrentUser('walletAddress') walletAddress: string,
@@ -286,7 +286,7 @@ export class StrategyDeploymentsController {
 
   @Post('deployments/:id/pp/transfer')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Enqueue a Private Payments transfer between deployment-known wallets' })
+  @ApiOperation({ summary: 'Build an unsigned Private Payments transfer transaction' })
   async ppTransfer(
     @Param('id') id: string,
     @CurrentUser('walletAddress') walletAddress: string,
@@ -298,7 +298,7 @@ export class StrategyDeploymentsController {
 
   @Post('deployments/:id/pp/withdraw')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Enqueue a Private Payments withdraw to a public wallet' })
+  @ApiOperation({ summary: 'Build an unsigned Private Payments withdraw transaction' })
   async ppWithdraw(
     @Param('id') id: string,
     @CurrentUser('walletAddress') walletAddress: string,

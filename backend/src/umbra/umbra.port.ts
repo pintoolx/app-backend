@@ -19,6 +19,7 @@ export interface UmbraRegisterParams {
 export interface UmbraRegisterResult {
   encryptedUserAccount: string | null;
   x25519PublicKey: string | null;
+  signerPubkey: string | null;
   txSignatures: string[];
   status: 'confirmed' | 'failed';
 }

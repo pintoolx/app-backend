@@ -1,6 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'crypto';
+import axios, { AxiosError } from 'axios';
 import * as nacl from 'tweetnacl';
 import bs58 from 'bs58';
 import { PublicKey } from '@solana/web3.js';
@@ -32,6 +32,19 @@ interface PerPrivateStateRemote {
   logs?: Array<Record<string, unknown>>;
 }
 
+/** TEE /auth/challenge response shape */
+interface TeeChallengeResponse {
+  challenge?: string;
+  error?: string;
+}
+
+/** TEE /auth/login response shape */
+interface TeeLoginResponse {
+  token?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
 @Injectable()
 export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
   private readonly logger = new Logger(MagicBlockPerRealAdapter.name);
@@ -55,14 +68,31 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
   }
 
   /**
-   * Mints a server-side challenge nonce, persists it as a `challenge` row in
-   * `per_auth_tokens` (so we can correlate the verify call), and returns the
-   * raw nonce (base58) plus expiry.
+   * Proxies the auth challenge request to the TEE endpoint.
+   * Instead of generating a server-side nonce, we ask the TEE for a
+   * challenge that the client must sign.
    */
   async requestAuthChallenge(params: PerAuthChallengeParams): Promise<PerAuthChallenge> {
+    const teeUrl = this.getTeeUrl();
+    const challengeUrl = `${teeUrl.replace(/\/$/, '')}/auth/challenge?pubkey=${encodeURIComponent(params.walletAddress)}`;
+
+    let challenge: string;
+    try {
+      const res = await axios.get<TeeChallengeResponse>(challengeUrl, { timeout: 10_000 });
+      if (res.data.error) {
+        throw new Error(res.data.error);
+      }
+      if (!res.data.challenge) {
+        throw new Error('TEE returned no challenge');
+      }
+      challenge = res.data.challenge;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`TEE challenge request failed: ${msg}`);
+      throw new UnauthorizedException(`Failed to request TEE challenge: ${msg}`);
+    }
+
     const ttlMs = this.getChallengeTtlMs();
-    const nonce = randomBytes(32);
-    const challenge = bs58.encode(nonce);
     const expiresAt = new Date(Date.now() + ttlMs).toISOString();
 
     const group = await this.groupsRepo.getByDeployment(params.deploymentId);
@@ -76,15 +106,16 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
     });
 
     this.logger.log(
-      `per.requestAuthChallenge deployment=${params.deploymentId} wallet=${params.walletAddress}`,
+      `per.requestAuthChallenge deployment=${params.deploymentId} wallet=${params.walletAddress} tee=${teeUrl}`,
     );
-    return { challenge, expiresAt };
+    return { challenge, expiresAt, teeUrl };
   }
 
   /**
-   * Promotes a challenge into an active token after verifying the wallet
-   * signed the same nonce we issued. The signature is base58-encoded; the
-   * wallet is a base58 ed25519 public key.
+   * Proxies the signed challenge to the TEE /auth/login endpoint.
+   * The TEE verifies the signature and returns a bearer token.
+   * We persist the resulting token so that downstream guards and
+   * private-state queries can use it.
    */
   async verifyAuthSignature(params: PerAuthVerifyParams): Promise<PerAuthVerifyResult> {
     const challengeRow = await this.tokensRepo.getByToken(params.challenge);
@@ -104,24 +135,56 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
       throw new UnauthorizedException('Challenge expired');
     }
 
-    if (!this.verifySignature(params.walletAddress, params.challenge, params.signature)) {
-      throw new UnauthorizedException('Signature verification failed');
-    }
-
     // Optional: gate access on the wallet actually being a member.
     const member = await this.groupsRepo.findMembership(params.deploymentId, params.walletAddress);
     if (!member) {
       throw new UnauthorizedException('Wallet is not a member of this PER group');
     }
 
-    const ttlMin = this.getAuthTtlMinutes();
-    const newExpiry = new Date(Date.now() + ttlMin * 60 * 1000).toISOString();
-    const promoted = await this.tokensRepo.promoteChallenge(params.challenge, newExpiry);
+    const teeUrl = this.getTeeUrl();
+    const loginUrl = `${teeUrl.replace(/\/$/, '')}/auth/login`;
+
+    let teeToken: string;
+    let teeExpires: string;
+    try {
+      const res = await axios.post<TeeLoginResponse>(
+        loginUrl,
+        {
+          pubkey: params.walletAddress,
+          challenge: params.challenge,
+          signature: params.signature,
+        },
+        { timeout: 10_000, headers: { 'Content-Type': 'application/json' } },
+      );
+      if (res.data.error) {
+        throw new Error(res.data.error);
+      }
+      if (!res.data.token) {
+        throw new Error('TEE returned no token');
+      }
+      teeToken = res.data.token;
+      teeExpires = res.data.expiresAt ?? new Date(Date.now() + DEFAULT_AUTH_TTL_MIN * 60 * 1000).toISOString();
+    } catch (err) {
+      const msg = this.extractAxiosError(err);
+      this.logger.error(`TEE login failed: ${msg}`);
+      throw new UnauthorizedException(`Signature verification failed on TEE: ${msg}`);
+    }
+
+    // Store the TEE-issued token as an active token in our local registry
+    // so that PerAuthGuard can still validate it.
+    await this.tokensRepo.insertActive({
+      token: teeToken,
+      deploymentId: params.deploymentId,
+      wallet: params.walletAddress,
+      groupId: challengeRow.group_id ?? null,
+      expiresAt: teeExpires,
+      scopes: ['per:private-state'],
+    });
 
     this.logger.log(
-      `per.verifyAuthSignature deployment=${params.deploymentId} wallet=${params.walletAddress}`,
+      `per.verifyAuthSignature deployment=${params.deploymentId} wallet=${params.walletAddress} teeToken=${teeToken.slice(0, 8)}…`,
     );
-    return { authToken: promoted.token, expiresAt: newExpiry };
+    return { authToken: teeToken, expiresAt: teeExpires };
   }
 
   async getPrivateState(params: PerPrivateStateParams): Promise<PerPrivateStateResult> {
@@ -129,6 +192,7 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
     if (tokenRow.deployment_id !== params.deploymentId) {
       throw new UnauthorizedException('Token does not belong to this deployment');
     }
+
     const remote = await this.perClient.get<PerPrivateStateRemote>('/v1/private-state', {
       deploymentId: params.deploymentId,
       wallet: tokenRow.wallet,
@@ -141,18 +205,12 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
 
   // ---------------- helpers ----------------
 
-  private verifySignature(walletAddress: string, challenge: string, signature: string): boolean {
-    try {
-      const pubkey = new PublicKey(walletAddress).toBytes();
-      const sigBytes = bs58.decode(signature);
-      const msg = bs58.decode(challenge);
-      return nacl.sign.detached.verify(msg, sigBytes, pubkey);
-    } catch (err) {
-      this.logger.warn(
-        `per.verifySignature decoding failed: ${err instanceof Error ? err.message : err}`,
-      );
-      return false;
+  private getTeeUrl(): string {
+    const url = this.configService.get<string>('MAGICBLOCK_PER_ENDPOINT');
+    if (!url || !url.trim()) {
+      throw new UnauthorizedException('MAGICBLOCK_PER_ENDPOINT is not configured');
     }
+    return url.trim();
   }
 
   private getChallengeTtlMs(): number {
@@ -162,10 +220,13 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
     return DEFAULT_CHALLENGE_TTL_MS;
   }
 
-  private getAuthTtlMinutes(): number {
-    const raw = this.configService.get<string>('PER_AUTH_TOKEN_TTL_MIN');
-    const minutes = raw ? Number(raw) : NaN;
-    if (Number.isFinite(minutes) && minutes > 0) return Math.floor(minutes);
-    return DEFAULT_AUTH_TTL_MIN;
+  private extractAxiosError(err: unknown): string {
+    if (axios.isAxiosError(err)) {
+      const ax = err as AxiosError;
+      const data = ax.response?.data;
+      if (data && typeof data === 'object') return JSON.stringify(data).slice(0, 240);
+      return ax.message;
+    }
+    return err instanceof Error ? err.message : String(err);
   }
 }

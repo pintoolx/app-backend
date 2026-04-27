@@ -16,6 +16,24 @@
  *   - Skipped if SUPABASE_URL / SUPABASE_SERVICE_KEY are unset (we need a
  *     real Postgres test instance to exercise schema constraints).
  */
+jest.mock('@umbra-privacy/sdk', () => ({
+  getUmbraClient: jest.fn().mockResolvedValue({}),
+  createSignerFromPrivateKeyBytes: jest.fn().mockResolvedValue({ address: 'mock-address' }),
+  getUserRegistrationFunction: jest.fn().mockReturnValue(jest.fn().mockResolvedValue([])),
+  getUserAccountQuerierFunction: jest.fn().mockReturnValue(jest.fn().mockResolvedValue({})),
+  getPublicBalanceToEncryptedBalanceDirectDepositorFunction: jest.fn().mockReturnValue(jest.fn().mockResolvedValue({})),
+  getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction: jest.fn().mockReturnValue(jest.fn().mockResolvedValue({})),
+  getEncryptedBalanceQuerierFunction: jest.fn().mockReturnValue(jest.fn().mockResolvedValue(new Map())),
+}));
+
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn().mockReturnValue('mock-secret'),
+  generateURI: jest.fn().mockReturnValue('mock-uri'),
+  verifySync: jest.fn().mockReturnValue(true),
+  authenticator: { generateSecret: jest.fn().mockReturnValue('mock-secret'), verify: jest.fn().mockReturnValue(true) },
+  totp: { generateSecret: jest.fn().mockReturnValue('mock-secret'), verify: jest.fn().mockReturnValue(true) },
+}));
+
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';

@@ -161,7 +161,7 @@ export class StrategyDeploymentsService {
         postUmbra = await this.deploymentsRepository.updateDeployment(inserted.id, walletAddress, {
           umbraUserAccount: reg.encryptedUserAccount,
           umbraX25519Pubkey: reg.x25519PublicKey,
-          umbraSignerPubkey: reg.encryptedUserAccount, // adapter returns signer pubkey here
+          umbraSignerPubkey: reg.signerPubkey,
           umbraRegistrationStatus: reg.status === 'confirmed' ? 'confirmed' : 'pending',
           umbraRegisterQueueSignature: reg.txSignatures[0] ?? null,
           umbraRegisterCallbackSignature: reg.txSignatures[1] ?? null,
@@ -379,7 +379,7 @@ export class StrategyDeploymentsService {
     const updated = await this.deploymentsRepository.updateDeployment(deploymentId, walletAddress, {
       umbraUserAccount: res.encryptedUserAccount,
       umbraX25519Pubkey: res.x25519PublicKey,
-      umbraSignerPubkey: res.encryptedUserAccount,
+      umbraSignerPubkey: res.signerPubkey,
       umbraRegistrationStatus: res.status === 'confirmed' ? 'confirmed' : 'pending',
       umbraRegisterQueueSignature: res.txSignatures[0] ?? null,
       umbraRegisterCallbackSignature: res.txSignatures[1] ?? null,

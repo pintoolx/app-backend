@@ -65,6 +65,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       return {
         encryptedUserAccount: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
         x25519PublicKey: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
+        signerPubkey: client.signer.address ?? null,
         txSignatures: Array.isArray(signatures) ? signatures as string[] : [],
         status: 'confirmed',
       };
@@ -75,6 +76,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       return {
         encryptedUserAccount: null,
         x25519PublicKey: null,
+        signerPubkey: null,
         txSignatures: [],
         status: 'failed',
       };

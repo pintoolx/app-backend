@@ -64,6 +64,7 @@ export interface PerAuthChallengeParams {
 export interface PerAuthChallenge {
   challenge: string;
   expiresAt: string;
+  teeUrl?: string;
 }
 
 export interface PerAuthVerifyParams {
@@ -125,17 +126,32 @@ export interface PrivatePaymentsBalanceParams {
   mint: string;
 }
 
-export interface PrivatePaymentsResult {
-  signature: string | null;
-  status: 'pending' | 'confirmed' | 'failed';
-  encryptedBalanceRef: string | null;
+/**
+ * Private Payments API builds **unsigned** SPL token transactions.
+ * The caller is responsible for signing and submitting them via
+ * Magic Router or a Solana RPC.
+ *
+ * @see https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/api-reference/per/introduction
+ */
+export interface PrivatePaymentsUnsignedTx {
+  kind: 'deposit' | 'transfer' | 'withdraw';
+  version: 'legacy';
+  transactionBase64: string;
+  sendTo: 'base' | 'ephemeral';
+  recentBlockhash: string;
+  lastValidBlockHeight: number;
+  instructionCount: number;
+  requiredSigners: string[];
+}
+
+export interface PrivatePaymentsBalanceResult {
+  balance: string;
+  decimals: number;
 }
 
 export interface MagicBlockPrivatePaymentsAdapterPort {
-  deposit(params: PrivatePaymentsDepositParams): Promise<PrivatePaymentsResult>;
-  transfer(params: PrivatePaymentsTransferParams): Promise<PrivatePaymentsResult>;
-  withdraw(params: PrivatePaymentsWithdrawParams): Promise<PrivatePaymentsResult>;
-  getBalance(
-    params: PrivatePaymentsBalanceParams,
-  ): Promise<{ encryptedBalanceRef: string | null; ciphertext: string | null }>;
+  deposit(params: PrivatePaymentsDepositParams): Promise<PrivatePaymentsUnsignedTx>;
+  transfer(params: PrivatePaymentsTransferParams): Promise<PrivatePaymentsUnsignedTx>;
+  withdraw(params: PrivatePaymentsWithdrawParams): Promise<PrivatePaymentsUnsignedTx>;
+  getBalance(params: PrivatePaymentsBalanceParams): Promise<PrivatePaymentsBalanceResult>;
 }
