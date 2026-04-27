@@ -30,7 +30,7 @@ export declare class WorkflowExecutor {
      */
     private findStartNodes;
     /**
-     * 获取节点的输入数据
+     * 获取节点的输入数据（加入詳細日誌和驗證）
      */
     private getInputDataForNode;
     /**

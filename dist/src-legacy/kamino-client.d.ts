@@ -35,11 +35,14 @@ export declare class KaminoClient {
     /**
      * 獲取 vault 的詳細概覽
      */
-    getVaultOverview(vaultAddress: Address, tokenPrice?: Decimal): Promise<import("@kamino-finance/klend-sdk").VaultOverview>;
+    getVaultOverview(vaultAddress: Address, tokenPrice?: Decimal): Promise<any>;
     /**
-     * Deposit 到指定的 vault
+     * Deposit 到指定的 vault，並返回獲得的 share amount
      */
-    deposit(vaultAddress: Address, amount: Decimal): Promise<Signature>;
+    deposit(vaultAddress: Address, amount: Decimal): Promise<{
+        signature: Signature;
+        receivedShares: Decimal;
+    }>;
     /**
      * 獲取用戶在指定 token 的餘額
      */

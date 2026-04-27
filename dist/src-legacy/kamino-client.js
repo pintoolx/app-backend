@@ -77,14 +77,33 @@ export class KaminoClient {
         return await this.manager.getVaultOverview(vaultState, tokenPrice, currentSlot);
     }
     /**
-     * Deposit 到指定的 vault
+     * Deposit 到指定的 vault，並返回獲得的 share amount
      */
     async deposit(vaultAddress, amount) {
         const vault = new KaminoVault(vaultAddress, undefined, this.kvaultProgramId);
         const vaultState = await vault.getState(getConnectionPool().rpc);
+        console.log('=== Kamino Deposit - Share Tracking ===');
+        console.log(`Vault Address: ${vaultAddress}`);
+        console.log(`Deposit Amount: ${amount.toString()}`);
+        // Get share balance before deposit
+        const sharesBefore = await this.getUserShareBalance(vaultAddress);
+        console.log(`Shares BEFORE deposit: ${sharesBefore.toString()}`);
         const depositIxs = await this.manager.depositToVaultIxs(this.wallet, vault, amount);
         const sig = await sendAndConfirmTx(getConnectionPool(), this.wallet, [...depositIxs.depositIxs, ...depositIxs.stakeInFarmIfNeededIxs], [], [vaultState.vaultLookupTable], 'DepositToVault');
-        return sig;
+        console.log('Deposit transaction confirmed, waiting for share balance update...');
+        // Wait for balance to update
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Get share balance after deposit
+        const sharesAfter = await this.getUserShareBalance(vaultAddress);
+        console.log(`Shares AFTER deposit: ${sharesAfter.toString()}`);
+        // Calculate received shares
+        const receivedShares = sharesAfter.minus(sharesBefore);
+        console.log(`Received shares: ${receivedShares.toString()}`);
+        console.log('=========================================');
+        return {
+            signature: sig,
+            receivedShares,
+        };
     }
     /**
      * 獲取用戶在指定 token 的餘額

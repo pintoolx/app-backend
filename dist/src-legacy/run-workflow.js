@@ -2,6 +2,7 @@ import { WorkflowExecutor } from './workflow-executor';
 import { PriceFeedNode } from './nodes/PriceFeedNode';
 import { SwapNode } from './nodes/SwapNode';
 import { KaminoNode } from './nodes/KaminoNode';
+import { X402PaymentNode } from './nodes/X402PaymentNode';
 import { createTelegramNotifierFromEnv } from './telegram-notifier';
 import fs from 'fs';
 import path from 'path';
@@ -33,6 +34,7 @@ async function runWorkflow(workflowPath) {
     executor.registerNodeType('pythPriceFeed', PriceFeedNode);
     executor.registerNodeType('jupiterSwap', SwapNode);
     executor.registerNodeType('kamino', KaminoNode);
+    executor.registerNodeType('x402Payment', X402PaymentNode);
     try {
         // 执行 workflow
         const results = await executor.execute(workflow);

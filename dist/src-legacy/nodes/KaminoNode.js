@@ -1,6 +1,6 @@
 import { KaminoClient } from '../kamino-client';
-import Decimal from 'decimal.js';
 import { KAMINO_VAULT } from '../utils/constant';
+import { NodeDataAccessor } from '../utils/node-data-accessor';
 /**
  * Helper function to get vault address from vault name
  * @param vaultName - The name of the vault (e.g., "USDC_Prime", "MEV_Capital_SOL")
@@ -15,45 +15,6 @@ function getVaultAddress(vaultName) {
         }
     }
     throw new Error(`Vault "${vaultName}" not found in KAMINO_VAULT configuration. Please check src/utils/constant.ts for available vault names.`);
-}
-/**
- * Parse amount from input, supporting "all", "half", or numeric values
- * @param amountStr - Amount string ("all", "half", or numeric)
- * @param availableAmount - Available amount to use for "all" or "half"
- * @returns Parsed Decimal amount
- */
-function parseAmount(amountStr, availableAmount) {
-    const normalized = amountStr.toLowerCase().trim();
-    if (normalized === 'all') {
-        return availableAmount;
-    }
-    else if (normalized === 'half') {
-        return availableAmount.div(2);
-    }
-    else {
-        return new Decimal(amountStr);
-    }
-}
-/**
- * Get amount from previous node output
- * @param inputData - Input data from previous node
- * @returns Amount as Decimal, or null if not found
- */
-function getAmountFromInput(inputData) {
-    if (inputData.length === 0) {
-        return null;
-    }
-    const previousOutput = inputData[0].json;
-    // Try to get amount from different possible fields
-    if (previousOutput.outputAmount !== undefined) {
-        // From Swap node
-        return new Decimal(previousOutput.outputAmount);
-    }
-    else if (previousOutput.amount !== undefined) {
-        // From other nodes
-        return new Decimal(previousOutput.amount);
-    }
-    return null;
 }
 export class KaminoNode {
     description = {
@@ -131,62 +92,55 @@ export class KaminoNode {
                     keypairPath,
                     isMainnet: true
                 });
-                let signature;
                 let operationDetails;
                 if (operation === 'deposit') {
-                    // 執行存款操作
-                    let depositAmount;
-                    // 檢查是否要從前一個節點讀取金額
-                    const inputAmount = getAmountFromInput(items);
-                    if (inputAmount !== null && (amountParam === '0' || amountParam.toLowerCase() === 'auto')) {
-                        // 使用前一個節點的輸出金額
-                        depositAmount = inputAmount;
-                        console.log(`Use output amount from previous node: ${depositAmount.toString()}`);
-                    }
-                    else if (amountParam.toLowerCase() === 'all' || amountParam.toLowerCase() === 'half') {
-                        // 對於 "all" 或 "half"，使用前一個節點的輸出金額
-                        if (inputAmount === null) {
-                            throw new Error('Cannot use "all" or "half" without input from previous node');
-                        }
-                        depositAmount = parseAmount(amountParam, inputAmount);
-                        console.log(`Use ${amountParam}: ${depositAmount.toString()}`);
-                    }
-                    else {
-                        // 使用指定的固定金額
-                        depositAmount = new Decimal(amountParam);
-                    }
-                    signature = await kaminoClient.deposit(vaultAddress, depositAmount);
+                    // 執行存款操作，使用標準化的資料存取工具
+                    console.log('=== Kamino Deposit Operation ===');
+                    console.log('Previous node output:', items.length > 0 && items[0] ? JSON.stringify(items[0].json, null, 2) : 'No input data');
+                    console.log(`Amount parameter: "${amountParam}"`);
+                    const depositAmount = NodeDataAccessor.parseAmountParameter(amountParam, items, null, // Deposit 不使用當前餘額
+                    `KaminoNode(${vaultName})`);
+                    console.log(`Deposit amount: ${depositAmount.toString()}`);
+                    console.log('================================');
+                    const depositResult = await kaminoClient.deposit(vaultAddress, depositAmount);
                     operationDetails = {
                         operation: 'deposit',
                         vaultName,
                         vaultAddress,
-                        amount: depositAmount.toString(),
-                        signature,
+                        depositAmount: depositAmount.toString(), // 存入的 token amount
+                        receivedShares: depositResult.receivedShares.toString(), // 獲得的 shares
+                        outputAmount: depositResult.receivedShares.toString(), // ✅ 標準化輸出 = shares
+                        outputType: 'shares', // ✅ 標識資料類型
+                        signature: depositResult.signature,
                         success: true
                     };
                 }
                 else if (operation === 'withdraw') {
                     // 執行提款操作
-                    let withdrawShareAmount;
-                    // 檢查是否使用 "all" 或 "half"
-                    if (shareAmountParam.toLowerCase() === 'all' || shareAmountParam.toLowerCase() === 'half') {
-                        // 獲取當前的 share balance
-                        const currentShareBalance = await kaminoClient.getUserShareBalance(vaultAddress);
-                        console.log(`Current share balance: ${currentShareBalance.toString()}`);
-                        withdrawShareAmount = parseAmount(shareAmountParam, currentShareBalance);
-                        console.log(`Withdraw ${shareAmountParam}: ${withdrawShareAmount.toString()}`);
-                    }
-                    else {
-                        // 使用指定的固定數量
-                        withdrawShareAmount = new Decimal(shareAmountParam);
-                    }
+                    console.log('=== Kamino Withdraw Operation ===');
+                    console.log(`Share amount parameter: "${shareAmountParam}"`);
+                    console.log('Previous node output:', items.length > 0 && items[0] ? JSON.stringify(items[0].json, null, 2) : 'No input data');
+                    // 獲取當前的 share balance
+                    const currentShareBalance = await kaminoClient.getUserShareBalance(vaultAddress);
+                    console.log(`Current share balance: ${currentShareBalance.toString()}`);
+                    // 使用 NodeDataAccessor 解析 share 數量
+                    // "auto": 從前一個節點讀取 outputAmount（如果前一個是 deposit，會獲得 shares）
+                    // "all": 使用當前所有 share balance
+                    // "half": 使用當前 share balance 的一半
+                    // 數字: 使用指定的 share 數量
+                    const withdrawShareAmount = NodeDataAccessor.parseAmountParameter(shareAmountParam, items, currentShareBalance, // 提供當前 share balance 供 "all"/"half" 使用
+                    `KaminoNode(${vaultName})`);
+                    console.log(`Withdraw share amount: ${withdrawShareAmount.toString()}`);
+                    console.log('=================================');
                     const withdrawResult = await kaminoClient.withdraw(vaultAddress, withdrawShareAmount);
                     operationDetails = {
                         operation: 'withdraw',
                         vaultName,
                         vaultAddress,
-                        shareAmount: withdrawShareAmount.toString(),
-                        amount: withdrawResult.withdrawnAmount.toString(),
+                        withdrawnShares: withdrawShareAmount.toString(), // 提取的 shares
+                        withdrawnTokens: withdrawResult.withdrawnAmount.toString(), // 獲得的 tokens
+                        outputAmount: withdrawResult.withdrawnAmount.toString(), // ✅ 標準化輸出 = tokens
+                        outputType: 'tokens', // ✅ 標識資料類型
                         signature: withdrawResult.signature,
                         success: true
                     };

@@ -79,3 +79,22 @@ export interface WorkflowDefinition {
         main: NodeConnection[][];
     }>;
 }
+/**
+ * 標準化的金額輸出介面
+ * 所有涉及金額傳遞的節點都應該輸出這個格式
+ */
+export interface NodeAmountOutput {
+    success: boolean;
+    outputAmount: string;
+    operation: string;
+    [key: string]: any;
+}
+/**
+ * 驗證的金額資料
+ */
+export interface ValidatedAmount {
+    value: string;
+    source: 'previous' | 'parameter' | 'balance';
+    sourceField: string | undefined;
+    sourceNodeId: string | undefined;
+}

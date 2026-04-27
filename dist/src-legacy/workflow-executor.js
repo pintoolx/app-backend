@@ -79,7 +79,7 @@ export class WorkflowExecutor {
         const inputData = this.getInputDataForNode(workflow, nodeId);
         // 创建执行上下文
         const context = {
-            getNodeParameter: (parameterName, itemIndex, defaultValue) => {
+            getNodeParameter: (parameterName, _itemIndex, defaultValue) => {
                 const value = workflowNode.parameters[parameterName];
                 return value !== undefined ? value : defaultValue;
             },
@@ -90,7 +90,7 @@ export class WorkflowExecutor {
                 }
                 return inputData[inputIndex] || [];
             },
-            getWorkflowStaticData: (type) => {
+            getWorkflowStaticData: (_type) => {
                 return {};
             },
             helpers: {
@@ -103,9 +103,27 @@ export class WorkflowExecutor {
         try {
             const result = await nodeType.execute(context);
             this.workflowData.set(nodeId, result);
-            // 打印执行结果
-            console.log(`\nNode execution result:`);
-            console.log(JSON.stringify(result, null, 2));
+            // 驗證和打印执行结果
+            console.log(`\n📤 Node execution result:`);
+            if (result[0] && result[0][0]) {
+                const firstItem = result[0][0].json;
+                console.log(`   - success: ${firstItem['success']}`);
+                console.log(`   - operation: ${firstItem['operation'] || 'N/A'}`);
+                // 驗證標準化欄位
+                if (firstItem['outputAmount'] !== undefined) {
+                    console.log(`   ✓ outputAmount: ${firstItem['outputAmount']}`);
+                }
+                else if (firstItem['amount'] !== undefined) {
+                    console.log(`   ⚠️  Using legacy 'amount' field: ${firstItem['amount']}`);
+                    console.log(`   ⚠️  Consider updating node to use 'outputAmount'`);
+                }
+                // 顯示完整結果（折疊）
+                console.log(`\n   Full result:`);
+                console.log(JSON.stringify(result, null, 2));
+            }
+            else {
+                console.log(JSON.stringify(result, null, 2));
+            }
             // 检查是否需要发送 Telegram 通知
             // 优先级: workflow JSON 中的设置 > Node 类中的默认设置
             const shouldNotify = workflowNode.telegramNotify !== undefined
@@ -137,7 +155,7 @@ export class WorkflowExecutor {
         const allNodes = new Set(workflow.nodes.map(n => n.id));
         const hasInput = new Set();
         // 遍历所有连接，找出有输入的节点
-        for (const [nodeId, connections] of Object.entries(workflow.connections)) {
+        for (const [_nodeId, connections] of Object.entries(workflow.connections)) {
             if (connections.main) {
                 for (const connectionGroup of connections.main) {
                     for (const connection of connectionGroup) {
@@ -150,25 +168,51 @@ export class WorkflowExecutor {
         return Array.from(allNodes).filter(nodeId => !hasInput.has(nodeId));
     }
     /**
-     * 获取节点的输入数据
+     * 获取节点的输入数据（加入詳細日誌和驗證）
      */
-    getInputDataForNode(workflow, nodeId) {
+    getInputDataForNode(workflow, _nodeId) {
         const inputData = [];
+        const sourceNodes = [];
         // 遍历所有连接，找到指向当前节点的连接
         for (const [sourceNodeId, connections] of Object.entries(workflow.connections)) {
             if (connections.main) {
                 for (const connectionGroup of connections.main) {
                     for (const connection of connectionGroup) {
-                        if (connection.node === nodeId) {
+                        if (connection.node === _nodeId) {
                             // 获取源节点的输出数据
                             const sourceData = this.workflowData.get(sourceNodeId);
                             if (sourceData) {
                                 inputData.push(...sourceData);
+                                sourceNodes.push(sourceNodeId);
+                                // 記錄資料傳遞資訊
+                                console.log(`\n📥 Input from node "${sourceNodeId}":`);
+                                if (sourceData[0] && sourceData[0][0]) {
+                                    const firstItem = sourceData[0][0].json;
+                                    console.log(`   - success: ${firstItem['success']}`);
+                                    console.log(`   - operation: ${firstItem['operation'] || 'N/A'}`);
+                                    // 顯示金額相關欄位
+                                    if (firstItem['outputAmount'] !== undefined) {
+                                        console.log(`   - outputAmount: ${firstItem['outputAmount']}`);
+                                    }
+                                    if (firstItem['amount'] !== undefined) {
+                                        console.log(`   - amount: ${firstItem['amount']}`);
+                                    }
+                                    // 檢查資料完整性
+                                    if (!firstItem['success']) {
+                                        console.warn(`   ⚠️  Previous node reported failure!`);
+                                    }
+                                }
+                            }
+                            else {
+                                console.warn(`   ⚠️  Source node "${sourceNodeId}" has no output data`);
                             }
                         }
                     }
                 }
             }
+        }
+        if (sourceNodes.length === 0) {
+            console.log(`\n📥 No input data (trigger node or start node)`);
         }
         return inputData;
     }

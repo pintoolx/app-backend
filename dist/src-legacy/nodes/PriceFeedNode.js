@@ -81,6 +81,7 @@ export class PriceFeedNode {
                         triggered: priceReached.triggered,
                         currentPrice: priceReached.currentPrice,
                         targetPrice: priceReached.targetPrice,
+                        outputAmount: priceReached.currentPrice.toString(), // 標準化輸出欄位（當前價格）
                         condition: priceReached.condition,
                         ticker: priceReached.ticker,
                         timestamp: priceReached.timestamp,

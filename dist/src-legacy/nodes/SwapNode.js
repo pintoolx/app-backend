@@ -1,43 +1,5 @@
 import { executeJupiterSwap } from '../utils/jupiter-swap';
-/**
- * Parse amount from input, supporting "all", "half", or numeric values
- * @param amountStr - Amount string ("all", "half", "auto", or numeric)
- * @param availableAmount - Available amount to use for "all" or "half"
- * @returns Parsed number amount
- */
-function parseSwapAmount(amountStr, availableAmount) {
-    const normalized = amountStr.toLowerCase().trim();
-    if (normalized === 'all' || normalized === 'auto') {
-        return availableAmount;
-    }
-    else if (normalized === 'half') {
-        return availableAmount / 2;
-    }
-    else {
-        return parseFloat(amountStr);
-    }
-}
-/**
- * Get amount from previous node output
- * @param inputData - Input data from previous node
- * @returns Amount as number, or null if not found
- */
-function getSwapAmountFromInput(inputData) {
-    if (inputData.length === 0) {
-        return null;
-    }
-    const previousOutput = inputData[0].json;
-    // Try to get amount from different possible fields
-    if (previousOutput.amount !== undefined) {
-        // From Kamino withdraw or other nodes
-        return parseFloat(previousOutput.amount);
-    }
-    else if (previousOutput.outputAmount !== undefined) {
-        // From another Swap node
-        return parseFloat(previousOutput.outputAmount);
-    }
-    return null;
-}
+import { NodeDataAccessor } from '../utils/node-data-accessor';
 export class SwapNode {
     description = {
         displayName: 'Jupiter Swap',
@@ -105,31 +67,15 @@ export class SwapNode {
                 const outputToken = context.getNodeParameter('outputToken', itemIndex);
                 const amountParam = context.getNodeParameter('amount', itemIndex);
                 const slippageBps = parseInt(context.getNodeParameter('slippageBps', itemIndex, '50'));
-                // 解析 amount，支持從前一個節點讀取
+                // 解析 amount，使用標準化的資料存取工具
                 console.log('=== Swap Node Execution ===');
                 console.log('Previous node output:', items.length > 0 && items[0] ? JSON.stringify(items[0].json, null, 2) : 'No input data');
                 console.log(`Amount parameter: "${amountParam}"`);
-                let amount;
-                const inputAmount = getSwapAmountFromInput(items);
-                console.log(`Extracted input amount from previous node: ${inputAmount}`);
-                if (inputAmount !== null && (amountParam === '0' || amountParam.toLowerCase() === 'auto')) {
-                    // 使用前一個節點的輸出金額
-                    amount = inputAmount;
-                    console.log(`✓ Using output amount from previous node: ${amount}`);
-                }
-                else if (amountParam.toLowerCase() === 'all' || amountParam.toLowerCase() === 'half') {
-                    // 對於 "all" 或 "half"，使用前一個節點的輸出金額
-                    if (inputAmount === null) {
-                        throw new Error('Cannot use "all" or "half" without input from previous node');
-                    }
-                    amount = parseSwapAmount(amountParam, inputAmount);
-                    console.log(`✓ Using ${amountParam} of input amount: ${amount}`);
-                }
-                else {
-                    // 使用指定的固定金額
-                    amount = parseFloat(amountParam);
-                    console.log(`✓ Using fixed amount: ${amount}`);
-                }
+                // 使用 NodeDataAccessor 統一解析金額
+                const amountDecimal = NodeDataAccessor.parseAmountParameter(amountParam, items, null, // SwapNode 不使用當前餘額
+                'SwapNode');
+                // 轉換為 number (jupiter-swap 需要 number 類型)
+                const amount = amountDecimal.toNumber();
                 console.log(`Final swap parameters:`);
                 console.log(`  - Input Token: ${inputToken}`);
                 console.log(`  - Output Token: ${outputToken}`);
@@ -150,7 +96,8 @@ export class SwapNode {
                     json: {
                         success: true,
                         operation: 'swap',
-                        ...swapResult
+                        ...swapResult,
+                        outputType: 'tokens' // ✅ Swap 總是輸出 tokens
                     }
                 });
             }
