@@ -1,130 +1,139 @@
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-import { UmbraRealAdapter } from './umbra-real.adapter';
-import { UmbraDeploymentSignerService } from './umbra-deployment-signer.service';
-import { Keypair } from '@solana/web3.js';
+import { type UmbraAdapterPort, type UmbraTreasuryResult } from './umbra.port';
 
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-
-const buildSignerStub = () => {
-  const ed = Keypair.generate();
-  const x25519 = {
-    publicKey: Uint8Array.from(Array(32).fill(7)),
-    secretKey: Uint8Array.from(Array(32).fill(7)),
-  };
-  return {
-    isConfigured: jest.fn(() => true),
-    deriveForDeployment: jest.fn(async (deploymentId: string) => ({
-      ed25519: ed,
-      x25519,
-      seedRef: `seedref-${deploymentId.slice(0, 8)}`,
-    })),
-    getMasterSeed: jest.fn(),
-    getResolvedSource: jest.fn(() => 'env'),
-  } as unknown as UmbraDeploymentSignerService;
+const mockClient = {
+  signer: { address: 'MOCK_SIGNER_ADDRESS' },
 };
 
-const buildConfig = (env: Record<string, string | undefined>) =>
-  ({ get: jest.fn((k: string) => env[k]) }) as unknown as ConfigService;
+const mockClientService = {
+  getClient: jest.fn().mockResolvedValue(mockClient),
+  isEnabled: jest.fn().mockReturnValue(true),
+};
+
+// Mock SDK modules before importing the adapter
+jest.mock('@umbra-privacy/sdk', () => ({
+  getUserRegistrationFunction: jest.fn(() =>
+    jest.fn().mockResolvedValue(['sig1', 'sig2']),
+  ),
+  getUserAccountQuerierFunction: jest.fn(() =>
+    jest.fn().mockResolvedValue({
+      x25519PublicKey: 'mockX25519PubkeyBase58',
+      userCommitment: 'mockCommitment',
+      generationIndex: 1,
+      statusFlags: { isConfidential: true, isAnonymous: false },
+    }),
+  ),
+  getPublicBalanceToEncryptedBalanceDirectDepositorFunction: jest.fn(() =>
+    jest.fn().mockResolvedValue({
+      queueSignature: 'mockQueueSig',
+      callbackSignature: 'mockCallbackSig',
+    }),
+  ),
+  getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction: jest.fn(() =>
+    jest.fn().mockResolvedValue({
+      queueSignature: 'mockQueueSig',
+      callbackSignature: 'mockCallbackSig',
+    }),
+  ),
+  getEncryptedBalanceQuerierFunction: jest.fn(() =>
+    jest.fn().mockResolvedValue({
+      encryptedTokenAccount: 'mockEta',
+      ciphertext: 'mockCiphertext',
+      decryptedAmount: '1000000',
+    }),
+  ),
+  getComplianceGrantIssuerFunction: jest.fn(() =>
+    jest.fn().mockResolvedValue({ grantId: 'mockGrantId' }),
+  ),
+  getComplianceGrantRevokerFunction: jest.fn(() => jest.fn().mockResolvedValue(undefined)),
+}));
 
 describe('UmbraRealAdapter', () => {
-  beforeEach(() => {
+  let adapter: UmbraAdapterPort;
+
+  beforeEach(async () => {
     jest.clearAllMocks();
-    (mockedAxios.isAxiosError as unknown as jest.Mock).mockImplementation((v: unknown) =>
-      Boolean((v as { isAxiosError?: boolean })?.isAxiosError),
-    );
+    const { UmbraRealAdapter } = await import('./umbra-real.adapter');
+    adapter = new UmbraRealAdapter(mockClientService as any);
   });
 
-  it('register operates in local-only mode without queue url', async () => {
-    const signer = buildSignerStub();
-    const adapter = new UmbraRealAdapter(buildConfig({}), signer);
-    const res = await adapter.registerEncryptedUserAccount({
-      walletAddress: 'walletA',
-      mode: 'confidential',
-      deploymentId: 'depl-1',
-    } as any);
-
-    expect(res.status).toBe('pending');
-    expect(res.queueSignature).toBeNull();
-    expect(res.encryptedUserAccount).toBeTruthy();
-    expect(res.x25519PublicKey).toBeTruthy();
-  });
-
-  it('register posts to queue when configured', async () => {
-    const signer = buildSignerStub();
-    const httpInstance = {
-      post: jest.fn().mockResolvedValue({ data: { signature: 'qsig' } }),
-    } as unknown as ReturnType<typeof axios.create>;
-    (mockedAxios.create as unknown as jest.Mock).mockReturnValue(httpInstance);
-
-    const adapter = new UmbraRealAdapter(
-      buildConfig({ UMBRA_QUEUE_URL: 'https://umbra-q.example' }),
-      signer,
-    );
-    const res = await adapter.registerEncryptedUserAccount({
-      walletAddress: 'walletA',
-      mode: 'confidential',
-      deploymentId: 'depl-1',
-    } as any);
-
-    expect(res.status).toBe('pending');
-    expect(res.queueSignature).toBe('qsig');
-    expect((httpInstance as unknown as { post: jest.Mock }).post).toHaveBeenCalledWith(
-      '/v1/register',
-      expect.objectContaining({
-        deploymentId: 'depl-1',
-        walletAddress: 'walletA',
+  describe('registerEncryptedUserAccount', () => {
+    it('should register and return account details', async () => {
+      const result = await adapter.registerEncryptedUserAccount({
+        walletAddress: 'wallet123',
         mode: 'confidential',
-      }),
-    );
+      } as Parameters<typeof adapter.registerEncryptedUserAccount>[0]);
+
+      expect(result.status).toBe('confirmed');
+      expect(result.x25519PublicKey).toBe('mockX25519PubkeyBase58');
+      expect(result.txSignatures).toEqual(['sig1', 'sig2']);
+    });
   });
 
-  it('treasury ops report failed when queue throws non-4xx', async () => {
-    const signer = buildSignerStub();
-    const httpInstance = {
-      post: jest.fn().mockRejectedValue(new Error('boom')),
-    } as unknown as ReturnType<typeof axios.create>;
-    (mockedAxios.create as unknown as jest.Mock).mockReturnValue(httpInstance);
+  describe('deposit', () => {
+    it('should deposit and return queue signature', async () => {
+      const result = await adapter.deposit({
+        deploymentId: 'dep-1',
+        fromWallet: 'wallet123',
+        mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        amount: '1000000',
+      });
 
-    const adapter = new UmbraRealAdapter(
-      buildConfig({ UMBRA_QUEUE_URL: 'https://umbra-q.example' }),
-      signer,
-    );
-    const res = await adapter.deposit({
-      deploymentId: 'depl-1',
-      fromWallet: 'walletA',
-      mint: 'm1',
-      amount: '100',
+      expect(result.status).toBe('confirmed');
+      expect(result.queueSignature).toBe('mockQueueSig');
     });
-    expect(res.status).toBe('failed');
-    expect(res.queueSignature).toBeNull();
   });
 
-  it('grantViewer returns deterministic id when no queue is set', async () => {
-    const signer = buildSignerStub();
-    const adapter = new UmbraRealAdapter(buildConfig({}), signer);
-    const res = await adapter.grantViewer({
-      deploymentId: 'depl-1',
-      granteeWallet: 'walletGrantee123',
-      mint: 'mint',
+  describe('withdraw', () => {
+    it('should withdraw and return queue signature', async () => {
+      const result = await adapter.withdraw({
+        deploymentId: 'dep-1',
+        toWallet: 'wallet123',
+        mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        amount: '1000000',
+      });
+
+      expect(result.status).toBe('confirmed');
+      expect(result.queueSignature).toBe('mockQueueSig');
     });
-    expect(res.grantId).toContain('umbra-grant-depl-1');
-    expect(res.payload.granteeWallet).toBe('walletGrantee123');
   });
 
-  it('getEncryptedBalance returns nulls without indexer url', async () => {
-    const signer = buildSignerStub();
-    const adapter = new UmbraRealAdapter(buildConfig({}), signer);
-    const res = await adapter.getEncryptedBalance({
-      deploymentId: 'depl-1',
-      walletAddress: 'walletA',
-      mint: 'm',
+  describe('transfer', () => {
+    it('should return failed for unimplemented transfers', async () => {
+      const result = await adapter.transfer({
+        deploymentId: 'dep-1',
+        fromWallet: 'wallet123',
+        toWallet: 'wallet456',
+        mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        amount: '1000000',
+      });
+
+      expect(result.status).toBe('failed');
     });
-    expect(res).toEqual({
-      encryptedTokenAccount: null,
-      ciphertext: null,
-      decryptedAmount: null,
+  });
+
+  describe('getEncryptedBalance', () => {
+    it('should query and return encrypted balance', async () => {
+      const result = await adapter.getEncryptedBalance({
+        deploymentId: 'dep-1',
+        walletAddress: 'wallet123',
+        mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      });
+
+      expect(result.encryptedTokenAccount).toBe('mockEta');
+      expect(result.decryptedAmount).toBe('1000000');
+    });
+  });
+
+  describe('grantViewer', () => {
+    it('should return a deterministic grantId (compliance grants deferred)', async () => {
+      const result = await adapter.grantViewer({
+        deploymentId: 'dep-1',
+        granteeWallet: 'grantee123',
+        mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      });
+
+      expect(result.grantId).toBe('umbra-grant-dep-1-grantee1');
+      expect(result.payload).toBeDefined();
     });
   });
 });

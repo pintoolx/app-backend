@@ -35,7 +35,7 @@ const ADAPTER_HINTS: AdapterMatrixEntry[] = [
   { adapter: 'er', mode: 'noop', hint: 'Set MAGICBLOCK_ROUTER_URL to enable real mode' },
   { adapter: 'per', mode: 'noop', hint: 'Set MAGICBLOCK_PER_ENDPOINT to enable real mode' },
   { adapter: 'pp', mode: 'noop', hint: 'Set MAGICBLOCK_PP_ENDPOINT to enable real mode' },
-  { adapter: 'umbra', mode: 'noop', hint: 'Set UMBRA_MASTER_SEED to enable real mode' },
+  { adapter: 'umbra', mode: 'noop', hint: 'Set UMBRA_ENABLED=true to enable real mode (requires keeper keypair)' },
 ];
 
 @Injectable()
@@ -118,7 +118,7 @@ export class AdminOverviewService {
           case 'pp':
             return truthy(config.get<string>('MAGICBLOCK_PP_ENDPOINT')) ? 'real' : 'noop';
           case 'umbra':
-            return truthy(config.get<string>('UMBRA_MASTER_SEED')) ? 'real' : 'noop';
+            return config.get<string>('UMBRA_ENABLED') === 'true' ? 'real' : 'noop';
         }
       })();
       return { ...entry, mode };

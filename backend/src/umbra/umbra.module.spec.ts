@@ -1,60 +1,52 @@
-import { Test, TestingModule } from '@nestjs/testing';
+jest.mock('@umbra-privacy/sdk', () => ({
+  getUmbraClient: jest.fn().mockResolvedValue({}),
+  createSignerFromPrivateKeyBytes: jest.fn().mockResolvedValue({ address: 'mock-address' }),
+}));
+
+import { Test } from '@nestjs/testing';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { UMBRA_ADAPTER, type UmbraAdapterPort } from './umbra.port';
+import { UMBRA_ADAPTER } from './umbra.port';
 import { UmbraNoopAdapter } from './umbra-noop.service';
 import { UmbraDeploymentSignerService } from './umbra-deployment-signer.service';
 import { UmbraRealAdapter } from './umbra-real.adapter';
-import { SupabaseService } from '../database/supabase.service';
+import { UmbraModule } from './umbra.module';
 
-async function buildModule(env: Record<string, string | undefined>) {
-  const fakeSupabase = {
-    client: {
-      from: () => ({
-        select: () => ({
-          eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
-        }),
-      }),
-    },
-  } as unknown as SupabaseService;
+type ConfigMap = Record<string, string>;
 
-  const moduleRef: TestingModule = await Test.createTestingModule({
-    imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true, load: [() => env] })],
-    providers: [
-      UmbraNoopAdapter,
-      UmbraDeploymentSignerService,
-      UmbraRealAdapter,
-      { provide: SupabaseService, useValue: fakeSupabase },
-      {
-        provide: UMBRA_ADAPTER,
-        inject: [ConfigService, UmbraRealAdapter, UmbraNoopAdapter],
-        useFactory: (
-          config: ConfigService,
-          real: UmbraRealAdapter,
-          noop: UmbraNoopAdapter,
-        ): UmbraAdapterPort => {
-          const seed = config.get<string>('UMBRA_MASTER_SEED');
-          if (seed && seed.trim().length > 0) return real;
-          return noop;
-        },
-      },
+function buildModule(configMap: ConfigMap = {}) {
+  return Test.createTestingModule({
+    imports: [
+      ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true, load: [() => configMap] }),
+      UmbraModule,
     ],
-  }).compile();
-  return moduleRef;
+  })
+    .overrideProvider(ConfigService)
+    .useFactory({
+      factory: () => ({
+        get: (key: string) => configMap[key] ?? null,
+      }),
+    })
+    .compile();
 }
 
-describe('UmbraModule adapter switching', () => {
-  it('uses Noop adapter when UMBRA_MASTER_SEED is unset', async () => {
-    const m = await buildModule({});
+describe('UmbraModule', () => {
+  it('uses Noop adapter when UMBRA_ENABLED is unset', async () => {
+    const m = await buildModule({ UMBRA_ENABLED: '' });
     expect(m.get(UMBRA_ADAPTER)).toBeInstanceOf(UmbraNoopAdapter);
   });
 
-  it('uses Real adapter when UMBRA_MASTER_SEED is set', async () => {
-    const m = await buildModule({ UMBRA_MASTER_SEED: 'a'.repeat(64) });
+  it('uses Real adapter when UMBRA_ENABLED is true', async () => {
+    const m = await buildModule({ UMBRA_ENABLED: 'true' });
     expect(m.get(UMBRA_ADAPTER)).toBeInstanceOf(UmbraRealAdapter);
   });
 
-  it('treats blank master seed as unset', async () => {
-    const m = await buildModule({ UMBRA_MASTER_SEED: '   ' });
+  it('uses Noop adapter when UMBRA_ENABLED is false', async () => {
+    const m = await buildModule({ UMBRA_ENABLED: 'false' });
     expect(m.get(UMBRA_ADAPTER)).toBeInstanceOf(UmbraNoopAdapter);
+  });
+
+  it('exports UmbraDeploymentSignerService', async () => {
+    const m = await buildModule();
+    expect(m.get(UmbraDeploymentSignerService)).toBeDefined();
   });
 });

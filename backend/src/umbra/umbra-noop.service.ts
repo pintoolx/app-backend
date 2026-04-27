@@ -25,9 +25,8 @@ export class UmbraNoopAdapter implements UmbraAdapterPort {
     return {
       encryptedUserAccount: noopId('umbra-eua'),
       x25519PublicKey: noopId('umbra-x25519'),
-      queueSignature: null,
-      callbackSignature: null,
-      status: 'pending',
+      txSignatures: [],
+      status: 'confirmed',
     };
   }
 

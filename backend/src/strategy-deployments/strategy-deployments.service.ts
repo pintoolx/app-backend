@@ -163,8 +163,8 @@ export class StrategyDeploymentsService {
           umbraX25519Pubkey: reg.x25519PublicKey,
           umbraSignerPubkey: reg.encryptedUserAccount, // adapter returns signer pubkey here
           umbraRegistrationStatus: reg.status === 'confirmed' ? 'confirmed' : 'pending',
-          umbraRegisterQueueSignature: reg.queueSignature,
-          umbraRegisterCallbackSignature: reg.callbackSignature,
+          umbraRegisterQueueSignature: reg.txSignatures[0] ?? null,
+          umbraRegisterCallbackSignature: reg.txSignatures[1] ?? null,
         });
       } catch (err) {
         this.logger.warn(
@@ -381,8 +381,8 @@ export class StrategyDeploymentsService {
       umbraX25519Pubkey: res.x25519PublicKey,
       umbraSignerPubkey: res.encryptedUserAccount,
       umbraRegistrationStatus: res.status === 'confirmed' ? 'confirmed' : 'pending',
-      umbraRegisterQueueSignature: res.queueSignature,
-      umbraRegisterCallbackSignature: res.callbackSignature,
+      umbraRegisterQueueSignature: res.txSignatures[0] ?? null,
+      umbraRegisterCallbackSignature: res.txSignatures[1] ?? null,
     });
     return this.toView(updated);
   }

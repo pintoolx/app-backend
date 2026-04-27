@@ -69,7 +69,7 @@ export class AdminPrivacyController {
   @AdminRoles('superadmin')
   @ApiOperation({
     summary:
-      'Encryption-key inventory: presence + source + fingerprint for ADMIN_TOTP_ENC_KEY, UMBRA_MASTER_SEED, ADMIN_JWT_SECRET, keeper keypair. Secret material is never returned. Superadmin only.',
+      'Encryption-key inventory: presence + source + fingerprint for ADMIN_TOTP_ENC_KEY, Umbra keeper identity, ADMIN_JWT_SECRET, keeper keypair. Secret material is never returned. Superadmin only.',
   })
   async keys() {
     const data = await this.privacyService.getKeyReport();

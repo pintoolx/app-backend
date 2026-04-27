@@ -22,7 +22,7 @@ export interface SnapshotFreshness {
 
 export interface UmbraSummary {
   configured: boolean;
-  seedSource: 'env' | 'system_config' | null;
+  seedSource: 'keeper' | null;
   seedFingerprint: string | null;
   registrations: {
     confirmed: number;
@@ -117,7 +117,7 @@ export interface KeyMaterialReport {
   adminTotpEncKey: { present: boolean; source: 'env' | null; fingerprint: string | null };
   umbraMasterSeed: {
     present: boolean;
-    source: 'env' | 'system_config' | null;
+    source: 'keeper' | null;
     fingerprint: string | null;
   };
   adminJwtSecret: { present: boolean; lengthBytes: number };
@@ -293,23 +293,25 @@ export class AdminPrivacyService {
    */
   async getKeyReport(): Promise<KeyMaterialReport> {
     const totpEncKeyHex = this.configService.get<string>('admin.totpEncKey');
-    const umbraSeed = this.configService.get<string>('UMBRA_MASTER_SEED');
+    const umbraEnabled = this.configService.get<string>('UMBRA_ENABLED') === 'true';
     const jwtSecret = this.configService.get<string>('admin.jwtSecret');
 
     const totpFingerprint = totpEncKeyHex
       ? AdminPrivacyService.fingerprint(Buffer.from(totpEncKeyHex, 'hex'))
       : null;
 
-    let umbraResolvedSource: 'env' | 'system_config' | null = null;
+    let umbraResolvedSource: 'keeper' | null = null;
     let umbraFingerprint: string | null = null;
-    if (this.umbraSigner.isConfigured() || umbraSeed) {
+    if (umbraEnabled) {
       try {
-        const seed = await this.umbraSigner.getMasterSeed();
-        umbraFingerprint = AdminPrivacyService.fingerprint(seed);
-        umbraResolvedSource = this.umbraSigner.getResolvedSource();
+        umbraResolvedSource = 'keeper';
+        // Derive fingerprint from keeper keypair public key (non-secret, but
+        // provides a stable identity anchor without exposing private material).
+        const keypair = await this.keeperService.loadKeypair();
+        umbraFingerprint = AdminPrivacyService.fingerprint(keypair.publicKey.toBytes());
       } catch (err) {
         this.logger.debug(
-          `Could not load Umbra master seed for fingerprint: ${err instanceof Error ? err.message : err}`,
+          `Could not derive Umbra fingerprint: ${err instanceof Error ? err.message : err}`,
         );
       }
     }
@@ -414,14 +416,14 @@ export class AdminPrivacyService {
     ]);
 
     let seedFingerprint: string | null = null;
-    let seedSource: 'env' | 'system_config' | null = null;
+    let seedSource: 'keeper' | null = null;
     if (this.umbraSigner.isConfigured()) {
       try {
-        const seed = await this.umbraSigner.getMasterSeed();
-        seedFingerprint = AdminPrivacyService.fingerprint(seed);
-        seedSource = this.umbraSigner.getResolvedSource();
+        const keypair = await this.keeperService.loadKeypair();
+        seedFingerprint = AdminPrivacyService.fingerprint(keypair.publicKey.toBytes());
+        seedSource = 'keeper';
       } catch {
-        // configured by env but unable to load — leave null
+        // keeper not loaded — leave null
       }
     }
 

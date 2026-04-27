@@ -2,8 +2,10 @@
  * Umbra Treasury Adapter Port — reserved space for Encrypted Token Account
  * registration, shielded deposit / withdraw / transfer, and viewer grants.
  *
- * Week 2 ships a Noop implementation. Week 5 introduces a real adapter that
- * uses `getUmbraClient` and the Arcium MPC callback flow.
+ * v2 (SDK rewrite): Backed by @umbra-privacy/sdk with the platform keeper
+ * keypair as the Umbra signer. All key derivation is handled internally by
+ * the SDK via wallet-signed consent message (KMAC256). No static master seed
+ * env var is needed.
  */
 export const UMBRA_ADAPTER = Symbol('UmbraAdapterPort');
 
@@ -17,9 +19,8 @@ export interface UmbraRegisterParams {
 export interface UmbraRegisterResult {
   encryptedUserAccount: string | null;
   x25519PublicKey: string | null;
-  queueSignature: string | null;
-  callbackSignature: string | null;
-  status: 'pending' | 'confirmed';
+  txSignatures: string[];
+  status: 'confirmed' | 'failed';
 }
 
 export interface UmbraDepositParams {

@@ -125,10 +125,12 @@ export class HealthService {
   }
 
   private async probeUmbra(): Promise<ProbeResult> {
-    const queue = this.configService.get<string>('UMBRA_QUEUE_URL');
-    if (!queue || !queue.trim())
-      return { status: 'skipped', latencyMs: 0, note: 'UMBRA_QUEUE_URL unset' };
-    return this.probeHttp(`${queue.trim().replace(/\/$/, '')}/health`);
+    const enabled = this.configService.get<string>('UMBRA_ENABLED') === 'true';
+    if (!enabled) return { status: 'skipped', latencyMs: 0, note: 'UMBRA_ENABLED is not true' };
+    const indexer =
+      this.configService.get<string>('UMBRA_INDEXER_API_ENDPOINT') ??
+      'https://utxo-indexer.api.umbraprivacy.com';
+    return this.probeHttp(indexer);
   }
 
   private async probeHttp(url: string): Promise<ProbeResult> {

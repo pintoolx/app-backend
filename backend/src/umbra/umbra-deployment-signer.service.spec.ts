@@ -1,74 +1,42 @@
-import { ConfigService } from '@nestjs/config';
-import { InternalServerErrorException } from '@nestjs/common';
-import { UmbraDeploymentSignerService } from './umbra-deployment-signer.service';
-import { SupabaseService } from '../database/supabase.service';
+jest.mock('@umbra-privacy/sdk', () => ({
+  getUmbraClient: jest.fn(),
+  createSignerFromPrivateKeyBytes: jest.fn(),
+}));
 
-const buildHarness = (
-  env: Record<string, string | undefined>,
-  systemConfigSeed: string | null = null,
-) => {
+import { ConfigService } from '@nestjs/config';
+import { UmbraDeploymentSignerService } from './umbra-deployment-signer.service';
+import { UmbraClientService } from './umbra-client.service';
+
+function buildHarness(configMap: Record<string, string> = {}) {
   const config = {
-    get: jest.fn((k: string) => env[k]),
+    get: (key: string) => configMap[key] ?? null,
   } as unknown as ConfigService;
 
-  const supabase = {
-    client: systemConfigSeed
-      ? {
-          from: () => ({
-            select: () => ({
-              eq: () => ({
-                maybeSingle: async () => ({ data: { value: systemConfigSeed }, error: null }),
-              }),
-            }),
-          }),
-        }
-      : null,
-  } as unknown as SupabaseService;
+  const clientService = {
+    isEnabled: () => configMap['UMBRA_ENABLED'] === 'true',
+  } as unknown as UmbraClientService;
 
-  return new UmbraDeploymentSignerService(config, supabase);
-};
+  return new UmbraDeploymentSignerService(config, clientService);
+}
 
 describe('UmbraDeploymentSignerService', () => {
-  it('reports configured when env seed is set', () => {
-    const svc = buildHarness({ UMBRA_MASTER_SEED: 'a'.repeat(64) });
+  it('isConfigured returns true when UMBRA_ENABLED=true', () => {
+    const svc = buildHarness({ UMBRA_ENABLED: 'true' });
     expect(svc.isConfigured()).toBe(true);
   });
 
-  it('throws when no master seed is configured anywhere', async () => {
+  it('isConfigured returns false when UMBRA_ENABLED is unset', () => {
     const svc = buildHarness({});
-    await expect(svc.deriveForDeployment('deployment-1')).rejects.toThrow(
-      InternalServerErrorException,
-    );
+    expect(svc.isConfigured()).toBe(false);
   });
 
-  it('produces deterministic keys for the same deployment id', async () => {
-    const svc = buildHarness({ UMBRA_MASTER_SEED: 'a'.repeat(64) });
-    const a = await svc.deriveForDeployment('deployment-1');
-    const b = await svc.deriveForDeployment('deployment-1');
-    expect(a.ed25519.publicKey.toBase58()).toBe(b.ed25519.publicKey.toBase58());
-    expect(Buffer.from(a.x25519.publicKey).toString('hex')).toBe(
-      Buffer.from(b.x25519.publicKey).toString('hex'),
-    );
-    expect(a.seedRef).toBe(b.seedRef);
+  it('getResolvedSource returns keeper when configured', () => {
+    const svc = buildHarness({ UMBRA_ENABLED: 'true' });
+    expect(svc.getResolvedSource()).toBe('keeper');
   });
 
-  it('produces different keys for different deployment ids', async () => {
-    const svc = buildHarness({ UMBRA_MASTER_SEED: 'a'.repeat(64) });
-    const a = await svc.deriveForDeployment('deployment-1');
-    const b = await svc.deriveForDeployment('deployment-2');
-    expect(a.ed25519.publicKey.toBase58()).not.toBe(b.ed25519.publicKey.toBase58());
-    expect(a.seedRef).not.toBe(b.seedRef);
-  });
-
-  it('falls back to system_config when env is unset', async () => {
-    const svc = buildHarness({}, 'b'.repeat(64));
-    const signer = await svc.deriveForDeployment('deployment-1');
-    expect(signer.ed25519.publicKey).toBeDefined();
-    expect(svc.getResolvedSource()).toBe('system_config');
-  });
-
-  it('rejects empty deployment ids', async () => {
-    const svc = buildHarness({ UMBRA_MASTER_SEED: 'a'.repeat(64) });
-    await expect(svc.deriveForDeployment('')).rejects.toThrow(InternalServerErrorException);
+  it('getResolvedSource returns null when not configured', () => {
+    const svc = buildHarness({});
+    expect(svc.getResolvedSource()).toBeNull();
   });
 });

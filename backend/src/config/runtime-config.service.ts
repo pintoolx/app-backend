@@ -41,8 +41,7 @@ export class RuntimeConfigService implements OnApplicationBootstrap {
     const erRouter = this.configService.get<string>('MAGICBLOCK_ROUTER_URL');
     const perEndpoint = this.configService.get<string>('MAGICBLOCK_PER_ENDPOINT');
     const ppEndpoint = this.configService.get<string>('MAGICBLOCK_PP_ENDPOINT');
-    const umbraSeed = this.configService.get<string>('UMBRA_MASTER_SEED');
-    const umbraQueue = this.configService.get<string>('UMBRA_QUEUE_URL');
+    const umbraEnabled = this.configService.get<string>('UMBRA_ENABLED') === 'true';
 
     return [
       {
@@ -67,8 +66,7 @@ export class RuntimeConfigService implements OnApplicationBootstrap {
       },
       {
         adapter: 'umbra',
-        mode: umbraSeed ? 'real' : 'noop',
-        endpoint: umbraQueue ?? undefined,
+        mode: umbraEnabled ? 'real' : 'noop',
       },
     ];
   }
