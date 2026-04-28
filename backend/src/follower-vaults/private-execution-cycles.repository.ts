@@ -78,6 +78,18 @@ export class PrivateExecutionCyclesRepository {
     return data as unknown as PrivateExecutionCycleRow;
   }
 
+  async getById(id: string): Promise<PrivateExecutionCycleRow> {
+    const { data, error } = await this.supabaseService.client
+      .from('private_execution_cycles')
+      .select(COLUMNS)
+      .eq('id', id)
+      .single();
+    if (error || !data) {
+      throw new NotFoundException('Execution cycle not found');
+    }
+    return data as unknown as PrivateExecutionCycleRow;
+  }
+
   async getByIdAndDeployment(
     deploymentId: string,
     cycleId: string,

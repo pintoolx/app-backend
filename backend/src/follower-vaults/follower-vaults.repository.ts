@@ -89,6 +89,18 @@ export class FollowerVaultsRepository {
     return data as unknown as FollowerVaultRow;
   }
 
+  async getById(id: string): Promise<FollowerVaultRow> {
+    const { data, error } = await this.supabaseService.client
+      .from('follower_vaults')
+      .select(COLUMNS)
+      .eq('id', id)
+      .single();
+    if (error || !data) {
+      throw new NotFoundException('Follower vault not found');
+    }
+    return data as unknown as FollowerVaultRow;
+  }
+
   async getBySubscriptionId(subscriptionId: string): Promise<FollowerVaultRow | null> {
     const { data, error } = await this.supabaseService.client
       .from('follower_vaults')

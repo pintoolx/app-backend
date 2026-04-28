@@ -17,7 +17,11 @@ import {
 } from '@/components/ui/table';
 import {
   useFollowerVaults,
+  usePauseFollowerVault,
   usePrivateExecutionCycles,
+  useRecoverFollowerVault,
+  useRetryPrivateCycle,
+  useRevokeVisibilityGrant,
   useSubscriptions,
   useUmbraIdentityInventory,
   useVisibilityGrants,
@@ -26,6 +30,8 @@ import {
   type SubscriptionStatus,
   type VisibilityGrantStatus,
 } from '@/lib/api-hooks';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import type { AdminRole } from '@/lib/auth';
 import { truncateMiddle } from '@/lib/utils';
 
 const lifecycleVariant = (
@@ -122,13 +128,18 @@ function FilterPill<T extends string | undefined>({
 // Follower vaults
 // -----------------------------------------------------------------------------
 
-export function FollowerVaultsTab() {
+export function FollowerVaultsTab({ role }: { role?: AdminRole } = {}) {
   const t = useTranslations('privacy');
   const [status, setStatus] = React.useState<FollowerVaultLifecycleStatus | undefined>(
     undefined,
   );
   const { data, isLoading } = useFollowerVaults({ status });
   const rows = data?.data ?? [];
+  const isOperator = role === 'operator' || role === 'superadmin';
+  const pauseMutation = usePauseFollowerVault();
+  const recoverMutation = useRecoverFollowerVault();
+  const [pauseTarget, setPauseTarget] = React.useState<string | null>(null);
+  const [recoverTarget, setRecoverTarget] = React.useState<string | null>(null);
 
   return (
     <Card>
@@ -170,12 +181,13 @@ export function FollowerVaultsTab() {
               <TableHead>{t('colLifecycle')}</TableHead>
               <TableHead>{t('colVaultPda')}</TableHead>
               <TableHead>{t('colCreated')}</TableHead>
+              {isOperator ? <TableHead className="text-right" /> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? null : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={isOperator ? 8 : 7} className="py-6 text-center text-muted-foreground">
                   {t('emptyVaults')}
                 </TableCell>
               </TableRow>
@@ -201,11 +213,57 @@ export function FollowerVaultsTab() {
                 <TableCell className="text-xs text-muted-foreground">
                   {formatTs(row.created_at)}
                 </TableCell>
+                {isOperator ? (
+                  <TableCell className="space-x-2 text-right">
+                    {row.lifecycle_status === 'active' ||
+                    row.lifecycle_status === 'pending_funding' ? (
+                      <Button size="sm" variant="outline" onClick={() => setPauseTarget(row.id)}>
+                        {t('actionPauseVault')}
+                      </Button>
+                    ) : null}
+                    {row.lifecycle_status === 'paused' ? (
+                      <Button size="sm" variant="outline" onClick={() => setRecoverTarget(row.id)}>
+                        {t('actionRecoverVault')}
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
+      {pauseTarget ? (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setPauseTarget(null)}
+          title={t('confirmPauseVaultTitle')}
+          description={t('confirmPauseVaultDescription')}
+          confirmTargetId={pauseTarget}
+          destructive
+          confirmLabel={t('actionPauseVault')}
+          loading={pauseMutation.isPending}
+          onConfirm={async () => {
+            await pauseMutation.mutateAsync(pauseTarget);
+            setPauseTarget(null);
+          }}
+        />
+      ) : null}
+      {recoverTarget ? (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setRecoverTarget(null)}
+          title={t('confirmRecoverVaultTitle')}
+          description={t('confirmRecoverVaultDescription')}
+          confirmTargetId={recoverTarget}
+          confirmLabel={t('actionRecoverVault')}
+          loading={recoverMutation.isPending}
+          onConfirm={async () => {
+            await recoverMutation.mutateAsync(recoverTarget);
+            setRecoverTarget(null);
+          }}
+        />
+      ) : null}
     </Card>
   );
 }
@@ -304,11 +362,14 @@ export function SubscriptionsTab() {
 // Private execution cycles
 // -----------------------------------------------------------------------------
 
-export function PrivateCyclesTab() {
+export function PrivateCyclesTab({ role }: { role?: AdminRole } = {}) {
   const t = useTranslations('privacy');
   const [status, setStatus] = React.useState<PrivateCycleStatus | undefined>(undefined);
   const { data, isLoading } = usePrivateExecutionCycles({ status });
   const rows = data?.data ?? [];
+  const isOperator = role === 'operator' || role === 'superadmin';
+  const retryMutation = useRetryPrivateCycle();
+  const [retryTarget, setRetryTarget] = React.useState<string | null>(null);
 
   return (
     <Card>
@@ -382,7 +443,17 @@ export function PrivateCyclesTab() {
                   <TableCell className="text-xs text-muted-foreground">
                     {formatTs(row.completed_at)}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="space-x-2 text-right">
+                    {isOperator &&
+                    (row.status === 'failed' || row.status === 'completed') ? (
+                      <Button
+                        size="sm"
+                        variant={row.status === 'failed' ? 'default' : 'outline'}
+                        onClick={() => setRetryTarget(row.id)}
+                      >
+                        {t('actionRetryCycle')}
+                      </Button>
+                    ) : null}
                     <Link href={`/privacy/cycles/${row.id}`}>
                       <Button size="sm" variant="outline">
                         {t('viewCycle')}
@@ -395,6 +466,21 @@ export function PrivateCyclesTab() {
           </TableBody>
         </Table>
       </CardContent>
+      {retryTarget ? (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setRetryTarget(null)}
+          title={t('confirmRetryCycleTitle')}
+          description={t('confirmRetryCycleDescription')}
+          confirmTargetId={retryTarget}
+          confirmLabel={t('actionRetryCycle')}
+          loading={retryMutation.isPending}
+          onConfirm={async () => {
+            await retryMutation.mutateAsync(retryTarget);
+            setRetryTarget(null);
+          }}
+        />
+      ) : null}
     </Card>
   );
 }
@@ -493,11 +579,14 @@ export function UmbraIdentitiesTab() {
 // Visibility grants
 // -----------------------------------------------------------------------------
 
-export function VisibilityGrantsTab() {
+export function VisibilityGrantsTab({ role }: { role?: AdminRole } = {}) {
   const t = useTranslations('privacy');
   const [status, setStatus] = React.useState<VisibilityGrantStatus | undefined>(undefined);
   const { data, isLoading } = useVisibilityGrants({ status });
   const rows = data?.data ?? [];
+  const isOperator = role === 'operator' || role === 'superadmin';
+  const revokeMutation = useRevokeVisibilityGrant();
+  const [revokeTarget, setRevokeTarget] = React.useState<string | null>(null);
 
   return (
     <Card>
@@ -532,12 +621,13 @@ export function VisibilityGrantsTab() {
               <TableHead>{t('colLifecycle')}</TableHead>
               <TableHead>{t('colExpires')}</TableHead>
               <TableHead>{t('colCreated')}</TableHead>
+              {isOperator ? <TableHead className="text-right" /> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? null : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={isOperator ? 7 : 6} className="py-6 text-center text-muted-foreground">
                   {t('emptyGrants')}
                 </TableCell>
               </TableRow>
@@ -560,11 +650,40 @@ export function VisibilityGrantsTab() {
                 <TableCell className="text-xs text-muted-foreground">
                   {formatTs(row.created_at)}
                 </TableCell>
+                {isOperator ? (
+                  <TableCell className="text-right">
+                    {row.status === 'active' ? (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setRevokeTarget(row.id)}
+                      >
+                        {t('actionRevokeGrant')}
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
+      {revokeTarget ? (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setRevokeTarget(null)}
+          title={t('confirmRevokeGrantTitle')}
+          description={t('confirmRevokeGrantDescription')}
+          confirmTargetId={revokeTarget}
+          destructive
+          confirmLabel={t('actionRevokeGrant')}
+          loading={revokeMutation.isPending}
+          onConfirm={async () => {
+            await revokeMutation.mutateAsync(revokeTarget);
+            setRevokeTarget(null);
+          }}
+        />
+      ) : null}
     </Card>
   );
 }

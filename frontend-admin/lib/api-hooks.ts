@@ -856,3 +856,73 @@ export function useVisibilityGrants(
     staleTime: 15_000,
   });
 }
+
+// ---------------------------------------------------------------- follower-vault ops
+
+export function useRevokeVisibilityGrant() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (grantId: string) =>
+      proxyFetch(
+        `/admin/privacy/visibility-grants/${encodeURIComponent(grantId)}/revoke`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'privacy'] });
+      toast.success(t('grantRevoked'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}
+
+export function usePauseFollowerVault() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vaultId: string) =>
+      proxyFetch(
+        `/admin/privacy/follower-vaults/${encodeURIComponent(vaultId)}/pause`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'privacy'] });
+      toast.success(t('vaultPaused'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}
+
+export function useRecoverFollowerVault() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vaultId: string) =>
+      proxyFetch(
+        `/admin/privacy/follower-vaults/${encodeURIComponent(vaultId)}/recover`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'privacy'] });
+      toast.success(t('vaultRecovered'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}
+
+export function useRetryPrivateCycle() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (cycleId: string) =>
+      proxyFetch(
+        `/admin/privacy/private-cycles/${encodeURIComponent(cycleId)}/retry`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'privacy'] });
+      toast.success(t('cycleRetried'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}

@@ -503,7 +503,7 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
         </TabsContent>
 
         <TabsContent value="vaults" className="space-y-4">
-          <FollowerVaultsTab />
+          <FollowerVaultsTab role={role} />
         </TabsContent>
 
         <TabsContent value="subscriptions" className="space-y-4">
@@ -511,7 +511,7 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
         </TabsContent>
 
         <TabsContent value="cycles" className="space-y-4">
-          <PrivateCyclesTab />
+          <PrivateCyclesTab role={role} />
         </TabsContent>
 
         <TabsContent value="identities" className="space-y-4">
@@ -519,7 +519,7 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
         </TabsContent>
 
         <TabsContent value="grants" className="space-y-4">
-          <VisibilityGrantsTab />
+          <VisibilityGrantsTab role={role} />
         </TabsContent>
 
         <TabsContent value="target" className="space-y-4">

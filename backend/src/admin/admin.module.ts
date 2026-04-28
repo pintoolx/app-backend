@@ -7,6 +7,7 @@ import { HealthModule } from '../health/health.module';
 import { UmbraModule } from '../umbra/umbra.module';
 import { MagicBlockModule } from '../magicblock/magicblock.module';
 import { StrategyDeploymentsModule } from '../strategy-deployments/strategy-deployments.module';
+import { FollowerVaultsModule } from '../follower-vaults/follower-vaults.module';
 import { AdminMetricsService } from './admin-metrics.service';
 import { AdminAuthController } from './auth/admin-auth.controller';
 import { AdminAuthService } from './auth/admin-auth.service';
@@ -34,6 +35,7 @@ import { AdminPrivacyController } from './privacy/admin-privacy.controller';
 import { AdminPrivacyService } from './privacy/admin-privacy.service';
 import { AdminFollowerVaultsService } from './privacy/admin-follower-vaults.service';
 import { AdminOpsService } from './ops/admin-ops.service';
+import { AdminFollowerVaultsOpsService } from './ops/admin-follower-vaults-ops.service';
 import { AdminDeploymentsOpsController } from './ops/admin-deployments-ops.controller';
 import { AdminPrivacyOpsController } from './ops/admin-privacy-ops.controller';
 import { AdminExecutionsController } from './ops/admin-executions.controller';
@@ -61,6 +63,7 @@ import { MaintenanceModeGuard } from './ops/maintenance-mode.guard';
     UmbraModule,
     MagicBlockModule,
     StrategyDeploymentsModule,
+    FollowerVaultsModule,
   ],
   controllers: [
     AdminAuthController,
@@ -104,6 +107,7 @@ import { MaintenanceModeGuard } from './ops/maintenance-mode.guard';
     AdminFollowerVaultsService,
     // Phase 2 — Write ops
     AdminOpsService,
+    AdminFollowerVaultsOpsService,
     BannedWalletsRepository,
     MaintenanceModeService,
     BannedWalletsGuard,
