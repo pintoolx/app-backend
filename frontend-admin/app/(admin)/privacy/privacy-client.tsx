@@ -5,9 +5,13 @@ import { useTranslations } from 'next-intl';
 import { format } from 'date-fns';
 import {
   AlertCircle,
+  Activity,
   Camera,
   CheckCircle,
   Clock,
+  Coins,
+  Eye,
+  FileText,
   HelpCircle,
   KeyRound,
   Lightbulb,
@@ -229,6 +233,70 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
             icon={<Server className="h-4 w-4 text-muted-foreground" />}
           />
         </section>
+      ) : null}
+
+      {o ? (
+        <Card>
+          <CardHeader className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-emerald-500" />
+              <CardTitle className="text-base">{t('nativeCoverageHeading')}</CardTitle>
+            </div>
+            <p className="text-sm text-muted-foreground">{t('nativeCoverageSubtitle')}</p>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <KPI
+              label={t('kpiActiveVaults')}
+              value={o.followerVaults.byStatus.active}
+              icon={<Coins className="h-4 w-4 text-emerald-500" />}
+            />
+            <KPI
+              label={t('kpiPendingFundingVaults')}
+              value={o.followerVaults.byStatus.pending_funding}
+              icon={<Clock className="h-4 w-4 text-amber-500" />}
+            />
+            <KPI
+              label={t('kpiActiveSubscriptions')}
+              value={o.subscriptions.byStatus.active}
+              icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+            />
+            <KPI
+              label={t('kpiSubscriptionsWithIdentity')}
+              value={o.subscriptions.withUmbraIdentity}
+              icon={<ShieldCheck className="h-4 w-4 text-emerald-500" />}
+            />
+            <KPI
+              label={t('kpiCyclesLast24h')}
+              value={o.privateCycles.last24h}
+              icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+            />
+            <KPI
+              label={t('kpiCompletedCycles24h')}
+              value={o.privateCycles.completedLast24h}
+              icon={<CheckCircle className="h-4 w-4 text-emerald-500" />}
+            />
+            <KPI
+              label={t('kpiFailedCycles24h')}
+              value={o.privateCycles.failedLast24h}
+              icon={<XCircle className="h-4 w-4 text-destructive" />}
+            />
+            <KPI
+              label={t('kpiActiveGrants')}
+              value={o.visibilityGrants.active}
+              icon={<Eye className="h-4 w-4 text-emerald-500" />}
+            />
+            <KPI
+              label={t('kpiExpiredGrants')}
+              value={o.visibilityGrants.expired}
+              icon={<Clock className="h-4 w-4 text-amber-500" />}
+            />
+            <KPI
+              label={t('kpiRevokedGrants')}
+              value={o.visibilityGrants.revoked}
+              icon={<XCircle className="h-4 w-4 text-muted-foreground" />}
+            />
+          </CardContent>
+        </Card>
       ) : null}
 
       <Tabs defaultValue="current" className="space-y-4">

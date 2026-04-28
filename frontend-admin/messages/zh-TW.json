@@ -416,7 +416,19 @@
     "colAllocAmount": "Allocation",
     "colAllocBps": "Share (bps)",
     "colReceiptCreated": "建立時間",
-    "backToCycles": "回到 cycles"
+    "backToCycles": "回到 cycles",
+    "nativeCoverageHeading": "Follower-vault 覆蓋率",
+    "nativeCoverageSubtitle": "Phase-1 follower-vault domain 的 live 數據。Active 與 pending-funding 代表目前 cycle scaffold 可扱出的範圍。",
+    "kpiActiveVaults": "Active follower vaults",
+    "kpiPendingFundingVaults": "待入金",
+    "kpiActiveSubscriptions": "Active subscriptions",
+    "kpiSubscriptionsWithIdentity": "已配 Umbra identity",
+    "kpiCyclesLast24h": "24h 內 cycles",
+    "kpiCompletedCycles24h": "24h 內 completed",
+    "kpiFailedCycles24h": "24h 內 failed",
+    "kpiActiveGrants": "Active grants",
+    "kpiExpiredGrants": "已過期 grants",
+    "kpiRevokedGrants": "已撤銷 grants"
   },
   "system": {
     "heading": "系統",

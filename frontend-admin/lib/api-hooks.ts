@@ -297,6 +297,32 @@ export interface AdminPrivacyOverview {
     delegatedDeployments: number;
     recentlyCommittedLast24h: number;
   };
+  followerVaults: {
+    total: number;
+    byStatus: Record<
+      'pending_funding' | 'active' | 'paused' | 'exiting' | 'closed',
+      number
+    >;
+  };
+  subscriptions: {
+    total: number;
+    byStatus: Record<
+      'pending_funding' | 'active' | 'paused' | 'exiting' | 'closed',
+      number
+    >;
+    withUmbraIdentity: number;
+  };
+  privateCycles: {
+    last24h: number;
+    last7d: number;
+    failedLast24h: number;
+    completedLast24h: number;
+  };
+  visibilityGrants: {
+    active: number;
+    revoked: number;
+    expired: number;
+  };
 }
 
 export function usePrivacyOverview() {

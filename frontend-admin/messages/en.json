@@ -416,7 +416,19 @@
     "colAllocAmount": "Allocation",
     "colAllocBps": "Share (bps)",
     "colReceiptCreated": "Created",
-    "backToCycles": "Back to cycles"
+    "backToCycles": "Back to cycles",
+    "nativeCoverageHeading": "Follower-vault coverage",
+    "nativeCoverageSubtitle": "Live counts from the Phase-1 follower-vault domain. Active and pending-funding numbers reflect what the cycle scaffold can fan out today.",
+    "kpiActiveVaults": "Active follower vaults",
+    "kpiPendingFundingVaults": "Pending funding",
+    "kpiActiveSubscriptions": "Active subscriptions",
+    "kpiSubscriptionsWithIdentity": "Subs with Umbra identity",
+    "kpiCyclesLast24h": "Cycles 24h",
+    "kpiCompletedCycles24h": "Completed 24h",
+    "kpiFailedCycles24h": "Failed 24h",
+    "kpiActiveGrants": "Active grants",
+    "kpiExpiredGrants": "Expired grants",
+    "kpiRevokedGrants": "Revoked grants"
   },
   "system": {
     "heading": "System",

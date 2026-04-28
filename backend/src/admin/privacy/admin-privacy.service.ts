@@ -37,6 +37,37 @@ export interface ErSummary {
   recentlyCommittedLast24h: number;
 }
 
+export type FollowerVaultLifecycleStatus =
+  | 'pending_funding'
+  | 'active'
+  | 'paused'
+  | 'exiting'
+  | 'closed';
+
+export interface FollowerVaultSummary {
+  total: number;
+  byStatus: Record<FollowerVaultLifecycleStatus, number>;
+}
+
+export interface SubscriptionSummary {
+  total: number;
+  byStatus: Record<FollowerVaultLifecycleStatus, number>;
+  withUmbraIdentity: number;
+}
+
+export interface PrivateCycleSummary {
+  last24h: number;
+  last7d: number;
+  failedLast24h: number;
+  completedLast24h: number;
+}
+
+export interface VisibilityGrantSummary {
+  active: number;
+  revoked: number;
+  expired: number;
+}
+
 export interface AdminPrivacyOverview {
   generatedAt: string;
   adapters: {
@@ -49,6 +80,10 @@ export interface AdminPrivacyOverview {
   snapshots: SnapshotFreshness;
   umbra: UmbraSummary;
   er: ErSummary;
+  followerVaults: FollowerVaultSummary;
+  subscriptions: SubscriptionSummary;
+  privateCycles: PrivateCycleSummary;
+  visibilityGrants: VisibilityGrantSummary;
 }
 
 export interface PerTokenRowRedacted {
@@ -155,11 +190,24 @@ export class AdminPrivacyService {
       er: matrix.find((m) => m.adapter === 'er')?.mode ?? 'noop',
     };
 
-    const [perTokens, snapshots, umbra, er] = await Promise.all([
+    const [
+      perTokens,
+      snapshots,
+      umbra,
+      er,
+      followerVaults,
+      subscriptions,
+      privateCycles,
+      visibilityGrants,
+    ] = await Promise.all([
       this.summarisePerTokens(),
       this.summariseSnapshotFreshness(),
       this.summariseUmbra(),
       this.summariseEr(),
+      this.summariseFollowerVaults(),
+      this.summariseSubscriptions(),
+      this.summarisePrivateCycles(),
+      this.summariseVisibilityGrants(),
     ]);
 
     return {
@@ -169,6 +217,10 @@ export class AdminPrivacyService {
       snapshots,
       umbra,
       er,
+      followerVaults,
+      subscriptions,
+      privateCycles,
+      visibilityGrants,
     };
   }
 
@@ -444,6 +496,84 @@ export class AdminPrivacyService {
       ),
     ]);
     return { delegatedDeployments: delegated, recentlyCommittedLast24h: recent };
+  }
+
+  private async summariseFollowerVaults(): Promise<FollowerVaultSummary> {
+    const statuses: FollowerVaultLifecycleStatus[] = [
+      'pending_funding',
+      'active',
+      'paused',
+      'exiting',
+      'closed',
+    ];
+    const counts = await Promise.all(
+      statuses.map((s) =>
+        this.countRows('follower_vaults', (q) => q.eq('lifecycle_status', s)),
+      ),
+    );
+    const byStatus = Object.fromEntries(statuses.map((s, i) => [s, counts[i]])) as Record<
+      FollowerVaultLifecycleStatus,
+      number
+    >;
+    const total = counts.reduce((a, b) => a + b, 0);
+    return { total, byStatus };
+  }
+
+  private async summariseSubscriptions(): Promise<SubscriptionSummary> {
+    const statuses: FollowerVaultLifecycleStatus[] = [
+      'pending_funding',
+      'active',
+      'paused',
+      'exiting',
+      'closed',
+    ];
+    const [counts, withIdentity] = await Promise.all([
+      Promise.all(
+        statuses.map((s) =>
+          this.countRows('strategy_subscriptions', (q) => q.eq('status', s)),
+        ),
+      ),
+      this.countRows('strategy_subscriptions', (q) =>
+        q.not('umbra_identity_ref', 'is', null),
+      ),
+    ]);
+    const byStatus = Object.fromEntries(statuses.map((s, i) => [s, counts[i]])) as Record<
+      FollowerVaultLifecycleStatus,
+      number
+    >;
+    const total = counts.reduce((a, b) => a + b, 0);
+    return { total, byStatus, withUmbraIdentity: withIdentity };
+  }
+
+  private async summarisePrivateCycles(): Promise<PrivateCycleSummary> {
+    const now = Date.now();
+    const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [last24h, last7d, failed24h, completed24h] = await Promise.all([
+      this.countRows('private_execution_cycles', (q) => q.gte('started_at', since24h)),
+      this.countRows('private_execution_cycles', (q) => q.gte('started_at', since7d)),
+      this.countRows('private_execution_cycles', (q) =>
+        q.eq('status', 'failed').gte('started_at', since24h),
+      ),
+      this.countRows('private_execution_cycles', (q) =>
+        q.eq('status', 'completed').gte('started_at', since24h),
+      ),
+    ]);
+    return {
+      last24h,
+      last7d,
+      failedLast24h: failed24h,
+      completedLast24h: completed24h,
+    };
+  }
+
+  private async summariseVisibilityGrants(): Promise<VisibilityGrantSummary> {
+    const [active, revoked, expired] = await Promise.all([
+      this.countRows('follower_visibility_grants', (q) => q.eq('status', 'active')),
+      this.countRows('follower_visibility_grants', (q) => q.eq('status', 'revoked')),
+      this.countRows('follower_visibility_grants', (q) => q.eq('status', 'expired')),
+    ]);
+    return { active, revoked, expired };
   }
 
   private async countRows(
