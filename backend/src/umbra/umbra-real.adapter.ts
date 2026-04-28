@@ -39,46 +39,48 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
     params: UmbraRegisterParams & { deploymentId?: string },
   ): Promise<UmbraRegisterResult> {
     try {
+      const runWithClient = async (clientRaw: unknown): Promise<UmbraRegisterResult> => {
+        const client = clientRaw as { signer: { address: string } };
+        const register = getUserRegistrationFunction({ client } as Parameters<typeof getUserRegistrationFunction>[0]);
+        const options = {
+          confidential: true,
+          anonymous: params.mode === 'anonymous',
+        };
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const signatures = await register(options as Parameters<typeof register>[0]);
+
+        const querier = getUserAccountQuerierFunction({ client } as Parameters<typeof getUserAccountQuerierFunction>[0]);
+        const accountResult = await querier(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          client.signer.address as any,
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const account = accountResult as any;
+
+        this.logger.log(
+          `umbra.register signer=${client.signer.address} status=confirmed`,
+        );
+
+        return {
+          encryptedUserAccount: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
+          x25519PublicKey: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
+          signerPubkey: client.signer.address ?? null,
+          txSignatures: Array.isArray(signatures) ? (signatures as string[]) : [],
+          status: 'confirmed',
+        };
+      };
+
       if (params.signerOverride) {
-        // The SDK's signer mounting requires changes that are out of scope for
-        // this slice (Phase 1 vertical). We log loudly so the follower-vault
-        // path doesn't silently shield to the platform-shared keeper identity.
-        this.logger.warn(
-          `umbra.register signerOverride received but SDK-level mount is not yet implemented; falling back to shared keeper signer (pubkey=${params.signerOverride.pubkey})`,
+        // Phase-2 isolation: build a scoped Umbra client backed by the
+        // follower-vault's HKDF-derived signer so the registration ETA is
+        // owned by the per-vault identity rather than the platform keeper.
+        return await this.clientService.withSigner(
+          params.signerOverride.secretKey,
+          runWithClient,
         );
       }
       const clientRaw = await this.clientService.getClient();
-      const client = clientRaw as { signer: { address: string } };
-      const register = getUserRegistrationFunction({ client } as Parameters<
-        typeof getUserRegistrationFunction
-      >[0]);
-
-      const options = {
-        confidential: true,
-        anonymous: params.mode === 'anonymous',
-      };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const signatures = await register(options as Parameters<typeof register>[0]);
-
-      const querier = getUserAccountQuerierFunction({ client } as Parameters<
-        typeof getUserAccountQuerierFunction
-      >[0]);
-      const accountResult = await querier(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        client.signer.address as any,
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const account = accountResult as any;
-
-      this.logger.log(`umbra.register signer=${client.signer.address} status=confirmed`);
-
-      return {
-        encryptedUserAccount: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
-        x25519PublicKey: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
-        signerPubkey: client.signer.address ?? null,
-        txSignatures: Array.isArray(signatures) ? (signatures as string[]) : [],
-        status: 'confirmed',
-      };
+      return await runWithClient(clientRaw);
     } catch (err) {
       this.logger.error(
         `umbra.register failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -95,28 +97,35 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
 
   async deposit(params: UmbraDepositParams): Promise<UmbraTreasuryResult> {
     try {
-      const client = await this.clientService.getClient();
-      const depositFn = getPublicBalanceToEncryptedBalanceDirectDepositorFunction({
-        client,
-      } as Parameters<typeof getPublicBalanceToEncryptedBalanceDirectDepositorFunction>[0]);
-
-      const amount = BigInt(params.amount);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (await depositFn(
-        params.fromWallet as any,
-        params.mint as any,
-        amount as any,
-      )) as { queueSignature?: string; callbackSignature?: string };
-
-      this.logger.log(
-        `umbra.deposit deployment=${params.deploymentId} mint=${params.mint} qsig=${result.queueSignature}`,
-      );
-
-      return {
-        queueSignature: result.queueSignature ?? null,
-        callbackSignature: result.callbackSignature ?? null,
-        status: 'confirmed',
+      const runDeposit = async (client: unknown): Promise<UmbraTreasuryResult> => {
+        const depositFn = getPublicBalanceToEncryptedBalanceDirectDepositorFunction(
+          { client } as Parameters<typeof getPublicBalanceToEncryptedBalanceDirectDepositorFunction>[0],
+        );
+        const amount = BigInt(params.amount);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = (await depositFn(
+          params.fromWallet as any,
+          params.mint as any,
+          amount as any,
+        )) as { queueSignature?: string; callbackSignature?: string };
+        this.logger.log(
+          `umbra.deposit deployment=${params.deploymentId} mint=${params.mint} qsig=${result.queueSignature}`,
+        );
+        return {
+          queueSignature: result.queueSignature ?? null,
+          callbackSignature: result.callbackSignature ?? null,
+          status: 'confirmed',
+        };
       };
+
+      if (params.signerOverride) {
+        return await this.clientService.withSigner(
+          params.signerOverride.secretKey,
+          runDeposit,
+        );
+      }
+      const client = await this.clientService.getClient();
+      return await runDeposit(client);
     } catch (err) {
       this.logger.error(
         `umbra.deposit failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -127,28 +136,35 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
 
   async withdraw(params: UmbraWithdrawParams): Promise<UmbraTreasuryResult> {
     try {
-      const client = await this.clientService.getClient();
-      const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction({
-        client,
-      } as Parameters<typeof getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction>[0]);
-
-      const amount = BigInt(params.amount);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (await withdrawFn(
-        params.toWallet as any,
-        params.mint as any,
-        amount as any,
-      )) as { queueSignature?: string; callbackSignature?: string };
-
-      this.logger.log(
-        `umbra.withdraw deployment=${params.deploymentId} mint=${params.mint} qsig=${result.queueSignature}`,
-      );
-
-      return {
-        queueSignature: result.queueSignature ?? null,
-        callbackSignature: result.callbackSignature ?? null,
-        status: 'confirmed',
+      const runWithdraw = async (client: unknown): Promise<UmbraTreasuryResult> => {
+        const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction(
+          { client } as Parameters<typeof getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction>[0],
+        );
+        const amount = BigInt(params.amount);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = (await withdrawFn(
+          params.toWallet as any,
+          params.mint as any,
+          amount as any,
+        )) as { queueSignature?: string; callbackSignature?: string };
+        this.logger.log(
+          `umbra.withdraw deployment=${params.deploymentId} mint=${params.mint} qsig=${result.queueSignature}`,
+        );
+        return {
+          queueSignature: result.queueSignature ?? null,
+          callbackSignature: result.callbackSignature ?? null,
+          status: 'confirmed',
+        };
       };
+
+      if (params.signerOverride) {
+        return await this.clientService.withSigner(
+          params.signerOverride.secretKey,
+          runWithdraw,
+        );
+      }
+      const client = await this.clientService.getClient();
+      return await runWithdraw(client);
     } catch (err) {
       this.logger.error(
         `umbra.withdraw failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -163,26 +179,33 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
     );
     return { queueSignature: null, callbackSignature: null, status: 'failed' };
   }
-
   async getEncryptedBalance(params: UmbraEncryptedBalanceParams): Promise<UmbraEncryptedBalance> {
     try {
-      const client = await this.clientService.getClient();
-      const querier = getEncryptedBalanceQuerierFunction({ client } as Parameters<
-        typeof getEncryptedBalanceQuerierFunction
-      >[0]);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const address = params.walletAddress as any;
-      const resultMap = await querier(address);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = resultMap instanceof Map ? resultMap.get(address) : (resultMap as any);
-
-      return {
-        encryptedTokenAccount:
-          typeof result?.encryptedTokenAccount === 'string' ? result.encryptedTokenAccount : null,
-        ciphertext: typeof result?.ciphertext === 'string' ? result.ciphertext : null,
-        decryptedAmount: result?.decryptedAmount != null ? String(result.decryptedAmount) : null,
+      const runQuery = async (client: unknown): Promise<UmbraEncryptedBalance> => {
+        const querier = getEncryptedBalanceQuerierFunction(
+          { client } as Parameters<typeof getEncryptedBalanceQuerierFunction>[0],
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const address = params.walletAddress as any;
+        const resultMap = await querier(address);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = resultMap instanceof Map ? resultMap.get(address) : (resultMap as any);
+        return {
+          encryptedTokenAccount:
+            typeof result?.encryptedTokenAccount === 'string' ? result.encryptedTokenAccount : null,
+          ciphertext: typeof result?.ciphertext === 'string' ? result.ciphertext : null,
+          decryptedAmount: result?.decryptedAmount != null ? String(result.decryptedAmount) : null,
+        };
       };
+
+      if (params.signerOverride) {
+        return await this.clientService.withSigner(
+          params.signerOverride.secretKey,
+          runQuery,
+        );
+      }
+      const client = await this.clientService.getClient();
+      return await runQuery(client);
     } catch (err) {
       this.logger.warn(
         `umbra.getEncryptedBalance failed: ${err instanceof Error ? err.message : String(err)}`,
