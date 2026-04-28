@@ -22,10 +22,16 @@ export class UmbraNoopAdapter implements UmbraAdapterPort {
 
   async registerEncryptedUserAccount(params: UmbraRegisterParams): Promise<UmbraRegisterResult> {
     this.logger.debug(`[noop] umbra.register wallet=${params.walletAddress} mode=${params.mode}`);
+    // When a signerOverride is supplied (per-follower-vault path) we surface
+    // its public key so callers can persist the deterministic identity in DB
+    // even under the Noop adapter.
+    const override = params.signerOverride;
     return {
-      encryptedUserAccount: noopId('umbra-eua'),
+      encryptedUserAccount: override
+        ? `umbra-eua-${override.pubkey.slice(0, 12)}`
+        : noopId('umbra-eua'),
       x25519PublicKey: noopId('umbra-x25519'),
-      signerPubkey: noopId('umbra-signer'),
+      signerPubkey: override?.pubkey ?? noopId('umbra-signer'),
       txSignatures: [],
       status: 'confirmed',
     };

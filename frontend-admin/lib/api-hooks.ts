@@ -178,16 +178,53 @@ export function useDeployments(params: {
   status?: LifecycleStatus;
   creator?: string;
   strategyId?: string;
+  limit?: number;
 } = {}) {
   const search = new URLSearchParams();
   if (params.status) search.set('status', params.status);
   if (params.creator) search.set('creator', params.creator);
   if (params.strategyId) search.set('strategyId', params.strategyId);
+  if (params.limit) search.set('limit', String(params.limit));
   const qs = search.toString();
   return useQuery({
     queryKey: ['admin', 'deployments', params],
     queryFn: () =>
       proxyFetch<ApiEnvelope<DeploymentRow[]>>(`/admin/deployments${qs ? `?${qs}` : ''}`),
+    staleTime: 15_000,
+  });
+}
+
+export interface DeploymentRunRow {
+  id: string;
+  deployment_id: string;
+  execution_layer: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  error_message: string | null;
+}
+
+export interface DeploymentDetailRow extends DeploymentRow {
+  strategy_version_id: string | null;
+  private_state_account: string | null;
+  public_snapshot_account: string | null;
+  er_session_id: string | null;
+  per_session_id: string | null;
+  umbra_user_account: string | null;
+  metadata: Record<string, unknown> | null;
+  er_router_url: string | null;
+  er_committed_at: string | null;
+  umbra_registration_status: 'pending' | 'confirmed' | 'failed' | null;
+  per_endpoint_url: string | null;
+  pp_endpoint_url: string | null;
+  recentRuns: DeploymentRunRow[];
+}
+
+export function useDeploymentDetail(id?: string) {
+  return useQuery({
+    queryKey: ['admin', 'deployments', 'detail', id],
+    queryFn: () => proxyFetch<ApiEnvelope<DeploymentDetailRow>>(`/admin/deployments/${id}`),
+    enabled: Boolean(id),
     staleTime: 15_000,
   });
 }
@@ -252,7 +289,7 @@ export interface AdminPrivacyOverview {
   };
   umbra: {
     configured: boolean;
-    seedSource: 'env' | 'system_config' | null;
+    seedSource: 'keeper' | 'env' | 'system_config' | null;
     seedFingerprint: string | null;
     registrations: { confirmed: number; pending: number; failed: number; unset: number };
   };
@@ -267,6 +304,65 @@ export function usePrivacyOverview() {
     queryKey: ['admin', 'privacy', 'overview'],
     queryFn: () => proxyFetch<ApiEnvelope<AdminPrivacyOverview>>('/admin/privacy/overview'),
     staleTime: 30_000,
+  });
+}
+
+export interface SnapshotRow {
+  id: string;
+  deploymentId: string;
+  snapshotRevision: number;
+  status: string;
+  pnlSummaryBps: number | null;
+  riskBand: string | null;
+  publicMetricsHash: string | null;
+  publishedSlot: number | null;
+  publishedAt: string;
+}
+
+export interface DeploymentPrivacyView {
+  deploymentId: string;
+  lifecycleStatus: string;
+  executionMode: string;
+  treasuryMode: string;
+  onchain: {
+    privateStateAccount: string | null;
+    publicSnapshotAccount: string | null;
+  };
+  er: {
+    sessionId: string | null;
+    routerUrl: string | null;
+    committedAt: string | null;
+    delegateSignature: string | null;
+    undelegateSignature: string | null;
+  };
+  per: {
+    sessionId: string | null;
+    endpointUrl: string | null;
+    tokens: PerTokenRow[];
+  };
+  pp: {
+    sessionId: string | null;
+    endpointUrl: string | null;
+  };
+  umbra: {
+    userAccount: string | null;
+    x25519Pubkey: string | null;
+    signerPubkey: string | null;
+    registrationStatus: 'pending' | 'confirmed' | 'failed' | null;
+    registerQueueSignature: string | null;
+    registerCallbackSignature: string | null;
+    masterSeedRef: string | null;
+  };
+  recentSnapshots: SnapshotRow[];
+}
+
+export function useDeploymentPrivacyView(id?: string) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'deployments', id],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<DeploymentPrivacyView>>(`/admin/privacy/deployments/${id}`),
+    enabled: Boolean(id),
+    staleTime: 15_000,
   });
 }
 
@@ -472,5 +568,265 @@ export function useAuditLog(params: {
     queryFn: () =>
       proxyFetch<ApiEnvelope<AuditEntry[]>>(`/admin/audit${qs ? `?${qs}` : ''}`),
     staleTime: 10_000,
+  });
+}
+
+// ---------------------------------------------------------------- follower vaults
+
+export type FollowerVaultLifecycleStatus =
+  | 'pending_funding'
+  | 'active'
+  | 'paused'
+  | 'exiting'
+  | 'closed';
+
+export type SubscriptionStatus = FollowerVaultLifecycleStatus;
+
+export type PrivateCycleStatus = 'accepted' | 'running' | 'completed' | 'failed';
+
+export type VisibilityGrantStatus = 'active' | 'revoked' | 'expired';
+
+export interface AdminFollowerVaultRow {
+  id: string;
+  subscription_id: string;
+  deployment_id: string;
+  vault_pda: string | null;
+  authority_pda: string | null;
+  lifecycle_status: FollowerVaultLifecycleStatus;
+  private_state_ref: string | null;
+  public_snapshot_ref: string | null;
+  custody_mode: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminSubscriptionRow {
+  id: string;
+  deployment_id: string;
+  follower_wallet: string;
+  status: SubscriptionStatus;
+  visibility_preset: string;
+  allocation_mode: string;
+  max_capital: string | null;
+  max_drawdown_bps: number | null;
+  subscription_pda: string | null;
+  follower_vault_pda: string | null;
+  vault_authority_pda: string | null;
+  per_member_ref: string | null;
+  umbra_identity_ref: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPrivateCycleRow {
+  id: string;
+  deployment_id: string;
+  idempotency_key: string;
+  trigger_type: string;
+  trigger_ref: string | null;
+  status: PrivateCycleStatus;
+  metrics_summary: Record<string, unknown>;
+  started_at: string;
+  completed_at: string | null;
+  error_message: string | null;
+}
+
+export interface AdminFollowerExecutionReceiptRow {
+  id: string;
+  cycle_id: string;
+  subscription_id: string;
+  follower_vault_id: string;
+  allocation_amount: string | null;
+  allocation_pct_bps: number | null;
+  private_state_revision: number | null;
+  status: 'planned' | 'applied' | 'skipped' | 'failed';
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AdminPrivateCycleDetail {
+  cycle: AdminPrivateCycleRow;
+  receipts: AdminFollowerExecutionReceiptRow[];
+}
+
+export interface AdminUmbraIdentityRow {
+  id: string;
+  follower_vault_id: string;
+  signer_pubkey: string;
+  x25519_public_key: string | null;
+  encrypted_user_account: string | null;
+  registration_status: 'pending' | 'confirmed' | 'failed' | null;
+  register_queue_signature: string | null;
+  register_callback_signature: string | null;
+  derivation_salt_prefix: string;
+  created_at: string;
+}
+
+export interface AdminVisibilityGrantRow {
+  id: string;
+  subscription_id: string;
+  grantee_wallet: string;
+  scope: string;
+  status: VisibilityGrantStatus;
+  expires_at: string | null;
+  revoked_at: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+const toQs = (params: Record<string, string | number | undefined>): string => {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value));
+    }
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : '';
+};
+
+export function useFollowerVaults(
+  params: {
+    deploymentId?: string;
+    status?: FollowerVaultLifecycleStatus;
+    limit?: number;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'follower-vaults', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminFollowerVaultRow[]>>(
+        `/admin/privacy/follower-vaults${toQs(params)}`,
+      ),
+    staleTime: 15_000,
+  });
+}
+
+export function useDeploymentFollowerVaults(
+  deploymentId?: string,
+  params: { status?: FollowerVaultLifecycleStatus; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'deployments', deploymentId, 'follower-vaults', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminFollowerVaultRow[]>>(
+        `/admin/privacy/deployments/${deploymentId}/follower-vaults${toQs(params)}`,
+      ),
+    enabled: Boolean(deploymentId),
+    staleTime: 15_000,
+  });
+}
+
+export function useSubscriptions(
+  params: {
+    deploymentId?: string;
+    follower?: string;
+    status?: SubscriptionStatus;
+    limit?: number;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'subscriptions', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminSubscriptionRow[]>>(
+        `/admin/privacy/subscriptions${toQs(params)}`,
+      ),
+    staleTime: 15_000,
+  });
+}
+
+export function useDeploymentSubscriptions(
+  deploymentId?: string,
+  params: { status?: SubscriptionStatus; follower?: string; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'deployments', deploymentId, 'subscriptions', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminSubscriptionRow[]>>(
+        `/admin/privacy/deployments/${deploymentId}/subscriptions${toQs(params)}`,
+      ),
+    enabled: Boolean(deploymentId),
+    staleTime: 15_000,
+  });
+}
+
+export function usePrivateExecutionCycles(
+  params: {
+    deploymentId?: string;
+    status?: PrivateCycleStatus;
+    since?: string;
+    limit?: number;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'private-cycles', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminPrivateCycleRow[]>>(
+        `/admin/privacy/private-cycles${toQs(params)}`,
+      ),
+    staleTime: 15_000,
+  });
+}
+
+export function useDeploymentPrivateCycles(
+  deploymentId?: string,
+  params: { status?: PrivateCycleStatus; since?: string; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'deployments', deploymentId, 'private-cycles', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminPrivateCycleRow[]>>(
+        `/admin/privacy/deployments/${deploymentId}/private-cycles${toQs(params)}`,
+      ),
+    enabled: Boolean(deploymentId),
+    staleTime: 15_000,
+  });
+}
+
+export function usePrivateExecutionCycle(cycleId?: string) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'private-cycles', cycleId],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminPrivateCycleDetail>>(
+        `/admin/privacy/private-cycles/${cycleId}`,
+      ),
+    enabled: Boolean(cycleId),
+    staleTime: 15_000,
+  });
+}
+
+export function useUmbraIdentityInventory(
+  params: {
+    deploymentId?: string;
+    registrationStatus?: 'pending' | 'confirmed' | 'failed';
+    limit?: number;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'umbra-identities', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminUmbraIdentityRow[]>>(
+        `/admin/privacy/umbra-identities${toQs(params)}`,
+      ),
+    staleTime: 30_000,
+  });
+}
+
+export function useVisibilityGrants(
+  params: {
+    subscriptionId?: string;
+    grantee?: string;
+    status?: VisibilityGrantStatus;
+    limit?: number;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'visibility-grants', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminVisibilityGrantRow[]>>(
+        `/admin/privacy/visibility-grants${toQs(params)}`,
+      ),
+    staleTime: 15_000,
   });
 }

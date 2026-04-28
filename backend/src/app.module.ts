@@ -14,6 +14,7 @@ import { ReferralModule } from './referral/referral.module';
 import { WorkflowAiModule } from './workflow-ai/workflow-ai.module';
 import { StrategiesModule } from './strategies/strategies.module';
 import { StrategyDeploymentsModule } from './strategy-deployments/strategy-deployments.module';
+import { FollowerVaultsModule } from './follower-vaults/follower-vaults.module';
 import { OnchainModule } from './onchain/onchain.module';
 import { MagicBlockModule } from './magicblock/magicblock.module';
 import { UmbraModule } from './umbra/umbra.module';
@@ -53,6 +54,7 @@ import { RootController } from './root.controller';
     MagicBlockModule,
     UmbraModule,
     StrategyDeploymentsModule,
+    FollowerVaultsModule,
     HealthModule,
     AdminModule,
   ],

@@ -39,9 +39,19 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
     params: UmbraRegisterParams & { deploymentId?: string },
   ): Promise<UmbraRegisterResult> {
     try {
+      if (params.signerOverride) {
+        // The SDK's signer mounting requires changes that are out of scope for
+        // this slice (Phase 1 vertical). We log loudly so the follower-vault
+        // path doesn't silently shield to the platform-shared keeper identity.
+        this.logger.warn(
+          `umbra.register signerOverride received but SDK-level mount is not yet implemented; falling back to shared keeper signer (pubkey=${params.signerOverride.pubkey})`,
+        );
+      }
       const clientRaw = await this.clientService.getClient();
       const client = clientRaw as { signer: { address: string } };
-      const register = getUserRegistrationFunction({ client } as Parameters<typeof getUserRegistrationFunction>[0]);
+      const register = getUserRegistrationFunction({ client } as Parameters<
+        typeof getUserRegistrationFunction
+      >[0]);
 
       const options = {
         confidential: true,
@@ -50,7 +60,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const signatures = await register(options as Parameters<typeof register>[0]);
 
-      const querier = getUserAccountQuerierFunction({ client } as Parameters<typeof getUserAccountQuerierFunction>[0]);
+      const querier = getUserAccountQuerierFunction({ client } as Parameters<
+        typeof getUserAccountQuerierFunction
+      >[0]);
       const accountResult = await querier(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         client.signer.address as any,
@@ -58,15 +70,13 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const account = accountResult as any;
 
-      this.logger.log(
-        `umbra.register signer=${client.signer.address} status=confirmed`,
-      );
+      this.logger.log(`umbra.register signer=${client.signer.address} status=confirmed`);
 
       return {
         encryptedUserAccount: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
         x25519PublicKey: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
         signerPubkey: client.signer.address ?? null,
-        txSignatures: Array.isArray(signatures) ? signatures as string[] : [],
+        txSignatures: Array.isArray(signatures) ? (signatures as string[]) : [],
         status: 'confirmed',
       };
     } catch (err) {
@@ -86,9 +96,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
   async deposit(params: UmbraDepositParams): Promise<UmbraTreasuryResult> {
     try {
       const client = await this.clientService.getClient();
-      const depositFn = getPublicBalanceToEncryptedBalanceDirectDepositorFunction(
-        { client } as Parameters<typeof getPublicBalanceToEncryptedBalanceDirectDepositorFunction>[0],
-      );
+      const depositFn = getPublicBalanceToEncryptedBalanceDirectDepositorFunction({
+        client,
+      } as Parameters<typeof getPublicBalanceToEncryptedBalanceDirectDepositorFunction>[0]);
 
       const amount = BigInt(params.amount);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -118,9 +128,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
   async withdraw(params: UmbraWithdrawParams): Promise<UmbraTreasuryResult> {
     try {
       const client = await this.clientService.getClient();
-      const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction(
-        { client } as Parameters<typeof getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction>[0],
-      );
+      const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction({
+        client,
+      } as Parameters<typeof getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction>[0]);
 
       const amount = BigInt(params.amount);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -157,9 +167,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
   async getEncryptedBalance(params: UmbraEncryptedBalanceParams): Promise<UmbraEncryptedBalance> {
     try {
       const client = await this.clientService.getClient();
-      const querier = getEncryptedBalanceQuerierFunction(
-        { client } as Parameters<typeof getEncryptedBalanceQuerierFunction>[0],
-      );
+      const querier = getEncryptedBalanceQuerierFunction({ client } as Parameters<
+        typeof getEncryptedBalanceQuerierFunction
+      >[0]);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const address = params.walletAddress as any;
@@ -168,7 +178,8 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       const result = resultMap instanceof Map ? resultMap.get(address) : (resultMap as any);
 
       return {
-        encryptedTokenAccount: typeof result?.encryptedTokenAccount === 'string' ? result.encryptedTokenAccount : null,
+        encryptedTokenAccount:
+          typeof result?.encryptedTokenAccount === 'string' ? result.encryptedTokenAccount : null,
         ciphertext: typeof result?.ciphertext === 'string' ? result.ciphertext : null,
         decryptedAmount: result?.decryptedAmount != null ? String(result.decryptedAmount) : null,
       };
@@ -190,7 +201,11 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
     );
     return {
       grantId,
-      payload: { mint: params.mint, grantee: params.granteeWallet, expiresAt: params.expiresAt ?? null },
+      payload: {
+        mint: params.mint,
+        grantee: params.granteeWallet,
+        expiresAt: params.expiresAt ?? null,
+      },
     };
   }
 }

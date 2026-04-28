@@ -11,9 +11,27 @@ export const UMBRA_ADAPTER = Symbol('UmbraAdapterPort');
 
 export type UmbraRegistrationMode = 'confidential' | 'anonymous';
 
+/**
+ * Optional override for the signing identity used by an Umbra operation.
+ *
+ * Phase 1 follower-vault privacy uses one HKDF-derived Ed25519 keypair per
+ * follower vault so that vault treasuries don't share an Umbra identity. The
+ * override is passed in per call to avoid mutating module-wide state on the
+ * shared `UmbraClientService`.
+ *
+ * `secretKey` is a 64-byte Solana keypair secret. The Noop adapter ignores
+ * the override; the Real adapter (when implemented end-to-end) is expected to
+ * temporarily mount this signer for the SDK call.
+ */
+export interface UmbraSignerOverride {
+  secretKey: Uint8Array;
+  pubkey: string;
+}
+
 export interface UmbraRegisterParams {
   walletAddress: string;
   mode: UmbraRegistrationMode;
+  signerOverride?: UmbraSignerOverride;
 }
 
 export interface UmbraRegisterResult {
@@ -29,6 +47,7 @@ export interface UmbraDepositParams {
   fromWallet: string;
   mint: string;
   amount: string;
+  signerOverride?: UmbraSignerOverride;
 }
 
 export interface UmbraWithdrawParams {
@@ -36,6 +55,7 @@ export interface UmbraWithdrawParams {
   toWallet: string;
   mint: string;
   amount: string;
+  signerOverride?: UmbraSignerOverride;
 }
 
 export interface UmbraTransferParams {
@@ -44,6 +64,7 @@ export interface UmbraTransferParams {
   toWallet: string;
   mint: string;
   amount: string;
+  signerOverride?: UmbraSignerOverride;
 }
 
 export interface UmbraTreasuryResult {
@@ -56,6 +77,7 @@ export interface UmbraEncryptedBalanceParams {
   deploymentId: string;
   walletAddress: string;
   mint: string;
+  signerOverride?: UmbraSignerOverride;
 }
 
 export interface UmbraEncryptedBalance {

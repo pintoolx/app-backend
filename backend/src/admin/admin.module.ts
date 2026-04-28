@@ -32,6 +32,7 @@ import { AdminSystemController } from './system/admin-system.controller';
 import { AdminSystemService } from './system/admin-system.service';
 import { AdminPrivacyController } from './privacy/admin-privacy.controller';
 import { AdminPrivacyService } from './privacy/admin-privacy.service';
+import { AdminFollowerVaultsService } from './privacy/admin-follower-vaults.service';
 import { AdminOpsService } from './ops/admin-ops.service';
 import { AdminDeploymentsOpsController } from './ops/admin-deployments-ops.controller';
 import { AdminPrivacyOpsController } from './ops/admin-privacy-ops.controller';
@@ -100,6 +101,7 @@ import { MaintenanceModeGuard } from './ops/maintenance-mode.guard';
     AdminDeploymentsService,
     AdminSystemService,
     AdminPrivacyService,
+    AdminFollowerVaultsService,
     // Phase 2 — Write ops
     AdminOpsService,
     BannedWalletsRepository,
