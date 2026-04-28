@@ -102,4 +102,45 @@ pub mod strategy_runtime {
     pub fn close_deployment(ctx: Context<CloseDeployment>) -> Result<()> {
         instructions::close_deployment::handler(ctx)
     }
+
+    // ---------- Phase 2 — follower-vault account model ----------
+
+    /// Phase 2 — enrol a follower into a deployment by creating a
+    /// `StrategySubscription` PDA. Follower self-signs.
+    pub fn initialize_follower_subscription(
+        ctx: Context<InitializeFollowerSubscription>,
+        subscription_id: [u8; 16],
+    ) -> Result<()> {
+        instructions::initialize_follower_subscription::handler(ctx, subscription_id)
+    }
+
+    /// Phase 2 — create the follower vault PDA bound to a subscription.
+    pub fn initialize_follower_vault(
+        ctx: Context<InitializeFollowerVault>,
+        vault_id: [u8; 16],
+        custody_mode: u8,
+    ) -> Result<()> {
+        instructions::initialize_follower_vault::handler(ctx, vault_id, custody_mode)
+    }
+
+    /// Phase 2 — create the follower-vault authority PDA used as the stable
+    /// execution surface for delegate / session-key flows.
+    pub fn initialize_follower_vault_authority(
+        ctx: Context<InitializeFollowerVaultAuthority>,
+    ) -> Result<()> {
+        instructions::initialize_follower_vault_authority::handler(ctx)
+    }
+
+    /// Phase 2 — lifecycle transition for follower vault and its subscription.
+    pub fn set_follower_vault_status(
+        ctx: Context<SetFollowerVaultStatus>,
+        new_status: u8,
+    ) -> Result<()> {
+        instructions::set_follower_vault_status::handler(ctx, new_status)
+    }
+
+    /// Phase 2 — close a closed follower vault, returning rent to the follower.
+    pub fn close_follower_vault(ctx: Context<CloseFollowerVault>) -> Result<()> {
+        instructions::close_follower_vault::handler(ctx)
+    }
 }

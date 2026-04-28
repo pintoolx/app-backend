@@ -1,12 +1,18 @@
+pub mod follower_vault;
+pub mod follower_vault_authority;
 pub mod public_snapshot;
 pub mod strategy_deployment;
 pub mod strategy_state;
+pub mod strategy_subscription;
 pub mod strategy_version;
 pub mod vault_authority;
 
+pub use follower_vault::*;
+pub use follower_vault_authority::*;
 pub use public_snapshot::*;
 pub use strategy_deployment::*;
 pub use strategy_state::*;
+pub use strategy_subscription::*;
 pub use strategy_version::*;
 pub use vault_authority::*;
 

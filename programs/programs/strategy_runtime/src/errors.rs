@@ -22,4 +22,16 @@ pub enum StrategyRuntimeError {
 
     #[msg("Provided lifecycle status code is not recognised")]
     InvalidLifecycleCode,
+
+    #[msg("Provided custody mode code is not recognised")]
+    InvalidCustodyMode,
+
+    #[msg("Follower vault must be in closed state before it can be removed")]
+    FollowerVaultNotClosed,
+
+    #[msg("Provided follower wallet does not match the recorded subscription")]
+    UnauthorizedFollower,
+
+    #[msg("Subscription belongs to a different deployment than the supplied account")]
+    SubscriptionDeploymentMismatch,
 }

@@ -40,6 +40,42 @@
       "args": []
     },
     {
+      "name": "close_follower_vault",
+      "docs": [
+        "Phase 2 — close a closed follower vault, returning rent to the follower."
+      ],
+      "discriminator": [
+        110,
+        107,
+        247,
+        154,
+        8,
+        245,
+        123,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "follower_vault",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true
+        },
+        {
+          "name": "subscription",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "commit_state",
       "docs": [
         "Phase 1 — append a new private state commitment with replay protection."
@@ -172,6 +208,241 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "initialize_follower_subscription",
+      "docs": [
+        "Phase 2 — enrol a follower into a deployment by creating a",
+        "`StrategySubscription` PDA. Follower self-signs."
+      ],
+      "discriminator": [
+        129,
+        224,
+        47,
+        216,
+        30,
+        160,
+        254,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "deployment"
+        },
+        {
+          "name": "subscription",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  97,
+                  116,
+                  101,
+                  103,
+                  121,
+                  95,
+                  115,
+                  117,
+                  98,
+                  115,
+                  99,
+                  114,
+                  105,
+                  112,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "deployment"
+              },
+              {
+                "kind": "account",
+                "path": "follower"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "subscription_id",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize_follower_vault",
+      "docs": [
+        "Phase 2 — create the follower vault PDA bound to a subscription."
+      ],
+      "discriminator": [
+        116,
+        211,
+        222,
+        132,
+        131,
+        66,
+        103,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "subscription",
+          "writable": true
+        },
+        {
+          "name": "follower_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  108,
+                  108,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "subscription"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "vault_id",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        },
+        {
+          "name": "custody_mode",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "initialize_follower_vault_authority",
+      "docs": [
+        "Phase 2 — create the follower-vault authority PDA used as the stable",
+        "execution surface for delegate / session-key flows."
+      ],
+      "discriminator": [
+        62,
+        32,
+        180,
+        193,
+        34,
+        199,
+        156,
+        144
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "follower_vault",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  108,
+                  108,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "follower_vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "initialize_strategy_state",
@@ -402,6 +673,43 @@
       ]
     },
     {
+      "name": "set_follower_vault_status",
+      "docs": [
+        "Phase 2 — lifecycle transition for follower vault and its subscription."
+      ],
+      "discriminator": [
+        132,
+        242,
+        199,
+        183,
+        43,
+        164,
+        165,
+        13
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "follower_vault",
+          "writable": true
+        },
+        {
+          "name": "subscription",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_status",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "set_lifecycle_status",
       "docs": [
         "Phase 1 — apply a lifecycle transition (state machine enforced)."
@@ -529,6 +837,32 @@
   ],
   "accounts": [
     {
+      "name": "FollowerVault",
+      "discriminator": [
+        110,
+        28,
+        220,
+        217,
+        243,
+        116,
+        178,
+        127
+      ]
+    },
+    {
+      "name": "FollowerVaultAuthority",
+      "discriminator": [
+        10,
+        191,
+        26,
+        44,
+        189,
+        30,
+        81,
+        71
+      ]
+    },
+    {
       "name": "PublicSnapshot",
       "discriminator": [
         181,
@@ -565,6 +899,19 @@
         100,
         39,
         139
+      ]
+    },
+    {
+      "name": "StrategySubscription",
+      "discriminator": [
+        3,
+        219,
+        166,
+        34,
+        148,
+        79,
+        177,
+        227
       ]
     },
     {
@@ -629,9 +976,156 @@
       "code": 6006,
       "name": "InvalidLifecycleCode",
       "msg": "Provided lifecycle status code is not recognised"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidCustodyMode",
+      "msg": "Provided custody mode code is not recognised"
+    },
+    {
+      "code": 6008,
+      "name": "FollowerVaultNotClosed",
+      "msg": "Follower vault must be in closed state before it can be removed"
+    },
+    {
+      "code": 6009,
+      "name": "UnauthorizedFollower",
+      "msg": "Provided follower wallet does not match the recorded subscription"
+    },
+    {
+      "code": 6010,
+      "name": "SubscriptionDeploymentMismatch",
+      "msg": "Subscription belongs to a different deployment than the supplied account"
     }
   ],
   "types": [
+    {
+      "name": "FollowerVault",
+      "docs": [
+        "Follower vault PDA. Seeded by `(FOLLOWER_VAULT_SEED, subscription)`. Public",
+        "control shell for the follower's funds; treasury balances live in Umbra",
+        "and execution state lives in PER. The on-chain row only holds authority",
+        "and lifecycle metadata."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "subscription",
+            "type": "pubkey"
+          },
+          {
+            "name": "deployment",
+            "type": "pubkey"
+          },
+          {
+            "name": "follower",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault_id",
+            "docs": [
+              "16-byte UUID mirroring the off-chain `follower_vaults.id`."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "lifecycle_status",
+            "docs": [
+              "0 = pending_funding, 1 = active, 2 = paused, 3 = exiting, 4 = closed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "custody_mode",
+            "docs": [
+              "0 = program_owned, 1 = self_custody, 2 = private_payments_relay"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "created_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "FollowerVaultAuthority",
+      "docs": [
+        "Follower-vault authority PDA. Seeded by",
+        "`(FOLLOWER_VAULT_AUTHORITY_SEED, follower_vault)`. Provides a stable",
+        "authority surface for scoped session-key or delegate execution. Phase-2",
+        "only persists routing fields; transfer / mint configuration land later."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "follower_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "follower",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "0 = active, 1 = frozen"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "allowed_mint_config_hash",
+            "docs": [
+              "Hash over the allowed mint config — empty until configured."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
     {
       "name": "PublicSnapshot",
       "docs": [
@@ -799,6 +1293,70 @@
           },
           {
             "name": "last_commit_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "StrategySubscription",
+      "docs": [
+        "One subscription PDA per `(deployment, follower)` pair. Public anchor for",
+        "the follower's enrollment in a creator's strategy. Sensitive subscription",
+        "configuration (max capital, drawdown guard, allocation mode, etc.) stays",
+        "in the off-chain `strategy_subscriptions` table or in PER-private state;",
+        "the on-chain account only carries authority and lifecycle facts.",
+        "",
+        "Lifecycle status mirrors the off-chain enum:",
+        "0 = pending_funding, 1 = active, 2 = paused, 3 = exiting, 4 = closed"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "deployment",
+            "type": "pubkey"
+          },
+          {
+            "name": "follower",
+            "type": "pubkey"
+          },
+          {
+            "name": "follower_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "subscription_id",
+            "docs": [
+              "16-byte UUID mirroring the DB row id so PDAs can be derived without",
+              "touching Postgres."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "lifecycle_status",
+            "type": "u8"
+          },
+          {
+            "name": "created_slot",
             "type": "u64"
           },
           {

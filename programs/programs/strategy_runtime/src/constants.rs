@@ -7,5 +7,11 @@ pub const VAULT_AUTHORITY_SEED: &[u8] = b"vault_authority";
 pub const STRATEGY_STATE_SEED: &[u8] = b"strategy_state";
 pub const PUBLIC_SNAPSHOT_SEED: &[u8] = b"public_snapshot";
 
+/// Phase-2 follower-vault seeds. These mirror the architectural commitments
+/// from `docs/privacy/FOLLOWER_VAULT_PRIVACY_ARCHITECTURE.md` §4.
+pub const STRATEGY_SUBSCRIPTION_SEED: &[u8] = b"strategy_subscription";
+pub const FOLLOWER_VAULT_SEED: &[u8] = b"follower_vault";
+pub const FOLLOWER_VAULT_AUTHORITY_SEED: &[u8] = b"follower_vault_authority";
+
 /// Reserved bytes appended to every account so we can grow without a migration.
 pub const RESERVED_ACCOUNT_BYTES: usize = 64;
