@@ -89,11 +89,41 @@ export interface PerPrivateStateResult {
   logs: Array<Record<string, unknown>>;
 }
 
+/**
+ * Phase-2 follower-vault fan-out: write a single follower's private state
+ * inside PER as part of a cycle. Used by `PrivateExecutionCyclesService` to
+ * push sanitized allocation outputs into the private runtime so that each
+ * follower can later read their own state through the existing PER auth
+ * flow.
+ */
+export interface PerWriteFollowerStateParams {
+  deploymentId: string;
+  cycleId: string;
+  subscriptionId: string;
+  followerVaultId: string;
+  followerWallet: string;
+  /**
+   * Sanitized payload. The cycle service guarantees this only contains
+   * allocation outputs (allocation amount, share bps, mode, etc.) — never
+   * raw signal inputs or strategy parameters.
+   */
+  payload: Record<string, unknown>;
+}
+
+export interface PerWriteFollowerStateResult {
+  signature: string | null;
+  privateStateRevision: number | null;
+  status: 'applied' | 'skipped' | 'failed';
+}
+
 export interface MagicBlockPerAdapterPort {
   createPermissionGroup(params: PerCreateGroupParams): Promise<PerCreateGroupResult>;
   requestAuthChallenge(params: PerAuthChallengeParams): Promise<PerAuthChallenge>;
   verifyAuthSignature(params: PerAuthVerifyParams): Promise<PerAuthVerifyResult>;
   getPrivateState(params: PerPrivateStateParams): Promise<PerPrivateStateResult>;
+  writeFollowerPrivateState(
+    params: PerWriteFollowerStateParams,
+  ): Promise<PerWriteFollowerStateResult>;
 }
 
 // ---------- Private Payments API ----------

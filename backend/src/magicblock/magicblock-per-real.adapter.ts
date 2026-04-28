@@ -17,6 +17,8 @@ import {
   type PerCreateGroupResult,
   type PerPrivateStateParams,
   type PerPrivateStateResult,
+  type PerWriteFollowerStateParams,
+  type PerWriteFollowerStateResult,
 } from './magicblock.port';
 
 const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -201,6 +203,45 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
       state: remote?.state ?? null,
       logs: Array.isArray(remote?.logs) ? remote!.logs : [],
     };
+  }
+
+  /**
+   * Push a sanitized follower-allocation payload into PER. The PER endpoint
+   * is expected to acknowledge with a signature and the new revision; on any
+   * failure (network, 4xx, 5xx) the result is `failed` so the cycle service
+   * can mark the receipt accordingly without aborting the whole fan-out.
+   */
+  async writeFollowerPrivateState(
+    params: PerWriteFollowerStateParams,
+  ): Promise<PerWriteFollowerStateResult> {
+    try {
+      const remote = await this.perClient.post<{
+        signature?: string;
+        privateStateRevision?: number;
+      }>('/v1/private-state/follower', {
+        deploymentId: params.deploymentId,
+        cycleId: params.cycleId,
+        subscriptionId: params.subscriptionId,
+        followerVaultId: params.followerVaultId,
+        followerWallet: params.followerWallet,
+        payload: params.payload,
+      });
+      this.logger.log(
+        `per.writeFollowerPrivateState deployment=${params.deploymentId} cycle=${params.cycleId} vault=${params.followerVaultId} sig=${remote?.signature ?? '—'}`,
+      );
+      return {
+        signature: remote?.signature ?? null,
+        privateStateRevision: remote?.privateStateRevision ?? null,
+        status: 'applied',
+      };
+    } catch (err) {
+      this.logger.warn(
+        `per.writeFollowerPrivateState failed for vault=${params.followerVaultId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return { signature: null, privateStateRevision: null, status: 'failed' };
+    }
   }
 
   // ---------------- helpers ----------------

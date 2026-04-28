@@ -1,5 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { StrategyDeploymentsRepository } from '../strategy-deployments/strategy-deployments.repository';
+import {
+  MAGICBLOCK_PER_ADAPTER,
+  type MagicBlockPerAdapterPort,
+} from '../magicblock/magicblock.port';
 import {
   PrivateExecutionCyclesRepository,
   type PrivateExecutionCycleRow,
@@ -35,6 +39,7 @@ export class PrivateExecutionCyclesService {
     private readonly followerVaultsRepository: FollowerVaultsRepository,
     private readonly deploymentsRepository: StrategyDeploymentsRepository,
     private readonly allocationsService: FollowerVaultAllocationsService,
+    @Inject(MAGICBLOCK_PER_ADAPTER) private readonly perAdapter: MagicBlockPerAdapterPort,
   ) {}
 
   async startCycle(
@@ -106,12 +111,48 @@ export class PrivateExecutionCyclesService {
 
       receipts = await this.receiptsRepository.insertMany(inserts);
 
+      // PER fan-out: write each follower's sanitized allocation into the
+      // private runtime. Failures are isolated per receipt so one bad write
+      // does not abort the cycle.
+      receipts = await Promise.all(
+        receipts.map(async (receipt) => {
+          const sub = subscriptions.find((s) => s.id === receipt.subscription_id);
+          const fanoutResult = await this.perAdapter.writeFollowerPrivateState({
+            deploymentId,
+            cycleId: cycle.id,
+            subscriptionId: receipt.subscription_id,
+            followerVaultId: receipt.follower_vault_id,
+            followerWallet: sub?.follower_wallet ?? '',
+            payload: {
+              allocationAmount: receipt.allocation_amount,
+              allocationPctBps: receipt.allocation_pct_bps,
+              allocationMode: sub?.allocation_mode ?? null,
+            },
+          });
+          try {
+            return await this.receiptsRepository.updateStatus(receipt.id, {
+              status: fanoutResult.status,
+              privateStateRevision: fanoutResult.privateStateRevision,
+            });
+          } catch (err) {
+            this.logger.warn(
+              `Receipt status update failed for ${receipt.id}: ${err instanceof Error ? err.message : err}`,
+            );
+            return { ...receipt, status: fanoutResult.status };
+          }
+        }),
+      );
+
       const totalAllocated = allocations.reduce((acc, a) => acc + BigInt(a.allocationAmount), 0n);
+      const appliedCount = receipts.filter((r) => r.status === 'applied').length;
+      const failedCount = receipts.filter((r) => r.status === 'failed').length;
       const completed = await this.cyclesRepository.update(cycle.id, {
         status: 'completed',
         completedAt: new Date().toISOString(),
         metricsSummary: {
           followerCount: receipts.length,
+          appliedCount,
+          failedCount,
           totalAllocated: totalAllocated.toString(),
           notional: notional.toString(),
         },

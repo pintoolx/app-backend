@@ -82,6 +82,34 @@ export class FollowerExecutionReceiptsRepository {
     return (data ?? []) as unknown as FollowerExecutionReceiptRow[];
   }
 
+  async updateStatus(
+    id: string,
+    input: {
+      status: FollowerReceiptStatus;
+      privateStateRevision?: number | null;
+      payload?: Record<string, unknown>;
+    },
+  ): Promise<FollowerExecutionReceiptRow> {
+    const updates: Record<string, unknown> = { status: input.status };
+    if (input.privateStateRevision !== undefined) {
+      updates.private_state_revision = input.privateStateRevision;
+    }
+    if (input.payload !== undefined) {
+      updates.payload = input.payload;
+    }
+    const { data, error } = await this.supabaseService.client
+      .from('follower_execution_receipts')
+      .update(updates)
+      .eq('id', id)
+      .select(COLUMNS)
+      .single();
+    if (error || !data) {
+      this.logger.error('Failed to update execution receipt', error);
+      throw new InternalServerErrorException('Failed to update execution receipt');
+    }
+    return data as unknown as FollowerExecutionReceiptRow;
+  }
+
   async listLatestForSubscription(
     subscriptionId: string,
     limit = 10,

@@ -14,6 +14,7 @@ import {
 } from './subscriptions.repository';
 import { type FollowerVaultRow, type FollowerVaultsRepository } from './follower-vaults.repository';
 import { type StrategyDeploymentsRepository } from '../strategy-deployments/strategy-deployments.repository';
+import { type MagicBlockPerAdapterPort } from '../magicblock/magicblock.port';
 
 const DEPLOYMENT_ID = 'dep-1';
 const CREATOR = 'creator-wallet';
@@ -126,6 +127,26 @@ describe('PrivateExecutionCyclesService', () => {
       }),
     } as unknown as StrategyDeploymentsRepository;
 
+    const perAdapter: MagicBlockPerAdapterPort = {
+      createPermissionGroup: jest.fn(),
+      requestAuthChallenge: jest.fn(),
+      verifyAuthSignature: jest.fn(),
+      getPrivateState: jest.fn(),
+      writeFollowerPrivateState: jest.fn().mockResolvedValue({
+        signature: null,
+        privateStateRevision: 1,
+        status: 'applied',
+      }),
+    };
+
+    (receiptsRepo as unknown as { updateStatus: jest.Mock }).updateStatus = jest
+      .fn()
+      .mockImplementation(async (id: string, input: Record<string, unknown>) => ({
+        ...insertedReceipts.find((r) => r.id === id)!,
+        status: input.status,
+        private_state_revision: input.privateStateRevision ?? null,
+      }));
+
     const service = new PrivateExecutionCyclesService(
       cyclesRepo,
       receiptsRepo,
@@ -133,6 +154,7 @@ describe('PrivateExecutionCyclesService', () => {
       vaultsRepo,
       deploymentsRepo,
       new FollowerVaultAllocationsService(),
+      perAdapter,
     );
 
     const result = await service.startCycle(DEPLOYMENT_ID, CREATOR, {
@@ -142,12 +164,28 @@ describe('PrivateExecutionCyclesService', () => {
     });
 
     expect(result.cycle.status).toBe('completed');
-    expect((cyclesRepo.update as jest.Mock).mock.calls[0][1]).toEqual(
+    // Cycle metrics now report applied/failed counts coming back from PER.
+    const updateCalls = (cyclesRepo.update as jest.Mock).mock.calls;
+    const finalCall = updateCalls[updateCalls.length - 1][1] as {
+      metricsSummary: Record<string, unknown>;
+    };
+    expect(finalCall.metricsSummary).toEqual(
       expect.objectContaining({
-        status: 'completed',
-        metricsSummary: expect.objectContaining({ followerCount: 2 }),
+        followerCount: 2,
+        appliedCount: 2,
+        failedCount: 0,
       }),
     );
+    // PER fan-out invoked once per receipt with a sanitized payload only.
+    expect(
+      (perAdapter.writeFollowerPrivateState as jest.Mock).mock.calls.length,
+    ).toBe(2);
+    for (const [args] of (perAdapter.writeFollowerPrivateState as jest.Mock).mock
+      .calls as Array<[Record<string, unknown>]>) {
+      const payload = args.payload as Record<string, unknown>;
+      expect(Object.keys(payload)).not.toContain('signal');
+      expect(Object.keys(payload)).not.toContain('parameters');
+    }
 
     const inserts = (receiptsRepo.insertMany as jest.Mock).mock.calls[0][0] as Array<{
       subscriptionId: string;
@@ -190,6 +228,13 @@ describe('PrivateExecutionCyclesService', () => {
       listByCycle: jest.fn().mockResolvedValue([]),
       insertMany: jest.fn(),
     } as unknown as FollowerExecutionReceiptsRepository;
+    const idemPerAdapter: MagicBlockPerAdapterPort = {
+      createPermissionGroup: jest.fn(),
+      requestAuthChallenge: jest.fn(),
+      verifyAuthSignature: jest.fn(),
+      getPrivateState: jest.fn(),
+      writeFollowerPrivateState: jest.fn(),
+    };
     const service = new PrivateExecutionCyclesService(
       cyclesRepo,
       receiptsRepo,
@@ -202,11 +247,14 @@ describe('PrivateExecutionCyclesService', () => {
         }),
       } as unknown as StrategyDeploymentsRepository,
       new FollowerVaultAllocationsService(),
+      idemPerAdapter,
     );
     const result = await service.startCycle(DEPLOYMENT_ID, CREATOR, {
       triggerType: 'price',
       idempotencyKey: 'idem-1',
     });
+    // Idempotency replay must not call PER again.
+    expect(idemPerAdapter.writeFollowerPrivateState).not.toHaveBeenCalled();
     expect(result.cycle.id).toBe('cycle-existing');
     expect(cyclesRepo.insert).not.toHaveBeenCalled();
     expect(receiptsRepo.insertMany).not.toHaveBeenCalled();

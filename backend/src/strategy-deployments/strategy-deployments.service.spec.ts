@@ -166,6 +166,11 @@ const buildService = (overrides?: {
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     }),
     getPrivateState: jest.fn().mockResolvedValue({ state: null, logs: [] }),
+    writeFollowerPrivateState: jest.fn().mockResolvedValue({
+      signature: null,
+      privateStateRevision: null,
+      status: 'applied' as const,
+    }),
   };
 
   const pp: MagicBlockPrivatePaymentsAdapterPort = overrides?.pp ?? {
