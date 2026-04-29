@@ -33,9 +33,17 @@ const sub = (id: string, follower: string, capital: string): StrategySubscriptio
   max_drawdown_bps: null,
   per_member_ref: null,
   umbra_identity_ref: null,
+  provisioning_state: 'provisioning_complete',
+  provisioning_error: null,
+  lifecycle_drift: false,
+  subscription_pda_bump: null,
+  follower_vault_pda_bump: null,
+  vault_authority_pda_bump: null,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 });
+
+const noopStrategyOutputProvider = { getCycleOutput: jest.fn().mockResolvedValue(null) };
 
 const vault = (id: string, subId: string): FollowerVaultRow => ({
   id,
@@ -137,6 +145,7 @@ describe('PrivateExecutionCyclesService', () => {
         privateStateRevision: 1,
         status: 'applied',
       }),
+      readFollowerPrivateState: jest.fn(),
     };
 
     (receiptsRepo as unknown as { updateStatus: jest.Mock }).updateStatus = jest
@@ -155,6 +164,7 @@ describe('PrivateExecutionCyclesService', () => {
       deploymentsRepo,
       new FollowerVaultAllocationsService(),
       perAdapter,
+      noopStrategyOutputProvider,
     );
 
     const result = await service.startCycle(DEPLOYMENT_ID, CREATOR, {
@@ -234,6 +244,7 @@ describe('PrivateExecutionCyclesService', () => {
       verifyAuthSignature: jest.fn(),
       getPrivateState: jest.fn(),
       writeFollowerPrivateState: jest.fn(),
+      readFollowerPrivateState: jest.fn(),
     };
     const service = new PrivateExecutionCyclesService(
       cyclesRepo,
@@ -248,6 +259,7 @@ describe('PrivateExecutionCyclesService', () => {
       } as unknown as StrategyDeploymentsRepository,
       new FollowerVaultAllocationsService(),
       idemPerAdapter,
+      noopStrategyOutputProvider,
     );
     const result = await service.startCycle(DEPLOYMENT_ID, CREATOR, {
       triggerType: 'price',

@@ -77,6 +77,15 @@ export class FundIntentDto {
   amount!: string;
 }
 
+export class VerifySubscriptionChallengeDto {
+  @ApiProperty({
+    description:
+      'The challenge token previously returned by GET /per/auth/challenge for this subscription.',
+  })
+  @IsString()
+  challenge!: string;
+}
+
 export class CreateVisibilityGrantDto {
   @ApiProperty({ description: 'Wallet that should receive bounded visibility.' })
   @IsString()

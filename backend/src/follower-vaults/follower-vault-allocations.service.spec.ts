@@ -15,6 +15,12 @@ const baseSub = (overrides: Partial<StrategySubscriptionRow>): StrategySubscript
   max_drawdown_bps: null,
   per_member_ref: null,
   umbra_identity_ref: null,
+  provisioning_state: 'provisioning_complete',
+  provisioning_error: null,
+  lifecycle_drift: false,
+  subscription_pda_bump: null,
+  follower_vault_pda_bump: null,
+  vault_authority_pda_bump: null,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 });
@@ -67,16 +73,21 @@ describe('FollowerVaultAllocationsService', () => {
     }
   });
 
-  it('returns zero for fixed/mirror modes (placeholder)', () => {
+  it('fixed mode caps each follower to their max_capital', () => {
     const subs = [
       baseSub({ id: 's1', max_capital: '100', allocation_mode: 'fixed' }),
-      baseSub({ id: 's2', max_capital: '100', allocation_mode: 'mirror' }),
+      baseSub({ id: 's2', max_capital: '500', allocation_mode: 'fixed' }),
     ];
+    // Notional larger than max_capital for s1, smaller for s2.
+    const result = service.computeAllocations(service.fromRows(subs), 200n);
+    expect(result.find((r) => r.subscriptionId === 's1')?.allocationAmount).toBe('100');
+    expect(result.find((r) => r.subscriptionId === 's2')?.allocationAmount).toBe('200');
+  });
+
+  it('mirror mode requires a strategy output and returns zero without one', () => {
+    const subs = [baseSub({ id: 's1', max_capital: '100', allocation_mode: 'mirror' })];
     const result = service.computeAllocations(service.fromRows(subs), 1_000n);
-    for (const row of result) {
-      expect(row.allocationAmount).toBe('0');
-      expect(row.allocationPctBps).toBe(0);
-    }
+    expect(result[0].allocationAmount).toBe('0');
   });
 
   it('handles followers with no max_capital declared', () => {

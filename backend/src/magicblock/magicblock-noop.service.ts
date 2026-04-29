@@ -17,6 +17,8 @@ import {
   type PerCreateGroupResult,
   type PerPrivateStateParams,
   type PerPrivateStateResult,
+  type PerReadFollowerStateParams,
+  type PerReadFollowerStateResult,
   type PerWriteFollowerStateParams,
   type PerWriteFollowerStateResult,
   type PrivatePaymentsBalanceParams,
@@ -100,6 +102,17 @@ export class MagicBlockPerNoopAdapter implements MagicBlockPerAdapterPort {
     // Noop deliberately reports `applied` so the cycle scaffold can advance
     // receipt status under tests / dev environments without a live PER.
     return { signature: null, privateStateRevision: 1, status: 'applied' };
+  }
+
+  async readFollowerPrivateState(
+    params: PerReadFollowerStateParams,
+  ): Promise<PerReadFollowerStateResult> {
+    this.logger.debug(
+      `[noop] per.readFollowerPrivateState deployment=${params.deploymentId} subscription=${params.subscriptionId} vault=${params.followerVaultId}`,
+    );
+    // Noop returns an empty sanitized envelope so callers can exercise the
+    // controller / service plumbing without a live PER.
+    return { state: null, logs: [], privateStateRevision: null };
   }
 }
 

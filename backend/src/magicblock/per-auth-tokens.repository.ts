@@ -8,11 +8,25 @@ import { SupabaseService } from '../database/supabase.service';
 
 export type PerAuthTokenStatus = 'challenge' | 'active' | 'revoked';
 
+/**
+ * Phase-1 follower-vault privacy: PER tokens are now scoped either to the
+ * whole deployment (creator/operator/auditor) or to a single follower
+ * subscription (subscriber-self private-state read).
+ */
+export type PerAuthTokenScopeKind = 'deployment' | 'subscription';
+
 export interface PerAuthTokenRow {
   token: string;
   deployment_id: string;
   wallet: string;
   group_id: string | null;
+  /**
+   * Defaults to 'deployment' for legacy rows so guards keep behaving the
+   * same. New follower-self tokens explicitly set 'subscription' and bind a
+   * `subscription_id`.
+   */
+  scope_kind: PerAuthTokenScopeKind;
+  subscription_id: string | null;
   status: PerAuthTokenStatus;
   scopes: string[];
   issued_at: string;
@@ -27,6 +41,8 @@ export interface InsertChallengeInput {
   groupId: string | null;
   expiresAt: string;
   scopes?: string[];
+  scopeKind?: PerAuthTokenScopeKind;
+  subscriptionId?: string | null;
 }
 
 export interface InsertActiveInput {
@@ -36,10 +52,12 @@ export interface InsertActiveInput {
   groupId: string | null;
   expiresAt: string;
   scopes?: string[];
+  scopeKind?: PerAuthTokenScopeKind;
+  subscriptionId?: string | null;
 }
 
 const COLUMNS =
-  'token, deployment_id, wallet, group_id, status, scopes, issued_at, expires_at, revoked_at';
+  'token, deployment_id, wallet, group_id, scope_kind, subscription_id, status, scopes, issued_at, expires_at, revoked_at';
 
 @Injectable()
 export class PerAuthTokensRepository {
@@ -130,9 +148,34 @@ export class PerAuthTokensRepository {
     }
   }
 
+  /**
+   * Phase-1 hardening: revoke every still-live subscription-scoped token for
+   * a given subscription. Used when a follower transitions into
+   * `exiting`/`closed` so an issued PER token cannot keep reading state
+   * after the subscription ends.
+   */
+  async revokeAllForSubscription(subscriptionId: string): Promise<void> {
+    const { error } = await this.supabaseService.client
+      .from('per_auth_tokens')
+      .update({ status: 'revoked', revoked_at: new Date().toISOString() })
+      .eq('subscription_id', subscriptionId)
+      .neq('status', 'revoked');
+    if (error) {
+      this.logger.error('Failed to revoke subscription tokens', error);
+      throw new InternalServerErrorException('Failed to revoke subscription tokens');
+    }
+  }
+
   private async insertRow(
     payload: InsertChallengeInput & { status: PerAuthTokenStatus },
   ): Promise<PerAuthTokenRow> {
+    const scopeKind: PerAuthTokenScopeKind = payload.scopeKind ?? 'deployment';
+    const subscriptionId = scopeKind === 'subscription' ? payload.subscriptionId ?? null : null;
+    if (scopeKind === 'subscription' && !subscriptionId) {
+      throw new InternalServerErrorException(
+        'subscription-scoped PER token requires subscriptionId',
+      );
+    }
     const { data, error } = await this.supabaseService.client
       .from('per_auth_tokens')
       .insert({
@@ -140,6 +183,8 @@ export class PerAuthTokensRepository {
         deployment_id: payload.deploymentId,
         wallet: payload.wallet,
         group_id: payload.groupId,
+        scope_kind: scopeKind,
+        subscription_id: subscriptionId,
         status: payload.status,
         expires_at: payload.expiresAt,
         scopes: payload.scopes ?? [],

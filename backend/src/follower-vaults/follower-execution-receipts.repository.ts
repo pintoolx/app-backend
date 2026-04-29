@@ -1,7 +1,12 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 
-export type FollowerReceiptStatus = 'planned' | 'applied' | 'skipped' | 'failed';
+export type FollowerReceiptStatus =
+  | 'planned'
+  | 'applied'
+  | 'skipped'
+  | 'failed'
+  | 'superseded';
 
 export interface FollowerExecutionReceiptRow {
   id: string;
@@ -126,5 +131,24 @@ export class FollowerExecutionReceiptsRepository {
       throw new InternalServerErrorException('Failed to list execution receipts');
     }
     return (data ?? []) as unknown as FollowerExecutionReceiptRow[];
+  }
+
+  /**
+   * Phase-4 replan flow: mark every non-terminal receipt of a cycle as
+   * superseded so a new plan can be applied without losing audit trail.
+   * Returns the number of receipts touched.
+   */
+  async supersedeUnappliedForCycle(cycleId: string): Promise<number> {
+    const { data, error } = await this.supabaseService.client
+      .from('follower_execution_receipts')
+      .update({ status: 'superseded' })
+      .eq('cycle_id', cycleId)
+      .in('status', ['planned', 'failed'])
+      .select('id');
+    if (error) {
+      this.logger.error('Failed to supersede receipts', error);
+      throw new InternalServerErrorException('Failed to supersede receipts');
+    }
+    return (data ?? []).length;
   }
 }

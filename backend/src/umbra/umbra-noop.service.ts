@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import {
   type UmbraAdapterPort,
+  type UmbraClaimTransferParams,
+  type UmbraClaimTransferResult,
+  type UmbraCreateTransferIntentParams,
+  type UmbraCreateTransferIntentResult,
   type UmbraDepositParams,
   type UmbraEncryptedBalance,
   type UmbraEncryptedBalanceParams,
@@ -53,6 +57,27 @@ export class UmbraNoopAdapter implements UmbraAdapterPort {
 
   async transfer(params: UmbraTransferParams): Promise<UmbraTreasuryResult> {
     this.logger.debug(`[noop] umbra.transfer deployment=${params.deploymentId}`);
+    return { queueSignature: null, callbackSignature: null, status: 'pending' };
+  }
+
+  async createEncryptedTransferIntent(
+    params: UmbraCreateTransferIntentParams,
+  ): Promise<UmbraCreateTransferIntentResult> {
+    this.logger.debug(
+      `[noop] umbra.createEncryptedTransferIntent deployment=${params.deploymentId} amount=${params.amount}`,
+    );
+    return {
+      claimableUtxoRef: noopId('umbra-utxo'),
+      queueSignature: null,
+      callbackSignature: null,
+      status: 'pending',
+    };
+  }
+
+  async claimEncryptedTransfer(
+    params: UmbraClaimTransferParams,
+  ): Promise<UmbraClaimTransferResult> {
+    this.logger.debug(`[noop] umbra.claimEncryptedTransfer ref=${params.claimableUtxoRef}`);
     return { queueSignature: null, callbackSignature: null, status: 'pending' };
   }
 

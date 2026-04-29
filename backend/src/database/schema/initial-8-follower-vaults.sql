@@ -143,6 +143,17 @@ ALTER TABLE public.follower_vault_umbra_identities
   FOREIGN KEY (follower_vault_id)
   REFERENCES public.follower_vaults(id) ON DELETE CASCADE;
 
+-- Phase-1 follower-vault privacy: tie subscription-scoped PER tokens to the
+-- subscription they were issued for. The column lives in per_auth_tokens
+-- (declared in initial-5-per.sql) but the FK is wired here because
+-- strategy_subscriptions doesn't exist until this migration runs.
+ALTER TABLE public.per_auth_tokens
+  DROP CONSTRAINT IF EXISTS per_auth_tokens_subscription_fkey;
+ALTER TABLE public.per_auth_tokens
+  ADD CONSTRAINT per_auth_tokens_subscription_fkey
+  FOREIGN KEY (subscription_id)
+  REFERENCES public.strategy_subscriptions(id) ON DELETE CASCADE;
+
 -- 4. follower_visibility_grants ---------------------------------------------
 CREATE TABLE IF NOT EXISTS public.follower_visibility_grants (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

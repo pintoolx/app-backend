@@ -35,6 +35,8 @@ const activeRow: PerAuthTokenRow = {
   deployment_id: 'd1',
   wallet: 'w1',
   group_id: 'g1',
+  scope_kind: 'deployment',
+  subscription_id: null,
   status: 'active',
   scopes: ['per:read'],
   issued_at: '2026-01-01T00:00:00.000Z',
@@ -112,5 +114,48 @@ describe('PerAuthTokensRepository', () => {
     const repo = new PerAuthTokensRepository({ client } as unknown as SupabaseService);
     const res = await repo.promoteChallenge('tok', activeRow.expires_at);
     expect(res.status).toBe('active');
+  });
+
+  it('insertChallenge for subscription scope persists subscription_id and scope_kind', async () => {
+    const subRow: PerAuthTokenRow = {
+      ...activeRow,
+      status: 'challenge',
+      scope_kind: 'subscription',
+      subscription_id: 'sub-1',
+    };
+    const { client } = buildSupabaseClientStub({
+      insert: { data: subRow, error: null },
+    });
+    const repo = new PerAuthTokensRepository({ client } as unknown as SupabaseService);
+    const res = await repo.insertChallenge({
+      token: 'tok',
+      deploymentId: 'd1',
+      wallet: 'w1',
+      groupId: 'g1',
+      expiresAt: subRow.expires_at,
+      scopes: ['per:subscription-auth-challenge'],
+      scopeKind: 'subscription',
+      subscriptionId: 'sub-1',
+    });
+    expect(res.scope_kind).toBe('subscription');
+    expect(res.subscription_id).toBe('sub-1');
+  });
+
+  it('insertChallenge throws when scope_kind=subscription but no subscriptionId', async () => {
+    const { client } = buildSupabaseClientStub({
+      insert: { data: null, error: null },
+    });
+    const repo = new PerAuthTokensRepository({ client } as unknown as SupabaseService);
+    await expect(
+      repo.insertChallenge({
+        token: 'tok',
+        deploymentId: 'd1',
+        wallet: 'w1',
+        groupId: null,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        scopeKind: 'subscription',
+        subscriptionId: null,
+      }),
+    ).rejects.toThrow(/subscriptionId/);
   });
 });

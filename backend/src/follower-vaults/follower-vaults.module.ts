@@ -12,11 +12,14 @@ import { PrivateExecutionCyclesRepository } from './private-execution-cycles.rep
 import { FollowerExecutionReceiptsRepository } from './follower-execution-receipts.repository';
 import { FollowerVaultSignerService } from './follower-vault-signer.service';
 import { FollowerVaultAllocationsService } from './follower-vault-allocations.service';
+import { FollowerVisibilityPolicyService } from './follower-visibility-policy.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { MySubscriptionsController } from './my-subscriptions.controller';
 import { PrivateExecutionCyclesService } from './private-execution-cycles.service';
 import { PrivateExecutionCyclesController } from './private-execution-cycles.controller';
+import { PRIVATE_STRATEGY_OUTPUT_PROVIDER } from './private-cycle-strategy-output';
+import { NoopPrivateStrategyOutputProvider } from './noop-private-strategy-output.provider';
 
 /**
  * Native Privacy Phase 1 — follower-vault domain.
@@ -42,6 +45,12 @@ import { PrivateExecutionCyclesController } from './private-execution-cycles.con
     FollowerExecutionReceiptsRepository,
     FollowerVaultSignerService,
     FollowerVaultAllocationsService,
+    FollowerVisibilityPolicyService,
+    NoopPrivateStrategyOutputProvider,
+    {
+      provide: PRIVATE_STRATEGY_OUTPUT_PROVIDER,
+      useExisting: NoopPrivateStrategyOutputProvider,
+    },
     SubscriptionsService,
     PrivateExecutionCyclesService,
   ],

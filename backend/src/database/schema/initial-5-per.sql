@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS public.per_auth_tokens (
   deployment_id uuid NOT NULL,
   wallet text NOT NULL,
   group_id text,
+  -- Phase-1 follower-vault privacy: tokens may be scoped either to the
+  -- whole deployment (creator/operator/auditor PER access) or to a specific
+  -- follower subscription so a follower can only read self-scoped private
+  -- state. `scope_kind` distinguishes the two; `subscription_id` is set iff
+  -- scope_kind = 'subscription'.
+  scope_kind text NOT NULL DEFAULT 'deployment'
+    CHECK (scope_kind IN ('deployment', 'subscription')),
+  subscription_id uuid,
   status text NOT NULL DEFAULT 'challenge'
     CHECK (status IN ('challenge', 'active', 'revoked')),
   scopes jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -41,7 +49,16 @@ CREATE TABLE IF NOT EXISTS public.per_auth_tokens (
   revoked_at timestamp with time zone,
   CONSTRAINT per_auth_tokens_pkey PRIMARY KEY (token),
   CONSTRAINT per_auth_tokens_deployment_fkey FOREIGN KEY (deployment_id)
-    REFERENCES public.strategy_deployments(id) ON DELETE CASCADE
+    REFERENCES public.strategy_deployments(id) ON DELETE CASCADE,
+  -- Subscription FK is added in initial-8-follower-vaults.sql once
+  -- strategy_subscriptions exists. We declare the column here so legacy
+  -- bootstrap order still works.
+  CONSTRAINT per_auth_tokens_subscription_scope_chk
+    CHECK (
+      (scope_kind = 'deployment' AND subscription_id IS NULL)
+      OR
+      (scope_kind = 'subscription' AND subscription_id IS NOT NULL)
+    )
 );
 CREATE INDEX IF NOT EXISTS per_auth_tokens_deployment_idx
   ON public.per_auth_tokens(deployment_id);
@@ -49,6 +66,9 @@ CREATE INDEX IF NOT EXISTS per_auth_tokens_wallet_idx
   ON public.per_auth_tokens(wallet);
 CREATE INDEX IF NOT EXISTS per_auth_tokens_status_idx
   ON public.per_auth_tokens(status);
+CREATE INDEX IF NOT EXISTS per_auth_tokens_subscription_idx
+  ON public.per_auth_tokens(deployment_id, subscription_id)
+  WHERE subscription_id IS NOT NULL;
 
 -- 3. strategy_deployments columns for endpoint tracking. The session ids
 --    already exist (er_session_id, per_session_id) — we add the resolved

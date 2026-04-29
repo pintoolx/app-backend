@@ -98,11 +98,71 @@ export interface UmbraGrantResult {
   payload: Record<string, unknown>;
 }
 
+// ---------------- Phase-5: claimable-UTXO transfer model ------------------
+//
+// `@umbra-privacy/sdk@4.0.0` does not expose a synchronous `transfer()` -
+// confidential value movement uses the claimable-UTXO model:
+//
+//   1. sender calls `getEncryptedBalanceToReceiverClaimableUtxoCreatorFunction`
+//      to publish a claimable UTXO -> we model that as
+//      `createEncryptedTransferIntent`.
+//   2. recipient (or a server-side relayer holding the recipient signer)
+//      claims the UTXO via the SDK's claim flow -> modelled as
+//      `claimEncryptedTransfer`.
+//
+// The legacy single-shot `transfer()` is kept as a deprecated alias for
+// callers that have not migrated.
+
+export interface UmbraCreateTransferIntentParams {
+  deploymentId: string;
+  /** Sender side signer (HKDF-derived per-vault keypair). */
+  fromSigner: UmbraSignerOverride;
+  /** Recipient public key in base58. */
+  toRecipientPubkey: string;
+  mint: string;
+  amount: string;
+}
+
+export interface UmbraCreateTransferIntentResult {
+  /**
+   * Reference to the published claimable UTXO. The shape is opaque to the
+   * platform (the SDK owns the schema); the platform only stores it so the
+   * recipient can later present it to `claimEncryptedTransfer`.
+   */
+  claimableUtxoRef: string | null;
+  queueSignature: string | null;
+  callbackSignature: string | null;
+  status: 'pending' | 'confirmed' | 'failed';
+}
+
+export interface UmbraClaimTransferParams {
+  /** Returned previously by createEncryptedTransferIntent. */
+  claimableUtxoRef: string;
+  /** Recipient signer that will execute the SDK claim flow. */
+  recipientSigner: UmbraSignerOverride;
+}
+
+export interface UmbraClaimTransferResult {
+  queueSignature: string | null;
+  callbackSignature: string | null;
+  status: 'pending' | 'confirmed' | 'failed';
+}
+
 export interface UmbraAdapterPort {
   registerEncryptedUserAccount(params: UmbraRegisterParams): Promise<UmbraRegisterResult>;
   deposit(params: UmbraDepositParams): Promise<UmbraTreasuryResult>;
   withdraw(params: UmbraWithdrawParams): Promise<UmbraTreasuryResult>;
+  /**
+   * @deprecated SDK 4.0 does not support synchronous transfer. Use
+   * `createEncryptedTransferIntent` + `claimEncryptedTransfer` for new code.
+   * The legacy `transfer()` always returns a failed status to surface the
+   * deprecation to callers that still depend on it.
+   */
   transfer(params: UmbraTransferParams): Promise<UmbraTreasuryResult>;
+  createEncryptedTransferIntent(
+    params: UmbraCreateTransferIntentParams,
+  ): Promise<UmbraCreateTransferIntentResult>;
+  claimEncryptedTransfer(params: UmbraClaimTransferParams): Promise<UmbraClaimTransferResult>;
   getEncryptedBalance(params: UmbraEncryptedBalanceParams): Promise<UmbraEncryptedBalance>;
   grantViewer(params: UmbraGrantViewerParams): Promise<UmbraGrantResult>;
 }

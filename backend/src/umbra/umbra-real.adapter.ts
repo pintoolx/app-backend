@@ -8,6 +8,10 @@ import {
 } from '@umbra-privacy/sdk';
 import {
   type UmbraAdapterPort,
+  type UmbraClaimTransferParams,
+  type UmbraClaimTransferResult,
+  type UmbraCreateTransferIntentParams,
+  type UmbraCreateTransferIntentResult,
   type UmbraDepositParams,
   type UmbraEncryptedBalance,
   type UmbraEncryptedBalanceParams,
@@ -175,7 +179,34 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
 
   async transfer(params: UmbraTransferParams): Promise<UmbraTreasuryResult> {
     this.logger.warn(
-      `umbra.transfer not implemented (requires ZK prover). deployment=${params.deploymentId}`,
+      `umbra.transfer is deprecated; SDK 4.0 uses claimable UTXO. deployment=${params.deploymentId}`,
+    );
+    return { queueSignature: null, callbackSignature: null, status: 'failed' };
+  }
+
+  async createEncryptedTransferIntent(
+    params: UmbraCreateTransferIntentParams,
+  ): Promise<UmbraCreateTransferIntentResult> {
+    // Phase-5 step 0 (spike): the SDK exposes
+    // `getEncryptedBalanceToReceiverClaimableUtxoCreatorFunction` for this.
+    // We surface a failed status until the spike (see
+    // docs/privacy/umbra-transfer-spike.md) confirms the exact arg shape.
+    this.logger.warn(
+      `umbra.createEncryptedTransferIntent not yet wired to SDK; deployment=${params.deploymentId} amount=${params.amount}`,
+    );
+    return {
+      claimableUtxoRef: null,
+      queueSignature: null,
+      callbackSignature: null,
+      status: 'failed',
+    };
+  }
+
+  async claimEncryptedTransfer(
+    params: UmbraClaimTransferParams,
+  ): Promise<UmbraClaimTransferResult> {
+    this.logger.warn(
+      `umbra.claimEncryptedTransfer not yet wired to SDK; ref=${params.claimableUtxoRef}`,
     );
     return { queueSignature: null, callbackSignature: null, status: 'failed' };
   }

@@ -17,6 +17,8 @@ import {
   type PerCreateGroupResult,
   type PerPrivateStateParams,
   type PerPrivateStateResult,
+  type PerReadFollowerStateParams,
+  type PerReadFollowerStateResult,
   type PerWriteFollowerStateParams,
   type PerWriteFollowerStateResult,
 } from './magicblock.port';
@@ -203,6 +205,42 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
       state: remote?.state ?? null,
       logs: Array.isArray(remote?.logs) ? remote!.logs : [],
     };
+  }
+
+  /**
+   * Read sanitized follower-private state for a single subscription. Used
+   * by the follower self-visibility endpoint after subscription-scoped PER
+   * auth has issued a token. Failures degrade to an empty envelope so a
+   * temporary PER outage doesn't leak deployment-wide state through a
+   * caller-visible error.
+   */
+  async readFollowerPrivateState(
+    params: PerReadFollowerStateParams,
+  ): Promise<PerReadFollowerStateResult> {
+    try {
+      const remote = await this.perClient.get<{
+        state?: Record<string, unknown> | null;
+        logs?: Array<Record<string, unknown>>;
+        privateStateRevision?: number;
+      }>('/v1/private-state/follower', {
+        deploymentId: params.deploymentId,
+        subscriptionId: params.subscriptionId,
+        followerVaultId: params.followerVaultId,
+        followerWallet: params.followerWallet,
+      });
+      return {
+        state: remote?.state ?? null,
+        logs: Array.isArray(remote?.logs) ? remote!.logs : [],
+        privateStateRevision: remote?.privateStateRevision ?? null,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `per.readFollowerPrivateState failed for vault=${params.followerVaultId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return { state: null, logs: [], privateStateRevision: null };
+    }
   }
 
   /**

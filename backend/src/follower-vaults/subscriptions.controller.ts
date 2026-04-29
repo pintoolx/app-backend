@@ -7,17 +7,22 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { PerAuthGuard, assertSubscriptionScope } from '../magicblock/per-auth.guard';
+import type { PerAuthTokenRow } from '../magicblock/per-auth-tokens.repository';
 import { SubscriptionsService } from './subscriptions.service';
 import {
   CreateSubscriptionDto,
   CreateVisibilityGrantDto,
   FundIntentDto,
   ShieldFundsDto,
+  VerifySubscriptionChallengeDto,
 } from './dto/subscription.dto';
 
 @ApiTags('Follower Vaults — Subscriptions')
@@ -185,6 +190,25 @@ export class SubscriptionsController {
     return { success: true, data };
   }
 
+  @Post(':subscriptionId/resume-provisioning')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Phase-2: resume an interrupted on-chain provisioning flow. Picks up from the last successful state machine step.',
+  })
+  async resumeProvisioning(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.subscriptionsService.resumeSubscriptionProvisioning(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+    );
+    return { success: true, data };
+  }
+
   @Get(':subscriptionId/private-balance')
   @ApiOperation({
     summary:
@@ -201,6 +225,69 @@ export class SubscriptionsController {
       subscriptionId,
       walletAddress,
       { mint },
+    );
+    return { success: true, data };
+  }
+
+  // ------------------------------ Phase-1 follower-self PER auth & state
+
+  @Get(':subscriptionId/per/auth/challenge')
+  @ApiOperation({
+    summary:
+      'Issue a subscription-scoped PER auth challenge bound to the authenticated follower wallet.',
+  })
+  async perAuthChallenge(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.subscriptionsService.issueSubscriptionChallenge(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+    );
+    return { success: true, data };
+  }
+
+  @Post(':subscriptionId/per/auth/verify')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Verify a subscription-scoped PER challenge and return an active follower-self PER token.',
+  })
+  async perAuthVerify(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: VerifySubscriptionChallengeDto,
+  ) {
+    const data = await this.subscriptionsService.verifySubscriptionChallenge(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      dto.challenge,
+    );
+    return { success: true, data };
+  }
+
+  @Get(':subscriptionId/private-state')
+  @UseGuards(PerAuthGuard)
+  @ApiOperation({
+    summary:
+      'Read sanitized follower-private state. Requires a subscription-scoped PER token in Authorization or X-PER-Token.',
+  })
+  async privateState(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Req() req: Request & { perToken?: PerAuthTokenRow },
+  ) {
+    assertSubscriptionScope(req.perToken, subscriptionId);
+    const data = await this.subscriptionsService.getFollowerPrivateState(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      req.perToken,
     );
     return { success: true, data };
   }

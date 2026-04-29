@@ -19,7 +19,11 @@ import { KeeperKeypairService } from './keeper-keypair.service';
 @Module({
   imports: [DatabaseModule],
   providers: [
-    NoopOnchainAdapter,
+    {
+      provide: NoopOnchainAdapter,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => new NoopOnchainAdapter(config),
+    },
     KeeperKeypairService,
     AnchorClientService,
     AnchorOnchainAdapterService,

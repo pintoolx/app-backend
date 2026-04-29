@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 
-export type PrivateExecutionCycleStatus = 'accepted' | 'running' | 'completed' | 'failed';
+export type PrivateExecutionCycleStatus =
+  | 'accepted'
+  | 'running'
+  | 'completed'
+  | 'partial'
+  | 'failed';
 
 export interface PrivateExecutionCycleRow {
   id: string;

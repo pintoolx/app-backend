@@ -33,6 +33,12 @@ const makeSub = (status: StrategySubscriptionRow['status']): StrategySubscriptio
   max_drawdown_bps: null,
   per_member_ref: null,
   umbra_identity_ref: null,
+  provisioning_state: 'provisioning_complete',
+  provisioning_error: null,
+  lifecycle_drift: false,
+  subscription_pda_bump: null,
+  follower_vault_pda_bump: null,
+  vault_authority_pda_bump: null,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 });

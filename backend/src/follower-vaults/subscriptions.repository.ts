@@ -11,6 +11,15 @@ export type SubscriptionStatus = 'pending_funding' | 'active' | 'paused' | 'exit
 
 export type AllocationMode = 'proportional' | 'fixed' | 'mirror';
 
+export type SubscriptionProvisioningState =
+  | 'db_inserted'
+  | 'subscription_initialized'
+  | 'vault_initialized'
+  | 'vault_authority_initialized'
+  | 'provisioning_complete'
+  | 'provisioning_failed'
+  | 'legacy_placeholder';
+
 export interface StrategySubscriptionRow {
   id: string;
   deployment_id: string;
@@ -25,6 +34,12 @@ export interface StrategySubscriptionRow {
   max_drawdown_bps: number | null;
   per_member_ref: string | null;
   umbra_identity_ref: string | null;
+  provisioning_state: SubscriptionProvisioningState;
+  provisioning_error: string | null;
+  lifecycle_drift: boolean;
+  subscription_pda_bump: number | null;
+  follower_vault_pda_bump: number | null;
+  vault_authority_pda_bump: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +56,10 @@ export interface InsertSubscriptionInput {
   allocationMode?: AllocationMode;
   maxDrawdownBps?: number | null;
   perMemberRef?: string | null;
+  provisioningState?: SubscriptionProvisioningState;
+  subscriptionPdaBump?: number | null;
+  followerVaultPdaBump?: number | null;
+  vaultAuthorityPdaBump?: number | null;
 }
 
 export interface UpdateSubscriptionInput {
@@ -54,6 +73,12 @@ export interface UpdateSubscriptionInput {
   subscriptionPda?: string | null;
   followerVaultPda?: string | null;
   vaultAuthorityPda?: string | null;
+  provisioningState?: SubscriptionProvisioningState;
+  provisioningError?: string | null;
+  lifecycleDrift?: boolean;
+  subscriptionPdaBump?: number | null;
+  followerVaultPdaBump?: number | null;
+  vaultAuthorityPdaBump?: number | null;
 }
 
 const COLUMNS = [
@@ -70,6 +95,12 @@ const COLUMNS = [
   'max_drawdown_bps',
   'per_member_ref',
   'umbra_identity_ref',
+  'provisioning_state',
+  'provisioning_error',
+  'lifecycle_drift',
+  'subscription_pda_bump',
+  'follower_vault_pda_bump',
+  'vault_authority_pda_bump',
   'created_at',
   'updated_at',
 ].join(', ');
@@ -93,6 +124,18 @@ export class StrategySubscriptionsRepository {
       max_drawdown_bps: input.maxDrawdownBps ?? null,
       per_member_ref: input.perMemberRef ?? null,
     };
+    if (input.provisioningState !== undefined) {
+      payload.provisioning_state = input.provisioningState;
+    }
+    if (input.subscriptionPdaBump !== undefined) {
+      payload.subscription_pda_bump = input.subscriptionPdaBump;
+    }
+    if (input.followerVaultPdaBump !== undefined) {
+      payload.follower_vault_pda_bump = input.followerVaultPdaBump;
+    }
+    if (input.vaultAuthorityPdaBump !== undefined) {
+      payload.vault_authority_pda_bump = input.vaultAuthorityPdaBump;
+    }
     if (input.id) payload.id = input.id;
 
     const { data, error } = await this.supabaseService.client
@@ -203,6 +246,17 @@ export class StrategySubscriptionsRepository {
     if (input.followerVaultPda !== undefined) updates.follower_vault_pda = input.followerVaultPda;
     if (input.vaultAuthorityPda !== undefined)
       updates.vault_authority_pda = input.vaultAuthorityPda;
+    if (input.provisioningState !== undefined)
+      updates.provisioning_state = input.provisioningState;
+    if (input.provisioningError !== undefined)
+      updates.provisioning_error = input.provisioningError;
+    if (input.lifecycleDrift !== undefined) updates.lifecycle_drift = input.lifecycleDrift;
+    if (input.subscriptionPdaBump !== undefined)
+      updates.subscription_pda_bump = input.subscriptionPdaBump;
+    if (input.followerVaultPdaBump !== undefined)
+      updates.follower_vault_pda_bump = input.followerVaultPdaBump;
+    if (input.vaultAuthorityPdaBump !== undefined)
+      updates.vault_authority_pda_bump = input.vaultAuthorityPdaBump;
 
     const { data, error } = await this.supabaseService.client
       .from('strategy_subscriptions')

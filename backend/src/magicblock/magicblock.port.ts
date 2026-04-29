@@ -116,6 +116,28 @@ export interface PerWriteFollowerStateResult {
   status: 'applied' | 'skipped' | 'failed';
 }
 
+/**
+ * Phase-1 follower self-visibility: read sanitized follower-private state
+ * from PER for a single subscription. The adapter MUST refuse to disclose
+ * deployment-wide blobs through this surface; callers (the follower
+ * subscription service) only ever pass a subscription scope.
+ */
+export interface PerReadFollowerStateParams {
+  deploymentId: string;
+  subscriptionId: string;
+  followerVaultId: string;
+  followerWallet: string;
+}
+
+export interface PerReadFollowerStateResult {
+  /** Sanitized follower-private state — never includes strategy parameters. */
+  state: Record<string, unknown> | null;
+  /** Sanitized log entries scoped to this follower vault. */
+  logs: Array<Record<string, unknown>>;
+  /** Latest known PER private-state revision for this follower vault. */
+  privateStateRevision: number | null;
+}
+
 export interface MagicBlockPerAdapterPort {
   createPermissionGroup(params: PerCreateGroupParams): Promise<PerCreateGroupResult>;
   requestAuthChallenge(params: PerAuthChallengeParams): Promise<PerAuthChallenge>;
@@ -124,6 +146,9 @@ export interface MagicBlockPerAdapterPort {
   writeFollowerPrivateState(
     params: PerWriteFollowerStateParams,
   ): Promise<PerWriteFollowerStateResult>;
+  readFollowerPrivateState(
+    params: PerReadFollowerStateParams,
+  ): Promise<PerReadFollowerStateResult>;
 }
 
 // ---------- Private Payments API ----------

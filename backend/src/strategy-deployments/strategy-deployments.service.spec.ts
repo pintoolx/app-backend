@@ -171,6 +171,11 @@ const buildService = (overrides?: {
       privateStateRevision: null,
       status: 'applied' as const,
     }),
+    readFollowerPrivateState: jest.fn().mockResolvedValue({
+      state: null,
+      logs: [],
+      privateStateRevision: null,
+    }),
   };
 
   const pp: MagicBlockPrivatePaymentsAdapterPort = overrides?.pp ?? {
@@ -250,6 +255,15 @@ const buildService = (overrides?: {
       .fn()
       .mockResolvedValue({ queueSignature: null, callbackSignature: null, status: 'pending' }),
     transfer: jest
+      .fn()
+      .mockResolvedValue({ queueSignature: null, callbackSignature: null, status: 'pending' }),
+    createEncryptedTransferIntent: jest.fn().mockResolvedValue({
+      claimableUtxoRef: null,
+      queueSignature: null,
+      callbackSignature: null,
+      status: 'pending',
+    }),
+    claimEncryptedTransfer: jest
       .fn()
       .mockResolvedValue({ queueSignature: null, callbackSignature: null, status: 'pending' }),
     getEncryptedBalance: jest
@@ -344,6 +358,8 @@ describe('StrategyDeploymentsService', () => {
       deposit: jest.fn(),
       withdraw: jest.fn(),
       transfer: jest.fn(),
+      createEncryptedTransferIntent: jest.fn(),
+      claimEncryptedTransfer: jest.fn(),
       getEncryptedBalance: jest.fn(),
       grantViewer: jest.fn(),
     };
