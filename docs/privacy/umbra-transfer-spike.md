@@ -1,12 +1,17 @@
 # Umbra Transfer Spike — Claimable UTXO Model
 
-Status: **resolved**. Phase 5 has wired both `createEncryptedTransferIntent`
-and `claimEncryptedTransfer` against the real SDK functions, behind a
-`UMBRA_TRANSFER_ENABLED` feature flag plus a pluggable
-`UmbraZkProverProviderPort` (zkProver suite + relayer). What's left is the
-production concern of loading actual Groth16 circuits and pointing at the
-Umbra-hosted relayer URL — explicitly listed below as deployment
-prerequisites, not engineering work.
+Status: **fully resolved + production zkProver wired**. Phase 5 has wired
+both `createEncryptedTransferIntent` and `claimEncryptedTransfer` against
+the real SDK functions, plus the production zkProver provider via
+`@umbra-privacy/web-zk-prover` (CDN-hosted Groth16 circuits — no need to
+self-host artefacts). Activation is now a pure-env decision (no further
+code required):
+
+```
+UMBRA_ENABLED=true
+UMBRA_TRANSFER_ENABLED=true
+UMBRA_RELAYER_ENDPOINT=https://relayer.api.umbraprivacy.com
+```
 
 This doc tracks what we learned about the
 `@umbra-privacy/sdk@4.0.0` confidential-transfer surface during the spike
@@ -59,17 +64,26 @@ The `transfer()` method is therefore deprecated; new code uses the
    claim path uses `clientService.withSigner(recipientSecret, …)` so the
    recipient signer is mounted only for the duration of the SDK call.
 5. **Prover / relayer dependencies**.
-   ✅ **Resolved.** `IUmbraClient` does NOT auto-attach a `zkProverSuite`
-   or relayer — the SDK ships factory plumbing only. Two new prerequisites
-   on production deployments:
-     - **`UMBRA_RELAYER_ENDPOINT`** env var → constructed into an
-       `IUmbraRelayer` via `getUmbraRelayer({ apiEndpoint })`.
-     - A real `UmbraZkProverProviderPort` implementation that loads
-       Groth16 zkey + WASM circuits for `ReceiverClaimableUtxo` and
-       `ClaimReceiverClaimableUtxo` (4 batch-size variants, 1–4 UTXOs
-       per proof). The default `NoopUmbraZkProverProvider` returns
-       `null` so the surface short-circuits cleanly until the real
-       provider lands.
+   ✅ **Resolved.** Confirmed via
+   <https://sdk.umbraprivacy.com/sdk/advanced/zk-provers>:
+     - **Relayer**: built via `getUmbraRelayer({ apiEndpoint })`. Umbra
+       runs the production relayer at
+       `https://relayer.api.umbraprivacy.com`.
+     - **zkProver**: Umbra ships the official
+       `@umbra-privacy/web-zk-prover` package which wraps `snarkjs` and
+       (by default) fetches every `.zkey` / `.wasm` artefact from
+       Umbra's CDN. No need to self-host circuits. The package exposes
+       factory functions for all 6 provers, e.g.
+       `getCreateReceiverClaimableUtxoFromEncryptedBalanceProver()`
+       and `getClaimReceiverClaimableUtxoIntoEncryptedBalanceProver()`.
+     - **Wiring**: `WebZkProverProvider`
+       (`backend/src/umbra/web-zk-prover.provider.ts`) is selected by
+       `umbra.module.ts` whenever `UMBRA_TRANSFER_ENABLED=true`, falling
+       back to `NoopUmbraZkProverProvider` otherwise.
+     - **Note on batch sizes**: the SDK actually exposes 16 distinct
+       claim circuits (1–16 UTXOs per proof), not 4 as an earlier
+       reading of the typings suggested. The CDN provider serves all
+       16 transparently.
 
 ## Surprise findings (worth flagging)
 
@@ -86,20 +100,29 @@ The `transfer()` method is therefore deprecated; new code uses the
   the batch result into a single `pending|confirmed|failed` status but
   also exposes `claimedCount` so callers can detect partial-batch state.
 
-## Configuration prerequisites for production
+## Configuration for production
 
-Set these env vars on a deployment that wants real confidential transfer:
+The entire surface is **env-driven**. There is no code work left to
+activate confidential transfer in production:
 
 ```
-UMBRA_ENABLED=true               # already used by deposit / withdraw / register
-UMBRA_TRANSFER_ENABLED=true      # gates createEncryptedTransferIntent / claimEncryptedTransfer
-UMBRA_RELAYER_ENDPOINT=...       # e.g. https://relayer.umbra.finance
+UMBRA_ENABLED=true               # deposit / withdraw / register surface
+UMBRA_TRANSFER_ENABLED=true      # selects WebZkProverProvider for transfers
+UMBRA_RELAYER_ENDPOINT=https://relayer.api.umbraprivacy.com
 ```
 
-Then register a real `UmbraZkProverProviderPort` implementation in place
-of `NoopUmbraZkProverProvider` (`backend/src/umbra/umbra.module.ts`) — it
-should load the Groth16 circuit artifacts (zkey + WASM) for the two
-flows we wire today and return them inside `getZkProverSuite()`.
+`umbra.module.ts` automatically swaps in `WebZkProverProvider` when
+`UMBRA_TRANSFER_ENABLED=true` (no manual provider registration needed).
+That provider lazily imports `@umbra-privacy/web-zk-prover`, builds
+`getCreateReceiverClaimableUtxoFromEncryptedBalanceProver()` +
+`getClaimReceiverClaimableUtxoIntoEncryptedBalanceProver()`, and uses
+the SDK's default CDN asset provider so circuit artefacts are fetched
+on demand. No artefact deployment, no extra Docker image layers, no
+self-hosted prover service.
+
+If you want to self-host circuits later (e.g. air-gapped environments),
+pass a custom `IZkAssetProvider` to the factories — see
+<https://sdk.umbraprivacy.com/sdk/advanced/zk-provers>.
 
 ## Settlement flow (target shape)
 

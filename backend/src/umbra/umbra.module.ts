@@ -6,8 +6,12 @@ import { UmbraNoopAdapter } from './umbra-noop.service';
 import { UmbraDeploymentSignerService } from './umbra-deployment-signer.service';
 import { UmbraRealAdapter } from './umbra-real.adapter';
 import { UmbraClientService } from './umbra-client.service';
-import { UMBRA_ZK_PROVER_PROVIDER } from './umbra-zk-prover.port';
+import {
+  UMBRA_ZK_PROVER_PROVIDER,
+  type UmbraZkProverProviderPort,
+} from './umbra-zk-prover.port';
 import { NoopUmbraZkProverProvider } from './noop-umbra-zk-prover.provider';
+import { WebZkProverProvider } from './web-zk-prover.provider';
 import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
 
 /**
@@ -28,9 +32,28 @@ import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
     UmbraDeploymentSignerService,
     UmbraClientService,
     NoopUmbraZkProverProvider,
+    WebZkProverProvider,
     {
       provide: UMBRA_ZK_PROVER_PROVIDER,
-      useExisting: NoopUmbraZkProverProvider,
+      inject: [ConfigService, WebZkProverProvider, NoopUmbraZkProverProvider],
+      useFactory: (
+        config: ConfigService,
+        web: WebZkProverProvider,
+        noop: NoopUmbraZkProverProvider,
+      ): UmbraZkProverProviderPort => {
+        const logger = new Logger('UmbraModule');
+        const transferEnabled = config.get<string>('UMBRA_TRANSFER_ENABLED') === 'true';
+        if (transferEnabled) {
+          logger.log(
+            'UMBRA_TRANSFER_ENABLED=true; using WebZkProverProvider (web-zk-prover, CDN circuits).',
+          );
+          return web;
+        }
+        logger.log(
+          'UMBRA_TRANSFER_ENABLED not set; using NoopUmbraZkProverProvider (transfer surface short-circuits).',
+        );
+        return noop;
+      },
     },
     UmbraRealAdapter,
     KeeperKeypairService,
