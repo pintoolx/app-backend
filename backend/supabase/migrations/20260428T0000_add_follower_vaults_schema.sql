@@ -1,25 +1,7 @@
--- Native Privacy Phase 1 — Follower Vault domain model
--- Reference:
---   docs/privacy/NATIVE_PRIVACY_IMPLEMENTATION_PLAN.md §9
---   docs/privacy/FOLLOWER_VAULT_PRIVACY_ARCHITECTURE.md §10–§12
---
--- The companion versioned migration lives at
--- `supabase/migrations/20260428T0000_add_follower_vaults_schema.sql`. Keep
--- the two files in sync.
---
--- Adds the off-chain backing schema for:
---   - strategy_subscriptions       (one row per (deployment, follower))
---   - follower_vaults              (one row per subscription, holds vault PDAs)
---   - follower_vault_umbra_identities (per-vault Umbra signer identity refs;
---                                      stores PUBLIC fields + HKDF salt only —
---                                      never the secret material)
---   - follower_visibility_grants   (advisory grant ledger)
---   - private_execution_cycles     (orchestration scaffold; one row per cycle)
---   - follower_execution_receipts  (sanitized per-follower outcome of a cycle)
---
--- Anchor program PDAs for these entities arrive in a follow-up phase. Until
--- then *_pda columns hold deterministic placeholder strings produced by the
--- backend. They are nullable so Phase-2 Anchor accounts can backfill them.
+-- Native Privacy Phase 1 — Follower Vault domain model (versioned migration)
+-- Mirrors src/database/schema/initial-8-follower-vaults.sql and additionally
+-- installs the shared `set_updated_at()` BEFORE-UPDATE trigger so external
+-- SQL paths cannot leave updated_at stale.
 
 -- 0. shared updated_at trigger function -------------------------------------
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -33,17 +15,12 @@ END;
 $$;
 
 -- 1. follower_vault_umbra_identities ----------------------------------------
--- Stored before strategy_subscriptions to allow FK resolution when the
--- subscription row references its identity.
 CREATE TABLE IF NOT EXISTS public.follower_vault_umbra_identities (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   follower_vault_id uuid NOT NULL,
   signer_pubkey text NOT NULL,
   x25519_public_key text,
   encrypted_user_account text,
-  -- Hex-encoded HKDF salt. The keeper master key is never persisted; the
-  -- per-vault Ed25519 signer is recomputed at sign time from
-  -- HKDF(keeperSecret, salt=derivation_salt, info='follower-vault-umbra-v1').
   derivation_salt text NOT NULL,
   mvk_ref text,
   registration_status text
@@ -135,7 +112,6 @@ CREATE TRIGGER follower_vaults_set_updated_at
   BEFORE UPDATE ON public.follower_vaults
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- Now that follower_vaults exists we can wire the umbra-identity FK back.
 ALTER TABLE public.follower_vault_umbra_identities
   DROP CONSTRAINT IF EXISTS follower_vault_umbra_identities_vault_fkey;
 ALTER TABLE public.follower_vault_umbra_identities
@@ -217,8 +193,6 @@ CREATE TABLE IF NOT EXISTS public.follower_execution_receipts (
   private_state_revision integer,
   status text NOT NULL DEFAULT 'planned'
     CHECK (status IN ('planned', 'applied', 'skipped', 'failed')),
-  -- Sanitized payload only. Must NOT contain raw signal inputs, parameter
-  -- values, or full trade decisions. See architecture §13.
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT follower_execution_receipts_pkey PRIMARY KEY (id),

@@ -50,6 +50,19 @@ export class SubscriptionsController {
     return { success: true, data };
   }
 
+  @Get()
+  @ApiOperation({
+    summary:
+      'List every follower subscription attached to this deployment. Creator-only.',
+  })
+  async listForDeployment(
+    @Param('deploymentId') deploymentId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.subscriptionsService.listForDeployment(deploymentId, walletAddress);
+    return { success: true, count: data.length, data };
+  }
+
   @Get(':subscriptionId')
   @ApiOperation({ summary: 'Public lifecycle view for a single follower subscription' })
   async getSubscription(
@@ -227,6 +240,23 @@ export class SubscriptionsController {
       walletAddress,
     );
     return { success: true, count: data.length, data };
+  }
+
+  @Get(':subscriptionId/visibility-grants/:grantId')
+  @ApiOperation({ summary: 'Read a single visibility grant for this subscription' })
+  async getGrant(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @Param('grantId') grantId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.subscriptionsService.getGrant(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      grantId,
+    );
+    return { success: true, data };
   }
 
   @Delete(':subscriptionId/visibility-grants/:grantId')

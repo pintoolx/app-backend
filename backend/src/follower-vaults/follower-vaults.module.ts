@@ -14,6 +14,7 @@ import { FollowerVaultSignerService } from './follower-vault-signer.service';
 import { FollowerVaultAllocationsService } from './follower-vault-allocations.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
+import { MySubscriptionsController } from './my-subscriptions.controller';
 import { PrivateExecutionCyclesService } from './private-execution-cycles.service';
 import { PrivateExecutionCyclesController } from './private-execution-cycles.controller';
 
@@ -27,7 +28,11 @@ import { PrivateExecutionCyclesController } from './private-execution-cycles.con
  */
 @Module({
   imports: [AuthModule, OnchainModule, MagicBlockModule, UmbraModule, StrategyDeploymentsModule],
-  controllers: [SubscriptionsController, PrivateExecutionCyclesController],
+  controllers: [
+    SubscriptionsController,
+    MySubscriptionsController,
+    PrivateExecutionCyclesController,
+  ],
   providers: [
     StrategySubscriptionsRepository,
     FollowerVaultsRepository,

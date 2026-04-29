@@ -80,6 +80,7 @@ const buildService = (overrides?: {
     getByDeploymentAndFollower: jest.fn().mockResolvedValue(null),
     listByDeployment: jest.fn().mockResolvedValue([subRow]),
     listActiveByDeployment: jest.fn().mockResolvedValue([]),
+    listForFollower: jest.fn().mockResolvedValue([subRow]),
     ...(overrides?.subRepo ?? {}),
   } as unknown as StrategySubscriptionsRepository;
 
@@ -216,6 +217,30 @@ describe('SubscriptionsService', () => {
     await expect(
       service.transitionStatus(DEPLOYMENT_ID, SUB_ID, FOLLOWER, 'active'),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('listForFollower hydrates each row with vault + umbra identity projection', async () => {
+    const { service } = buildService();
+    const rows = await service.listForFollower(FOLLOWER);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(SUB_ID);
+    expect(rows[0].followerVaultId).toBe(VAULT_ID);
+  });
+
+  it('listForFollower forwards an explicit status filter to the repository', async () => {
+    const listForFollowerSpy = jest.fn().mockResolvedValue([]);
+    const { service } = buildService({
+      subRepo: { listForFollower: listForFollowerSpy },
+    });
+    await service.listForFollower(FOLLOWER, { status: 'active' });
+    expect(listForFollowerSpy).toHaveBeenCalledWith(FOLLOWER, { status: 'active' });
+  });
+
+  it('listForDeployment requires creator ownership and projects rows', async () => {
+    const { service, subRepo } = buildService();
+    const rows = await service.listForDeployment(DEPLOYMENT_ID, CREATOR);
+    expect(rows).toHaveLength(1);
+    expect((subRepo.listByDeployment as jest.Mock)).toHaveBeenCalledWith(DEPLOYMENT_ID);
   });
 
   it('flips pending_funding -> active when shielding succeeds', async () => {

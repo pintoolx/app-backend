@@ -170,6 +170,26 @@ export class StrategySubscriptionsRepository {
     return (data ?? []) as unknown as StrategySubscriptionRow[];
   }
 
+  async listForFollower(
+    walletAddress: string,
+    opts: { status?: SubscriptionStatus } = {},
+  ): Promise<StrategySubscriptionRow[]> {
+    let query = this.supabaseService.client
+      .from('strategy_subscriptions')
+      .select(COLUMNS)
+      .eq('follower_wallet', walletAddress)
+      .order('created_at', { ascending: false });
+    if (opts.status) {
+      query = query.eq('status', opts.status);
+    }
+    const { data, error } = await query;
+    if (error) {
+      this.logger.error('Failed to list follower subscriptions', error);
+      throw new InternalServerErrorException('Failed to list follower subscriptions');
+    }
+    return (data ?? []) as unknown as StrategySubscriptionRow[];
+  }
+
   async update(id: string, input: UpdateSubscriptionInput): Promise<StrategySubscriptionRow> {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (input.status !== undefined) updates.status = input.status;

@@ -57,6 +57,24 @@ export class FollowerVisibilityGrantsRepository {
 
   constructor(private readonly supabaseService: SupabaseService) {}
 
+  /**
+   * Project the raw DB row into the response model. If the grant is still
+   * marked `active` but `expires_at` is in the past, surface it as `expired`
+   * to API callers without persisting the change. The raw `status` column is
+   * left untouched so admins can still distinguish lazy-expired rows from
+   * rows that were actively expired (e.g. by a future janitor job).
+   */
+  private mapRow(row: FollowerVisibilityGrantRow): FollowerVisibilityGrantRow {
+    if (
+      row.status === 'active' &&
+      row.expires_at &&
+      new Date(row.expires_at).getTime() < Date.now()
+    ) {
+      return { ...row, status: 'expired' };
+    }
+    return row;
+  }
+
   async insert(input: InsertVisibilityGrantInput): Promise<FollowerVisibilityGrantRow> {
     const { data, error } = await this.supabaseService.client
       .from('follower_visibility_grants')
@@ -73,7 +91,7 @@ export class FollowerVisibilityGrantsRepository {
       this.logger.error('Failed to insert visibility grant', error);
       throw new InternalServerErrorException('Failed to create visibility grant');
     }
-    return data as unknown as FollowerVisibilityGrantRow;
+    return this.mapRow(data as unknown as FollowerVisibilityGrantRow);
   }
 
   async getById(id: string): Promise<FollowerVisibilityGrantRow> {
@@ -85,7 +103,7 @@ export class FollowerVisibilityGrantsRepository {
     if (error || !data) {
       throw new NotFoundException('Visibility grant not found');
     }
-    return data as unknown as FollowerVisibilityGrantRow;
+    return this.mapRow(data as unknown as FollowerVisibilityGrantRow);
   }
 
   async listBySubscription(subscriptionId: string): Promise<FollowerVisibilityGrantRow[]> {
@@ -98,14 +116,16 @@ export class FollowerVisibilityGrantsRepository {
       this.logger.error('Failed to list visibility grants', error);
       throw new InternalServerErrorException('Failed to list visibility grants');
     }
-    return (data ?? []) as unknown as FollowerVisibilityGrantRow[];
+    return ((data ?? []) as unknown as FollowerVisibilityGrantRow[]).map((row) =>
+      this.mapRow(row),
+    );
   }
 
   async revoke(id: string): Promise<FollowerVisibilityGrantRow> {
     const now = new Date().toISOString();
     const { data, error } = await this.supabaseService.client
       .from('follower_visibility_grants')
-      .update({ status: 'revoked', revoked_at: now, updated_at: now })
+      .update({ status: 'revoked', revoked_at: now })
       .eq('id', id)
       .select(COLUMNS)
       .single();
@@ -113,6 +133,6 @@ export class FollowerVisibilityGrantsRepository {
       this.logger.error('Failed to revoke visibility grant', error);
       throw new InternalServerErrorException('Failed to revoke visibility grant');
     }
-    return data as unknown as FollowerVisibilityGrantRow;
+    return this.mapRow(data as unknown as FollowerVisibilityGrantRow);
   }
 }

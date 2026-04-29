@@ -200,6 +200,49 @@ export class SubscriptionsService {
     return this.toView(sub, vault, identity);
   }
 
+  /**
+   * List every subscription owned by `walletAddress` across all deployments.
+   * Used by the follower-side `GET /subscriptions/me` endpoint so a follower
+   * can audit their portfolio without enumerating sibling vaults.
+   */
+  async listForFollower(
+    walletAddress: string,
+    opts: { status?: SubscriptionStatus } = {},
+  ): Promise<FollowerSubscriptionView[]> {
+    const rows = await this.subscriptionsRepository.listForFollower(walletAddress, opts);
+    return Promise.all(rows.map((row) => this.materializeView(row)));
+  }
+
+  /**
+   * List every subscription attached to `deploymentId`. Only the deployment
+   * creator can call this (admin dashboards have a separate, broader read
+   * surface). The view never enumerates raw treasury balances or strategy
+   * params — only the same projection followers see for themselves.
+   */
+  async listForDeployment(
+    deploymentId: string,
+    walletAddress: string,
+  ): Promise<FollowerSubscriptionView[]> {
+    // Reject non-creators upstream.
+    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    const rows = await this.subscriptionsRepository.listByDeployment(deploymentId);
+    return Promise.all(rows.map((row) => this.materializeView(row)));
+  }
+
+  async getGrant(
+    deploymentId: string,
+    subscriptionId: string,
+    walletAddress: string,
+    grantId: string,
+  ): Promise<FollowerVisibilityGrantRow> {
+    await this.assertOwnership(deploymentId, subscriptionId, walletAddress);
+    const grant = await this.grantsRepository.getById(grantId);
+    if (grant.subscription_id !== subscriptionId) {
+      throw new NotFoundException('Visibility grant does not belong to this subscription');
+    }
+    return grant;
+  }
+
   async transitionStatus(
     deploymentId: string,
     subscriptionId: string,
@@ -372,6 +415,23 @@ export class SubscriptionsService {
   }
 
   // --------------------------------------------------------------------- helpers
+
+  /**
+   * Hydrate a raw subscription row with its follower vault and umbra identity
+   * projection. Pulls each side concurrently to keep list endpoints O(N) on
+   * roundtrips rather than O(3N).
+   */
+  private async materializeView(
+    sub: StrategySubscriptionRow,
+  ): Promise<FollowerSubscriptionView> {
+    const [vault, identity] = await Promise.all([
+      this.followerVaultsRepository.getBySubscriptionId(sub.id),
+      sub.umbra_identity_ref
+        ? this.umbraIdentitiesRepository.getById(sub.umbra_identity_ref)
+        : Promise.resolve(null),
+    ]);
+    return this.toView(sub, vault, identity);
+  }
 
   private async assertOwnership(
     deploymentId: string,
