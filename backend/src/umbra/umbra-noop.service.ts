@@ -13,6 +13,8 @@ import {
   type UmbraGrantViewerParams,
   type UmbraRegisterParams,
   type UmbraRegisterResult,
+  type UmbraScanClaimableParams,
+  type UmbraScanClaimableResult,
   type UmbraTransferParams,
   type UmbraTreasuryResult,
   type UmbraWithdrawParams,
@@ -78,7 +80,19 @@ export class UmbraNoopAdapter implements UmbraAdapterPort {
     params: UmbraClaimTransferParams,
   ): Promise<UmbraClaimTransferResult> {
     this.logger.debug(`[noop] umbra.claimEncryptedTransfer ref=${params.claimableUtxoRef}`);
-    return { queueSignature: null, callbackSignature: null, status: 'pending' };
+    return {
+      queueSignature: null,
+      callbackSignature: null,
+      status: 'pending',
+      claimedCount: 0,
+    };
+  }
+
+  async scanClaimableUtxos(
+    _params: UmbraScanClaimableParams,
+  ): Promise<UmbraScanClaimableResult> {
+    this.logger.debug(`[noop] umbra.scanClaimableUtxos`);
+    return { receiverCount: 0, ephemeralCount: 0, unavailable: false };
   }
 
   async getEncryptedBalance(params: UmbraEncryptedBalanceParams): Promise<UmbraEncryptedBalance> {

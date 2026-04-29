@@ -266,6 +266,9 @@ const buildService = (overrides?: {
     claimEncryptedTransfer: jest
       .fn()
       .mockResolvedValue({ queueSignature: null, callbackSignature: null, status: 'pending' }),
+    scanClaimableUtxos: jest
+      .fn()
+      .mockResolvedValue({ receiverCount: 0, ephemeralCount: 0, unavailable: false }),
     getEncryptedBalance: jest
       .fn()
       .mockResolvedValue({ encryptedTokenAccount: null, ciphertext: null, decryptedAmount: null }),
@@ -360,6 +363,7 @@ describe('StrategyDeploymentsService', () => {
       transfer: jest.fn(),
       createEncryptedTransferIntent: jest.fn(),
       claimEncryptedTransfer: jest.fn(),
+      scanClaimableUtxos: jest.fn(),
       getEncryptedBalance: jest.fn(),
       grantViewer: jest.fn(),
     };

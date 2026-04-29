@@ -6,6 +6,8 @@ import { UmbraNoopAdapter } from './umbra-noop.service';
 import { UmbraDeploymentSignerService } from './umbra-deployment-signer.service';
 import { UmbraRealAdapter } from './umbra-real.adapter';
 import { UmbraClientService } from './umbra-client.service';
+import { UMBRA_ZK_PROVER_PROVIDER } from './umbra-zk-prover.port';
+import { NoopUmbraZkProverProvider } from './noop-umbra-zk-prover.provider';
 import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
 
 /**
@@ -25,6 +27,11 @@ import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
     UmbraNoopAdapter,
     UmbraDeploymentSignerService,
     UmbraClientService,
+    NoopUmbraZkProverProvider,
+    {
+      provide: UMBRA_ZK_PROVER_PROVIDER,
+      useExisting: NoopUmbraZkProverProvider,
+    },
     UmbraRealAdapter,
     KeeperKeypairService,
     {
@@ -46,6 +53,6 @@ import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
       },
     },
   ],
-  exports: [UMBRA_ADAPTER, UmbraDeploymentSignerService],
+  exports: [UMBRA_ADAPTER, UmbraDeploymentSignerService, UMBRA_ZK_PROVER_PROVIDER],
 })
 export class UmbraModule {}

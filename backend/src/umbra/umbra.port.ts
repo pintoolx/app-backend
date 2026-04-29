@@ -136,16 +136,54 @@ export interface UmbraCreateTransferIntentResult {
 }
 
 export interface UmbraClaimTransferParams {
-  /** Returned previously by createEncryptedTransferIntent. */
-  claimableUtxoRef: string;
+  /**
+   * Returned previously by createEncryptedTransferIntent. With SDK 4.0 this
+   * is the sender's `queueSignature` — the recipient uses it as a hint to
+   * scan the indexer for the matching claimable UTXO. The actual claim flow
+   * walks `scanClaimableUtxos` to find the UTXO data the SDK requires.
+   */
+  claimableUtxoRef?: string;
   /** Recipient signer that will execute the SDK claim flow. */
   recipientSigner: UmbraSignerOverride;
+  /**
+   * Scan window for `getClaimableUtxoScannerFunction(treeIndex, startInsertion, endInsertion)`.
+   * Defaults: `treeIndex=0`, `startInsertionIndex=0`, `endInsertionIndex=10000`.
+   * Tune if the indexer holds many trees or to limit work.
+   */
+  scanWindow?: {
+    treeIndex?: number;
+    startInsertionIndex?: number;
+    endInsertionIndex?: number;
+  };
 }
 
 export interface UmbraClaimTransferResult {
   queueSignature: string | null;
   callbackSignature: string | null;
   status: 'pending' | 'confirmed' | 'failed';
+  /** Number of UTXOs successfully claimed (post-batching). */
+  claimedCount?: number;
+  /** Reason the claim was unavailable (e.g. provider not configured). */
+  unavailableReason?: string;
+}
+
+export interface UmbraScanClaimableParams {
+  recipientSigner: UmbraSignerOverride;
+  scanWindow?: {
+    treeIndex?: number;
+    startInsertionIndex?: number;
+    endInsertionIndex?: number;
+  };
+}
+
+export interface UmbraScanClaimableResult {
+  /** Count of receiver-flow UTXOs found pending claim. */
+  receiverCount: number;
+  /** Count of self-flow (ephemeral) UTXOs found pending claim. */
+  ephemeralCount: number;
+  /** True when the SDK couldn't run (provider/relayer not configured). */
+  unavailable: boolean;
+  unavailableReason?: string;
 }
 
 export interface UmbraAdapterPort {
@@ -163,6 +201,12 @@ export interface UmbraAdapterPort {
     params: UmbraCreateTransferIntentParams,
   ): Promise<UmbraCreateTransferIntentResult>;
   claimEncryptedTransfer(params: UmbraClaimTransferParams): Promise<UmbraClaimTransferResult>;
+  /**
+   * Phase-5 helper: scan the Umbra indexer for receiver-flow UTXOs that are
+   * pending claim by `recipientSigner`. Used by admin reconciliation and by
+   * the claim flow itself (which calls the scanner internally).
+   */
+  scanClaimableUtxos(params: UmbraScanClaimableParams): Promise<UmbraScanClaimableResult>;
   getEncryptedBalance(params: UmbraEncryptedBalanceParams): Promise<UmbraEncryptedBalance>;
   grantViewer(params: UmbraGrantViewerParams): Promise<UmbraGrantResult>;
 }

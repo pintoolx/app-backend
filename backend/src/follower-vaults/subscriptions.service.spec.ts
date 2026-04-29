@@ -207,6 +207,9 @@ const buildService = (overrides?: {
       callbackSignature: null,
       status: 'pending',
     }),
+    scanClaimableUtxos: jest
+      .fn()
+      .mockResolvedValue({ receiverCount: 0, ephemeralCount: 0, unavailable: false }),
     getEncryptedBalance: jest.fn().mockResolvedValue({
       encryptedTokenAccount: null,
       ciphertext: null,
