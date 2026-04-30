@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "skills": {
+    "magicblock": {
+      "source": "magicblock-labs/magicblock-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skill/SKILL.md",
+      "computedHash": "49089291f1bebf86f698131c1210559c2809e23da7a3bbf35f939a320fe96abf"
+    },
+    "solana-dev": {
+      "source": "solana-foundation/solana-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skill/SKILL.md",
+      "computedHash": "cf18000b305aa19f38eac8f32d3f427bc29ed6f9896b6a5f81d1f8c125e00271"
+    },
+    "supabase": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "d836a3567233bc5367d3f5f78cf0d90289f2b2385e37d22f450886e435e15c73"
+    },
+    "supabase-postgres-best-practices": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "d606a1146be6d54fb9e73f718b5320b9acac5ff2ba2d7230a555df4b5a923b4a"
+    }
+  }
+}

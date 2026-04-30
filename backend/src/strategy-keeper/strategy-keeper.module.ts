@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { StrategyKeeperService } from './strategy-keeper.service';
 import { StrategyRunsService } from './strategy-runs.service';
@@ -15,7 +15,7 @@ import { MagicBlockModule } from '../magicblock/magicblock.module';
     OnchainModule,
     DatabaseModule,
     ObservabilityModule,
-    StrategyDeploymentsModule,
+    forwardRef(() => StrategyDeploymentsModule),
     MagicBlockModule,
   ],
   providers: [StrategyKeeperService, StrategyRunsService, StrategyRunsRepository],
