@@ -26,6 +26,9 @@ pub enum StrategyRuntimeError {
     #[msg("Provided custody mode code is not recognised")]
     InvalidCustodyMode,
 
+    #[msg("No fees available to collect from this vault")]
+    NoFeesToCollect,
+
     #[msg("Follower vault must be in closed state before it can be removed")]
     FollowerVaultNotClosed,
 
@@ -34,4 +37,10 @@ pub enum StrategyRuntimeError {
 
     #[msg("Subscription belongs to a different deployment than the supplied account")]
     SubscriptionDeploymentMismatch,
+
+    #[msg("Delegation buffer owner is not the delegation program")]
+    InvalidDelegationBuffer,
+
+    #[msg("Instruction data format is invalid")]
+    InvalidInstructionData,
 }

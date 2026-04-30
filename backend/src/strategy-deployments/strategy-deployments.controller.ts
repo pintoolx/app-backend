@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -16,6 +17,12 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PerAuthGuard } from '../magicblock/per-auth.guard';
 import { type PerAuthTokenRow } from '../magicblock/per-auth-tokens.repository';
 import { StrategyDeploymentsService } from './strategy-deployments.service';
+import { StrategyRunsService } from '../strategy-keeper/strategy-runs.service';
+import { StrategyDeploymentsRepository } from './strategy-deployments.repository';
+import {
+  StrategyPermissionsService,
+  StrategyRole,
+} from '../strategies/strategy-permissions.service';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 import { ErDelegateDto, ErRouteDto, ErUndelegateDto } from './dto/er-route.dto';
 import {
@@ -39,7 +46,12 @@ import {
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class StrategyDeploymentsController {
-  constructor(private readonly deploymentsService: StrategyDeploymentsService) {}
+  constructor(
+    private readonly deploymentsService: StrategyDeploymentsService,
+    private readonly strategyRunsService: StrategyRunsService,
+    private readonly deploymentsRepository: StrategyDeploymentsRepository,
+    private readonly permissionsService: StrategyPermissionsService,
+  ) {}
 
   @Post('strategies/:id/deploy')
   @ApiOperation({ summary: 'Create a strategy deployment bound to an existing account/vault' })
@@ -112,6 +124,105 @@ export class StrategyDeploymentsController {
   ) {
     const data = await this.deploymentsService.closeDeployment(id, walletAddress);
     return { success: true, data };
+  }
+
+  @Post('deployments/:id/collect-fees')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Collect accumulated fees from the vault authority' })
+  async collectFees(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.deploymentsService.collectFees(id, walletAddress);
+    return { success: true, data };
+  }
+
+  // -------- Phase 3.2 — Permission management --------
+
+  @Post('deployments/:id/permissions')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Grant a role to a wallet for this deployment (creator only)' })
+  async grantPermission(
+    @Param('id') deploymentId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: { memberWallet: string; role: StrategyRole },
+  ) {
+    // Only creator can grant permissions
+    const deployment = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    const result = await this.permissionsService.grantPermission(
+      deploymentId,
+      dto.memberWallet,
+      dto.role,
+    );
+    return { success: !!result, data: result };
+  }
+
+  @Delete('deployments/:id/permissions/:memberWallet')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Revoke a role from a wallet for this deployment (creator only)' })
+  async revokePermission(
+    @Param('id') deploymentId: string,
+    @Param('memberWallet') memberWallet: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: { role: StrategyRole },
+  ) {
+    const deployment = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    const ok = await this.permissionsService.revokePermission(deploymentId, memberWallet, dto.role);
+    return { success: ok };
+  }
+
+  @Get('deployments/:id/permissions')
+  @ApiOperation({ summary: 'List all explicit permissions for this deployment' })
+  async listPermissions(
+    @Param('id') deploymentId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    // Any owner can view permissions
+    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    const data = await this.permissionsService.listPermissions(deploymentId);
+    return { success: true, count: data.length, data };
+  }
+
+  // -------- Phase 1.3 — Manual strategy trigger --------
+
+  @Post('deployments/:id/trigger')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Manually trigger a strategy run for a deployed strategy' })
+  @ApiResponse({ status: 200, description: 'Run created and queued for execution' })
+  @ApiResponse({ status: 400, description: 'Deployment not in deployed state' })
+  async triggerDeployment(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    // Verify ownership and state
+    const deployment = await this.deploymentsRepository.getForCreator(id, walletAddress);
+    if (deployment.lifecycle_status !== 'deployed') {
+      return {
+        success: false,
+        error: `Deployment must be in 'deployed' state to trigger (current: ${deployment.lifecycle_status})`,
+      };
+    }
+
+    const run = await this.strategyRunsService.createRun({
+      deploymentId: deployment.id,
+      executionLayer: deployment.execution_mode,
+      strategyVersionId: deployment.strategy_version_id,
+    });
+
+    // Execute asynchronously so the HTTP response returns immediately
+    this.strategyRunsService.executeRun(run.id).catch((err) => {
+      // Errors are logged by StrategyRunsService; we don't await here.
+    });
+
+    return {
+      success: true,
+      data: {
+        runId: run.id,
+        deploymentId: deployment.id,
+        executionLayer: deployment.execution_mode,
+        status: run.status,
+      },
+    };
   }
 
   // -------- Week 4: Magic Block ER endpoints --------

@@ -266,6 +266,43 @@ export class StrategyDeploymentsService {
     return this.transitionLifecycle(deploymentId, walletAddress, 'stopped');
   }
 
+  async emergencyPauseDeployment(deploymentId: string, walletAddress: string): Promise<DeploymentView> {
+    const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    if (row.lifecycle_status !== 'deployed') {
+      throw new BadRequestException('Deployment must be in deployed status to emergency pause');
+    }
+    const sig = await this.onchainAdapter.emergencyPause({ deploymentId });
+    const updated = await this.deploymentsRepository.updateDeployment(deploymentId, walletAddress, {
+      lifecycleStatus: 'paused',
+    });
+    this.logger.log(
+      `Deployment ${deploymentId} emergency-paused (sig=${sig.signature ?? 'advisory'})`,
+    );
+    return this.toView(updated);
+  }
+
+  async emergencyResumeDeployment(deploymentId: string, walletAddress: string): Promise<DeploymentView> {
+    const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    if (row.lifecycle_status !== 'paused') {
+      throw new BadRequestException('Deployment must be in paused status to emergency resume');
+    }
+    const sig = await this.onchainAdapter.emergencyResume({ deploymentId });
+    const updated = await this.deploymentsRepository.updateDeployment(deploymentId, walletAddress, {
+      lifecycleStatus: 'deployed',
+    });
+    this.logger.log(
+      `Deployment ${deploymentId} emergency-resumed (sig=${sig.signature ?? 'advisory'})`,
+    );
+    return this.toView(updated);
+  }
+
+  async collectFees(deploymentId: string, walletAddress: string): Promise<DeploymentView & { collectedLamports: number }> {
+    const result = await this.onchainAdapter.collectFees({ deploymentId });
+    // Refresh deployment row after on-chain collection
+    const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    return { ...this.toView(row), collectedLamports: result.collectedLamports };
+  }
+
   async closeDeployment(deploymentId: string, walletAddress: string): Promise<DeploymentView> {
     const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
     const view = await this.transitionLifecycle(deploymentId, walletAddress, 'closed');

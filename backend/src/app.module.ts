@@ -22,6 +22,7 @@ import { HealthModule } from './health/health.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { RuntimeConfigModule } from './config/runtime-config.module';
 import { AdminModule } from './admin/admin.module';
+import { StrategyKeeperModule } from './strategy-keeper/strategy-keeper.module';
 import { AppController } from './app.controller';
 import { RootController } from './root.controller';
 
@@ -57,6 +58,7 @@ import { RootController } from './root.controller';
     FollowerVaultsModule,
     HealthModule,
     AdminModule,
+    StrategyKeeperModule,
   ],
   controllers: [RootController, AppController],
   providers: [

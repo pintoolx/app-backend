@@ -166,6 +166,38 @@ export class AdminOpsService {
     });
   }
 
+  // ---------------------------------------------------------------- Phase 4
+
+  async emergencyPauseDeployment(id: string, actor: AdminActor) {
+    const view = await this.actAsCreator(id, (creator) =>
+      this.deploymentsService.emergencyPauseDeployment(id, creator),
+    );
+    this.logger.warn(
+      `Admin emergency-pause: deployment=${id} by admin=${actor.email} role=${actor.role}`,
+    );
+    return view;
+  }
+
+  async emergencyResumeDeployment(id: string, actor: AdminActor) {
+    const view = await this.actAsCreator(id, (creator) =>
+      this.deploymentsService.emergencyResumeDeployment(id, creator),
+    );
+    this.logger.warn(
+      `Admin emergency-resume: deployment=${id} by admin=${actor.email} role=${actor.role}`,
+    );
+    return view;
+  }
+
+  async collectFees(id: string, actor: AdminActor) {
+    const view = await this.actAsCreator(id, (creator) =>
+      this.deploymentsService.collectFees(id, creator),
+    );
+    this.logger.log(
+      `Admin collect-fees: deployment=${id} by admin=${actor.email} role=${actor.role}`,
+    );
+    return view;
+  }
+
   // ---------------------------------------------------------------- helpers
 
   private async actAsCreator<T>(

@@ -1,6 +1,7 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Connection, Commitment, VersionedTransaction, Transaction } from '@solana/web3.js';
+import { ConnectionMagicRouter } from '@magicblock-labs/ephemeral-rollups-sdk';
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
 const DEFAULT_COMMITMENT: Commitment = 'confirmed';
@@ -29,7 +30,7 @@ const DEFAULT_COMMITMENT: Commitment = 'confirmed';
 @Injectable()
 export class MagicBlockClientService {
   private readonly logger = new Logger(MagicBlockClientService.name);
-  private routerConnection: Connection | null = null;
+  private routerConnection: ConnectionMagicRouter | null = null;
   private erConnection: Connection | null = null;
   private routerHttp: AxiosInstance | null = null;
 
@@ -59,7 +60,7 @@ export class MagicBlockClientService {
    * transaction submission and account fetches that should respect MagicBlock
    * routing semantics.
    */
-  getRouterConnection(): Connection {
+  getRouterConnection(): ConnectionMagicRouter {
     if (this.routerConnection) return this.routerConnection;
     const url = this.getRouterUrl();
     if (!url) {
@@ -68,7 +69,11 @@ export class MagicBlockClientService {
     const commitment =
       (this.configService.get<string>('MAGICBLOCK_COMMITMENT') as Commitment | undefined) ??
       DEFAULT_COMMITMENT;
-    this.routerConnection = new Connection(url, commitment);
+    const wsEndpoint = url.replace(/^https?/, 'wss');
+    this.routerConnection = new ConnectionMagicRouter(url, {
+      wsEndpoint,
+      commitment,
+    });
     this.logger.log(`MagicBlock router connection initialised at ${url}`);
     return this.routerConnection;
   }
@@ -144,7 +149,7 @@ export class MagicBlockClientService {
     const connection = this.getRouterConnection();
     try {
       const sig = await connection.sendRawTransaction(serialized, {
-        skipPreflight: false,
+        skipPreflight: true,
         preflightCommitment:
           (this.configService.get<string>('MAGICBLOCK_COMMITMENT') as Commitment | undefined) ??
           DEFAULT_COMMITMENT,

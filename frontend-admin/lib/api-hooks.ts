@@ -229,7 +229,9 @@ export function useDeploymentDetail(id?: string) {
   });
 }
 
-export function useDeploymentAction(action: 'pause' | 'resume' | 'stop' | 'force-close') {
+export function useDeploymentAction(
+  action: 'pause' | 'resume' | 'stop' | 'force-close' | 'emergency-pause' | 'emergency-resume' | 'collect-fees',
+) {
   const t = useTranslations('toast');
   const tDeployments = useTranslations('deployments');
   const qc = useQueryClient();
@@ -237,7 +239,7 @@ export function useDeploymentAction(action: 'pause' | 'resume' | 'stop' | 'force
     mutationFn: ({ id, reason }: { id: string; reason?: string | null }) => {
       const path = `/admin/deployments/${id}/${action}`;
       const body =
-        action === 'pause' || action === 'resume'
+        action === 'pause' || action === 'resume' || action === 'emergency-pause' || action === 'emergency-resume' || action === 'collect-fees'
           ? undefined
           : JSON.stringify({ confirmTargetId: id, reason: reason ?? null });
       return proxyFetch(path, {
@@ -251,12 +253,18 @@ export function useDeploymentAction(action: 'pause' | 'resume' | 'stop' | 'force
       toast.success(
         action === 'force-close'
           ? t('deploymentForceClosed')
+          : action === 'collect-fees'
+          ? t('deploymentFeesCollected')
           : t('deploymentActionRequested', {
               action:
                 action === 'pause'
                   ? tDeployments('pause')
                   : action === 'resume'
                   ? tDeployments('resume')
+                  : action === 'emergency-pause'
+                  ? tDeployments('emergencyPause')
+                  : action === 'emergency-resume'
+                  ? tDeployments('emergencyResume')
                   : tDeployments('stopTitle'),
             }),
       );

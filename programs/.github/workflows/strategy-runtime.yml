@@ -1,0 +1,147 @@
+name: strategy_runtime CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'programs/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'programs/**'
+
+jobs:
+  rust-unit-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: programs/programs/strategy_runtime
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: programs
+
+      - name: Run Rust unit tests
+        run: cargo test
+
+  anchor-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: programs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+          cache-dependency-path: programs/yarn.lock
+
+      - name: Install Rust + Solana + Anchor
+        uses: metaplex-foundation/actions/install-anchor@v1
+        with:
+          anchor-version: 0.31.0
+          solana-cli-version: 3.1.14
+          node-version: 20
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build program
+        run: NO_DNA=1 anchor build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: program-build
+          path: |
+            programs/target/idl/
+            programs/target/types/
+            programs/target/deploy/
+
+  ts-unit-tests:
+    runs-on: ubuntu-latest
+    needs: anchor-build
+    defaults:
+      run:
+        working-directory: programs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+          cache-dependency-path: programs/yarn.lock
+
+      - name: Install Solana + Anchor
+        uses: metaplex-foundation/actions/install-anchor@v1
+        with:
+          anchor-version: 0.31.0
+          solana-cli-version: 3.1.14
+          node-version: 20
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: program-build
+          path: programs/target/
+
+      - name: Run TS unit tests
+        run: NO_DNA=1 anchor test --skip-build
+
+  # Devnet smoke tests are optional and run only on manual dispatch
+  # because they require a funded wallet and consume devnet SOL.
+  devnet-smoke:
+    runs-on: ubuntu-latest
+    needs: anchor-build
+    if: github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: programs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+          cache-dependency-path: programs/yarn.lock
+
+      - name: Install Solana + Anchor
+        uses: metaplex-foundation/actions/install-anchor@v1
+        with:
+          anchor-version: 0.31.0
+          solana-cli-version: 3.1.14
+          node-version: 20
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: program-build
+          path: programs/target/
+
+      - name: Restore test wallet
+        run: echo '${{ secrets.DEVNET_TEST_WALLET }}' > tests/devnet/test-wallet.json
+
+      - name: Run devnet smoke tests
+        run: |
+          export ANCHOR_PROVIDER_URL=https://api.devnet.solana.com
+          export ANCHOR_WALLET=tests/devnet/test-wallet.json
+          yarn ts-mocha -p ./tsconfig.json -t 300000 tests/devnet/smoke.spec.ts

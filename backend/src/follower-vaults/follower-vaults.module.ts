@@ -14,6 +14,7 @@ import { FollowerVaultSignerService } from './follower-vault-signer.service';
 import { FollowerVaultAllocationsService } from './follower-vault-allocations.service';
 import { FollowerVisibilityPolicyService } from './follower-visibility-policy.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { FundIntentSubmissionService } from './fund-intent-submission.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { MySubscriptionsController } from './my-subscriptions.controller';
 import { PrivateExecutionCyclesService } from './private-execution-cycles.service';
@@ -52,6 +53,7 @@ import { NoopPrivateStrategyOutputProvider } from './noop-private-strategy-outpu
       useExisting: NoopPrivateStrategyOutputProvider,
     },
     SubscriptionsService,
+    FundIntentSubmissionService,
     PrivateExecutionCyclesService,
   ],
   exports: [

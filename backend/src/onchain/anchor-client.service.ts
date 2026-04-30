@@ -6,11 +6,15 @@ import {
   Wallet,
   Idl,
   type AnchorProvider as AnchorProviderType,
-} from '@coral-xyz/anchor';
+} from '@anchor-lang/core';
 import { Connection, Keypair, PublicKey, Commitment } from '@solana/web3.js';
 import { KeeperKeypairService } from './keeper-keypair.service';
-import idlJson from './anchor/strategy_runtime.json';
+import * as idlJsonModule from './anchor/strategy_runtime.json';
 import { type StrategyRuntime } from './anchor/strategy_runtime';
+
+// babel-jest (CommonJS) wraps JSON imports in `{ default }` whereas ts-node/esm
+// returns the object directly.  Unwrap so the service works in both test runners.
+const idlJson = (idlJsonModule as any).default ?? idlJsonModule;
 
 const DEFAULT_RPC_URL = 'https://api.devnet.solana.com';
 const DEFAULT_COMMITMENT: Commitment = 'confirmed';

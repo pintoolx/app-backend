@@ -195,4 +195,9 @@ export interface OnchainAdapterPort {
   buildFundIntentInstruction(
     params: BuildFundIntentInstructionParams,
   ): Promise<FundIntentInstruction>;
+
+  // Phase 4 — application-layer closure ------------------------------------
+  collectFees(params: { deploymentId: string }): Promise<{ signature: string | null; collectedLamports: number }>;
+  emergencyPause(params: { deploymentId: string }): Promise<{ signature: string | null }>;
+  emergencyResume(params: { deploymentId: string }): Promise<{ signature: string | null }>;
 }

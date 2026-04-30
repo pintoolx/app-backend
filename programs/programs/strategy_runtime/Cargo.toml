@@ -17,15 +17,13 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
+anchor-lang = { version = "1.0.1", features = ["init-if-needed"] }
 
-# Pin serde_json to a version before it pulled in `zmij`, which uses the
-# unstable `select_unpredictable` rustc feature (incompatible with the
-# platform-tools rustc shipped by Solana 3.1.x).
-serde_json = "=1.0.140"
+# serde_json was previously pinned to avoid `select_unpredictable` in older
+# platform-tools. With rustc 1.95+ and Solana 3.1.x this is no longer needed.
+serde_json = "1.0"
 
-# Note: ephemeral-rollups-sdk integration is intentionally deferred. The Week
-# 4 ER adapter operates at the wallet / token-account layer via Magic Router,
-# without requiring strategy_runtime PDA delegation. A future ticket can add
-# the SDK dep + delegate_strategy_state ix once the dep tree is reconciled
-# with our Solana 3.1.x platform-tools.
+[dev-dependencies]
+# Mollusk SVM test harness — fast in-process instruction testing without a validator.
+mollusk-svm = "0.12"
+solana-sdk = "~2.2"

@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { collectDefaultMetrics, Counter, Histogram, Registry } from 'prom-client';
 
-export type AdapterName = 'onchain' | 'er' | 'per' | 'pp' | 'umbra';
+export type AdapterName = 'onchain' | 'er' | 'per' | 'pp' | 'umbra' | 'keeper';
 export type AdapterCallStatus = 'ok' | 'fail';
 
 /**

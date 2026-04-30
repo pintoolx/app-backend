@@ -77,6 +77,14 @@ export class FundIntentDto {
   amount!: string;
 }
 
+export class SubmitFundIntentDto {
+  @ApiProperty({
+    description: 'Base64-encoded signed Solana transaction that transfers funds to the vault authority PDA.',
+  })
+  @IsString()
+  signedTxBase64!: string;
+}
+
 export class VerifySubscriptionChallengeDto {
   @ApiProperty({
     description:

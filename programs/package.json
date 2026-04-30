@@ -5,10 +5,13 @@
   "license": "ISC",
   "scripts": {
     "lint": "tsc --noEmit",
-    "test": "anchor test"
+    "test": "anchor test",
+    "test:unit": "NO_DNA=1 anchor test --skip-build",
+    "test:devnet": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=tests/devnet/test-wallet.json ts-mocha -p ./tsconfig.json -t 300000 tests/devnet/smoke.spec.ts",
+    "test:rust": "cd programs/strategy_runtime && cargo test"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.0"
+    "@coral-xyz/anchor": "^0.31.1"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",

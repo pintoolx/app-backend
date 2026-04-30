@@ -143,4 +143,48 @@ pub mod strategy_runtime {
     pub fn close_follower_vault(ctx: Context<CloseFollowerVault>) -> Result<()> {
         instructions::close_follower_vault::handler(ctx)
     }
+
+    // ---------- MagicBlock ER Delegation ----------
+
+    /// Delegate the strategy_state PDA to an Ephemeral Rollups validator.
+    /// This CPIs into the MagicBlock delegation program so the PDA can sign
+    /// via invoke_signed with its seeds.
+    pub fn delegate_strategy_state(ctx: Context<DelegateStrategyState>) -> Result<()> {
+        instructions::delegate_strategy_state::handler(ctx)
+    }
+
+    // ---------- MagicBlock ER Undelegation ----------
+
+    /// Undelegate callback invoked by the MagicBlock delegation program on the
+    /// base layer after a commit-and-undelegate on ER.  Restores the
+    /// strategy_state account ownership and data from the delegation buffer.
+    pub fn undelegate_strategy_state(
+        ctx: Context<UndelegateStrategyState>,
+        pda_seeds: Vec<Vec<u8>>,
+    ) -> Result<()> {
+        instructions::undelegate_strategy_state::handler(
+            ctx,
+            instructions::undelegate_strategy_state::UndelegateArgs { pda_seeds },
+        )
+    }
+
+    // ---------- Phase 4 — Application-layer closure ----------
+
+    /// Collect accumulated fees from the vault authority PDA, transferring
+    /// everything above the rent-exempt minimum to the deployment creator.
+    pub fn collect_fees(ctx: Context<CollectFees>) -> Result<()> {
+        instructions::collect_fees::handler(ctx)
+    }
+
+    /// Emergency pause a deployed strategy. Only the creator can invoke this.
+    /// Transitions lifecycle: Deployed -> Paused.
+    pub fn emergency_pause(ctx: Context<EmergencyPause>) -> Result<()> {
+        instructions::emergency_pause::handler(ctx)
+    }
+
+    /// Emergency resume a paused strategy. Only the creator can invoke this.
+    /// Transitions lifecycle: Paused -> Deployed.
+    pub fn emergency_resume(ctx: Context<EmergencyResume>) -> Result<()> {
+        instructions::emergency_resume::handler(ctx)
+    }
 }

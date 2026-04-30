@@ -1,5 +1,5 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
-import { BN } from '@coral-xyz/anchor';
+import { BN } from '@anchor-lang/core';
 import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import { AnchorClientService } from './anchor-client.service';
 import {
@@ -559,6 +559,92 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
   private isAccountAlreadyExistsError(err: unknown): boolean {
     const msg = err instanceof Error ? err.message : String(err);
     return /already in use|0x0$|already initialized/i.test(msg);
+  }
+
+  // ---------- Phase 4 — application-layer closure ----------
+
+  async collectFees(params: { deploymentId: string }): Promise<{ signature: string | null; collectedLamports: number }> {
+    const program = await this.anchorClient.getProgram();
+    const programId = this.anchorClient.getProgramId();
+    const provider = await this.anchorClient.getProvider();
+    const creator = provider.wallet.publicKey;
+
+    const [deploymentPda] = deriveDeploymentPda(programId, params.deploymentId);
+    const [vaultAuthorityPda] = deriveVaultAuthorityPda(programId, deploymentPda);
+
+    try {
+      // Pre-fetch lamports to report how much was collected
+      const preAccountInfo = await provider.connection.getAccountInfo(vaultAuthorityPda, 'confirmed');
+      const preLamports = preAccountInfo?.lamports ?? 0;
+
+      const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
+      const sig = await methods
+        .collectFees()
+        .accountsPartial({
+          creator,
+          deployment: deploymentPda,
+          vaultAuthority: vaultAuthorityPda,
+        })
+        .rpc();
+
+      const postAccountInfo = await provider.connection.getAccountInfo(vaultAuthorityPda, 'confirmed');
+      const postLamports = postAccountInfo?.lamports ?? 0;
+      const collected = Math.max(0, preLamports - postLamports);
+
+      return { signature: sig, collectedLamports: collected };
+    } catch (err) {
+      throw this.toInternalError('collectFees', err);
+    }
+  }
+
+  async emergencyPause(params: { deploymentId: string }): Promise<{ signature: string | null }> {
+    const program = await this.anchorClient.getProgram();
+    const programId = this.anchorClient.getProgramId();
+    const provider = await this.anchorClient.getProvider();
+    const authority = provider.wallet.publicKey;
+
+    const [deploymentPda] = deriveDeploymentPda(programId, params.deploymentId);
+    const [strategyStatePda] = deriveStrategyStatePda(programId, deploymentPda);
+
+    try {
+      const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
+      const sig = await methods
+        .emergencyPause()
+        .accountsPartial({
+          authority,
+          deployment: deploymentPda,
+          strategyState: strategyStatePda,
+        })
+        .rpc();
+      return { signature: sig };
+    } catch (err) {
+      throw this.toInternalError('emergencyPause', err);
+    }
+  }
+
+  async emergencyResume(params: { deploymentId: string }): Promise<{ signature: string | null }> {
+    const program = await this.anchorClient.getProgram();
+    const programId = this.anchorClient.getProgramId();
+    const provider = await this.anchorClient.getProvider();
+    const authority = provider.wallet.publicKey;
+
+    const [deploymentPda] = deriveDeploymentPda(programId, params.deploymentId);
+    const [strategyStatePda] = deriveStrategyStatePda(programId, deploymentPda);
+
+    try {
+      const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
+      const sig = await methods
+        .emergencyResume()
+        .accountsPartial({
+          authority,
+          deployment: deploymentPda,
+          strategyState: strategyStatePda,
+        })
+        .rpc();
+      return { signature: sig };
+    } catch (err) {
+      throw this.toInternalError('emergencyResume', err);
+    }
   }
 
   private toInternalError(label: string, err: unknown): InternalServerErrorException {

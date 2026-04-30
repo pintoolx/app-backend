@@ -17,11 +17,13 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PerAuthGuard, assertSubscriptionScope } from '../magicblock/per-auth.guard';
 import type { PerAuthTokenRow } from '../magicblock/per-auth-tokens.repository';
 import { SubscriptionsService } from './subscriptions.service';
+import { FundIntentSubmissionService } from './fund-intent-submission.service';
 import {
   CreateSubscriptionDto,
   CreateVisibilityGrantDto,
   FundIntentDto,
   ShieldFundsDto,
+  SubmitFundIntentDto,
   VerifySubscriptionChallengeDto,
 } from './dto/subscription.dto';
 
@@ -30,7 +32,10 @@ import {
 @Controller('deployments/:deploymentId/subscriptions')
 @UseGuards(JwtAuthGuard)
 export class SubscriptionsController {
-  constructor(private readonly subscriptionsService: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptionsService: SubscriptionsService,
+    private readonly fundIntentSubmissionService: FundIntentSubmissionService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -95,6 +100,27 @@ export class SubscriptionsController {
       subscriptionId,
       walletAddress,
       dto,
+    );
+    return { success: true, data };
+  }
+
+  @Post(':subscriptionId/submit-fund-intent')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Phase 2.1 — Submit a signed fund-intent transaction on-chain.',
+  })
+  async submitFundIntent(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: SubmitFundIntentDto,
+  ) {
+    const data = await this.fundIntentSubmissionService.submitFundIntent(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      dto.signedTxBase64,
     );
     return { success: true, data };
   }

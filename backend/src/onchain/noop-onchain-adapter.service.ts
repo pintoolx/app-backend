@@ -166,6 +166,21 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
     return { signature: null, unsignedInstructionBase64: null, recentBlockhash: null };
   }
 
+  async collectFees(params: { deploymentId: string }): Promise<{ signature: string | null; collectedLamports: number }> {
+    this.logger.debug(`[noop] collectFees deployment=${params.deploymentId}`);
+    return { signature: null, collectedLamports: 0 };
+  }
+
+  async emergencyPause(params: { deploymentId: string }): Promise<{ signature: string | null }> {
+    this.logger.debug(`[noop] emergencyPause deployment=${params.deploymentId}`);
+    return { signature: null };
+  }
+
+  async emergencyResume(params: { deploymentId: string }): Promise<{ signature: string | null }> {
+    this.logger.debug(`[noop] emergencyResume deployment=${params.deploymentId}`);
+    return { signature: null };
+  }
+
   async buildFundIntentInstruction(
     params: BuildFundIntentInstructionParams,
   ): Promise<FundIntentInstruction> {

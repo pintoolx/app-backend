@@ -31,10 +31,11 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
-    "@coral-xyz/anchor": "^0.31.1",
+    "@anchor-lang/core": "^1.0.1",
     "@crossmint/wallets-sdk": "^0.21.0",
     "@jup-ag/api": "^6.0.45",
     "@kamino-finance/klend-sdk": "^7.1.9",
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.12.0",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.0.0",
     "@nestjs/core": "^10.0.0",

@@ -57,7 +57,7 @@ const STATUS_VARIANT: Record<LifecycleStatus, 'success' | 'warning' | 'secondary
 };
 
 interface DialogState {
-  kind: 'pause' | 'resume' | 'stop' | 'force-close';
+  kind: 'pause' | 'resume' | 'stop' | 'force-close' | 'collect-fees';
   deployment: DeploymentRow;
 }
 
@@ -83,6 +83,9 @@ export function DeploymentsClient({ role }: { role: AdminRole }) {
   const resume = useDeploymentAction('resume');
   const stop = useDeploymentAction('stop');
   const forceClose = useDeploymentAction('force-close');
+  const emergencyPause = useDeploymentAction('emergency-pause');
+  const emergencyResume = useDeploymentAction('emergency-resume');
+  const collectFees = useDeploymentAction('collect-fees');
   const detail = useDeploymentDetail(detailDeployment?.id);
   const privacyDetail = useDeploymentPrivacyView(detailDeployment?.id);
 
@@ -220,6 +223,24 @@ export function DeploymentsClient({ role }: { role: AdminRole }) {
                             >
                               {t('stop')}
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => emergencyPause.mutate({ id: d.id })}
+                              disabled={d.lifecycle_status !== 'deployed'}
+                            >
+                              {t('emergencyPause')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => emergencyResume.mutate({ id: d.id })}
+                              disabled={d.lifecycle_status !== 'paused'}
+                            >
+                              {t('emergencyResume')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setDialog({ kind: 'collect-fees', deployment: d })}
+                            >
+                              {t('collectFees')}
+                            </DropdownMenuItem>
                             {isSuper ? (
                               <>
                                 <DropdownMenuSeparator />
@@ -255,19 +276,29 @@ export function DeploymentsClient({ role }: { role: AdminRole }) {
               ? t('forceCloseTitle')
               : dialog.kind === 'stop'
               ? t('stopTitle')
+              : dialog.kind === 'collect-fees'
+              ? t('collectFeesTitle')
               : tCommon('confirm')
           }
           description={t('confirmDescription', { id: dialog.deployment.id })}
           confirmTargetId={dialog.deployment.id}
           withReason={dialog.kind === 'force-close'}
           destructive={dialog.kind === 'force-close'}
-          confirmLabel={dialog.kind === 'force-close' ? t('forceCloseTitle') : t('stopTitle')}
-          loading={stop.isPending || forceClose.isPending}
+          confirmLabel={
+            dialog.kind === 'force-close'
+              ? t('forceCloseTitle')
+              : dialog.kind === 'collect-fees'
+              ? t('collectFeesTitle')
+              : t('stopTitle')
+          }
+          loading={stop.isPending || forceClose.isPending || collectFees.isPending}
           onConfirm={async ({ reason }) => {
             if (dialog.kind === 'force-close') {
               await forceClose.mutateAsync({ id: dialog.deployment.id, reason });
             } else if (dialog.kind === 'stop') {
               await stop.mutateAsync({ id: dialog.deployment.id });
+            } else if (dialog.kind === 'collect-fees') {
+              await collectFees.mutateAsync({ id: dialog.deployment.id });
             }
             setDialog(null);
           }}
