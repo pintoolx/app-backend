@@ -7,7 +7,7 @@ describe('NoopOnchainAdapter', () => {
     const result = await adapter.initializeDeployment({
       deploymentId: 'd1',
       strategyId: 's1',
-      strategyVersion: 1,
+      strategy_version: 1,
       creatorWallet: 'wallet-1',
       vaultOwnerHint: null,
       publicMetadataHash: 'hash-public',

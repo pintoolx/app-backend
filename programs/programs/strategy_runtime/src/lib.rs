@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use ephemeral_rollups_sdk::anchor::ephemeral;
 
 pub mod constants;
 pub mod errors;
@@ -9,6 +10,7 @@ use instructions::*;
 
 declare_id!("FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF");
 
+#[ephemeral]
 #[program]
 pub mod strategy_runtime {
     use super::*;
@@ -65,6 +67,7 @@ pub mod strategy_runtime {
     }
 
     /// Phase 1 — append a new private state commitment with replay protection.
+    /// Used for offchain mode (base layer only).
     pub fn commit_state(
         ctx: Context<CommitState>,
         expected_revision: u32,
@@ -72,6 +75,22 @@ pub mod strategy_runtime {
         last_result_code: u32,
     ) -> Result<()> {
         instructions::commit_state::handler(
+            ctx,
+            expected_revision,
+            new_private_state_commitment,
+            last_result_code,
+        )
+    }
+
+    /// Phase 1 — commit state on ER and explicitly commit back to base layer.
+    /// Uses MagicIntentBundleBuilder to snapshot the strategy_state after update.
+    pub fn commit_state_and_commit(
+        ctx: Context<CommitStateOnEr>,
+        expected_revision: u32,
+        new_private_state_commitment: [u8; 32],
+        last_result_code: u32,
+    ) -> Result<()> {
+        instructions::commit_state_on_er::handler(
             ctx,
             expected_revision,
             new_private_state_commitment,
@@ -147,26 +166,15 @@ pub mod strategy_runtime {
     // ---------- MagicBlock ER Delegation ----------
 
     /// Delegate the strategy_state PDA to an Ephemeral Rollups validator.
-    /// This CPIs into the MagicBlock delegation program so the PDA can sign
-    /// via invoke_signed with its seeds.
+    /// Uses #[delegate] macro from ephemeral-rollups-sdk for correct metadata.
     pub fn delegate_strategy_state(ctx: Context<DelegateStrategyState>) -> Result<()> {
         instructions::delegate_strategy_state::handler(ctx)
     }
 
     // ---------- MagicBlock ER Undelegation ----------
-
-    /// Undelegate callback invoked by the MagicBlock delegation program on the
-    /// base layer after a commit-and-undelegate on ER.  Restores the
-    /// strategy_state account ownership and data from the delegation buffer.
-    pub fn undelegate_strategy_state(
-        ctx: Context<UndelegateStrategyState>,
-        pda_seeds: Vec<Vec<u8>>,
-    ) -> Result<()> {
-        instructions::undelegate_strategy_state::handler(
-            ctx,
-            instructions::undelegate_strategy_state::UndelegateArgs { pda_seeds },
-        )
-    }
+    /// NOTE: #[ephemeral] macro auto-injects process_undelegation and
+    /// InitializeAfterUndelegation.  We keep a thin wrapper here so the
+    /// explicit instruction name matches our IDL.
 
     // ---------- Phase 4 — Application-layer closure ----------
 

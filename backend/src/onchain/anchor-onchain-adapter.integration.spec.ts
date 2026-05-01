@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 /**
  * Integration test: AnchorOnchainAdapterService ↔ devnet strategy_runtime
  *
@@ -19,10 +21,11 @@ import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorOnchainAdapterService } from './anchor-onchain-adapter.service';
 import { AnchorClientService } from './anchor-client.service';
 import { KeeperKeypairService } from './keeper-keypair.service';
+import { withRpcRetry } from '../magicblock/__test-helpers__/rpc-retry';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DEVNET_RPC = 'https://api.devnet.solana.com';
+const DEVNET_RPC = 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
 const PROGRAM_ID = 'FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF';
 
 // Load the same test wallet used by programs/devnet tests
@@ -33,14 +36,21 @@ function loadTestWallet(): Keypair {
 }
 
 async function ensureBalance(connection: Connection, pubkey: Keypair['publicKey']) {
-  const balance = await connection.getBalance(pubkey);
+  const balance = await withRpcRetry(() => connection.getBalance(pubkey), {
+    label: 'getBalance',
+  });
   if (balance < LAMPORTS_PER_SOL) {
     console.log(`Requesting airdrop for ${pubkey.toBase58()}...`);
     try {
-      await connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL);
+      await withRpcRetry(
+        () => connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL),
+        { label: 'requestAirdrop' },
+      );
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 1000));
-        const b = await connection.getBalance(pubkey);
+        const b = await withRpcRetry(() => connection.getBalance(pubkey), {
+          label: 'getBalance(poll)',
+        });
         if (b >= LAMPORTS_PER_SOL) break;
       }
     } catch (e) {
@@ -50,7 +60,11 @@ async function ensureBalance(connection: Connection, pubkey: Keypair['publicKey'
 }
 
 describe('AnchorOnchainAdapterService — Devnet Integration', () => {
-  jest.setTimeout(120_000);
+  // initializeDeployment makes 5 sequential on-chain calls; under devnet
+  // load + rate-limit backoff a single call easily exceeds 60s. The
+  // "maps execution modes" test runs three of these back-to-back, so we
+  // budget generously.
+  jest.setTimeout(300_000);
 
   let adapter: AnchorOnchainAdapterService;
   let connection: Connection;
@@ -94,16 +108,19 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
     const deploymentId = crypto.randomUUID();
     const strategyId = crypto.randomUUID();
 
-    const result = await adapter.initializeDeployment({
-      deploymentId,
-      strategyId,
-      strategyVersion: 1,
-      creatorWallet: wallet.publicKey.toBase58(),
-      vaultOwnerHint: null,
-      publicMetadataHash: 'a'.repeat(64),
-      privateDefinitionCommitment: 'b'.repeat(64),
-      executionMode: 'per',
-    });
+    const result = await withRpcRetry(
+      () => adapter.initializeDeployment({
+        deploymentId,
+        strategyId,
+        strategy_version: 1,
+        creatorWallet: wallet.publicKey.toBase58(),
+        vaultOwnerHint: null,
+        publicMetadataHash: 'a'.repeat(64),
+        privateDefinitionCommitment: 'b'.repeat(64),
+        executionMode: 'per',
+      }),
+      { label: 'initializeDeployment(per)' },
+    );
 
     expect(result.deploymentAccount).toMatch(/^[A-HJ-NP-Za-km-z1-9]{32,44}$/);
     expect(result.vaultAuthorityAccount).toMatch(/^[A-HJ-NP-Za-km-z1-9]{32,44}$/);
@@ -188,16 +205,19 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
     const strategyId = crypto.randomUUID();
 
     for (const mode of ['offchain', 'er', 'per'] as const) {
-      const result = await adapter.initializeDeployment({
-        deploymentId: crypto.randomUUID(),
-        strategyId: crypto.randomUUID(),
-        strategyVersion: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'a'.repeat(64),
-        privateDefinitionCommitment: 'b'.repeat(64),
-        executionMode: mode,
-      });
+      const result = await withRpcRetry(
+        () => adapter.initializeDeployment({
+          deploymentId: crypto.randomUUID(),
+          strategyId: crypto.randomUUID(),
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'a'.repeat(64),
+          privateDefinitionCommitment: 'b'.repeat(64),
+          executionMode: mode,
+        }),
+        { label: `initializeDeployment(${mode})` },
+      );
 
       const program = await (adapter as any).anchorClient.getProgram();
       const deployment = await program.account.strategyDeployment.fetch(result.deploymentAccount!);
@@ -205,6 +225,11 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
       const expectedMode = mode === 'offchain' ? 0 : mode === 'er' ? 1 : 2;
       expect(deployment.executionMode).toBe(expectedMode);
       console.log(`Execution mode ${mode} => ${expectedMode} verified on devnet`);
+
+      // Small delay between iterations to avoid RPC rate-limiting
+      if (mode !== 'per') {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
     }
   });
 });

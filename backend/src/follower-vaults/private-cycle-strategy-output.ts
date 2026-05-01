@@ -46,7 +46,7 @@ export interface StrategyCycleOutput {
   cycleIntent: StrategyCycleIntent;
   followerAllocations: StrategyFollowerAllocation[];
   meta: {
-    strategyVersion: number;
+    strategy_version: number;
     /** Optional anchor reference (signal hash, oracle slot, etc.). */
     signalRef?: string;
   };

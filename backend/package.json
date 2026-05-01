@@ -22,7 +22,7 @@
     "admin:list": "ts-node -P tsconfig.json scripts/admin/create-admin.ts list",
     "admin:disable": "ts-node -P tsconfig.json scripts/admin/create-admin.ts disable",
     "admin:enable": "ts-node -P tsconfig.json scripts/admin/create-admin.ts enable",
-    "test": "jest",
+    "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInWorker",
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
-    "@anchor-lang/core": "^1.0.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@crossmint/wallets-sdk": "^0.21.0",
     "@jup-ag/api": "^6.0.45",
     "@kamino-finance/klend-sdk": "^7.1.9",
@@ -116,6 +116,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(@umbra-privacy/sdk|@noble/ciphers|@noble/hashes|@noble/curves)/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

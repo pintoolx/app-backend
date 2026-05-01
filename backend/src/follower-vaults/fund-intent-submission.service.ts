@@ -74,7 +74,7 @@ export class FundIntentSubmissionService {
     // 3. Submit to Solana
     const rpcUrl =
       this.configService.get<string>('SOLANA_RPC_URL') ??
-      'https://api.devnet.solana.com';
+      'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
     const connection = new Connection(rpcUrl, 'confirmed');
 
     const signature = await connection.sendRawTransaction(tx.serialize(), {

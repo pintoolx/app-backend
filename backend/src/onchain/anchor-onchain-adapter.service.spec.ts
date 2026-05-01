@@ -1,6 +1,7 @@
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { AnchorOnchainAdapterService } from './anchor-onchain-adapter.service';
 import { AnchorClientService } from './anchor-client.service';
+import { KeeperKeypairService } from './keeper-keypair.service';
 
 const PROGRAM_ID = new PublicKey('FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF');
 const DEPLOYMENT_UUID = '11111111-2222-3333-4444-555555555555';
@@ -57,13 +58,19 @@ function makeProgramStub() {
   };
 }
 
+function makeKeeperStub() {
+  return {
+    loadKeypair: jest.fn().mockResolvedValue(Keypair.generate()),
+  } as unknown as KeeperKeypairService;
+}
+
 function makeClientStub() {
   const wallet = { publicKey: Keypair.generate().publicKey };
   const program = makeProgramStub();
   const client = {
     getProgramId: jest.fn().mockReturnValue(PROGRAM_ID),
     getProgram: jest.fn().mockResolvedValue(program),
-    getProvider: jest.fn().mockResolvedValue({ wallet }),
+    getProvider: jest.fn().mockResolvedValue({ wallet, connection: { getLatestBlockhash: jest.fn().mockResolvedValue({ blockhash: 'test-blockhash' }) } }),
   } as unknown as AnchorClientService;
   return { client, program };
 }
@@ -71,12 +78,13 @@ function makeClientStub() {
 describe('AnchorOnchainAdapterService', () => {
   it('initializeDeployment runs the 4-ix bootstrap and returns PDAs', async () => {
     const { client, program } = makeClientStub();
-    const service = new AnchorOnchainAdapterService(client);
+    const keeper = makeKeeperStub();
+    const service = new AnchorOnchainAdapterService(client, keeper);
 
     const result = await service.initializeDeployment({
       deploymentId: DEPLOYMENT_UUID,
       strategyId: STRATEGY_UUID,
-      strategyVersion: 1,
+      strategy_version: 1,
       creatorWallet: 'wallet-1',
       vaultOwnerHint: 'account-1',
       publicMetadataHash: HASH_HEX,
@@ -106,13 +114,14 @@ describe('AnchorOnchainAdapterService', () => {
 
   it('initializeDeployment skips strategy version when already registered', async () => {
     const { client, program } = makeClientStub();
-    const service = new AnchorOnchainAdapterService(client);
+    const keeper = makeKeeperStub();
+    const service = new AnchorOnchainAdapterService(client, keeper);
     program.setSequence(['already-exists']);
 
     await service.initializeDeployment({
       deploymentId: DEPLOYMENT_UUID,
       strategyId: STRATEGY_UUID,
-      strategyVersion: 2,
+      strategy_version: 2,
       creatorWallet: 'wallet-1',
       vaultOwnerHint: null,
       publicMetadataHash: HASH_HEX,
@@ -130,7 +139,8 @@ describe('AnchorOnchainAdapterService', () => {
 
   it('commitState forwards expected revision and returns next revision', async () => {
     const { client, program } = makeClientStub();
-    const service = new AnchorOnchainAdapterService(client);
+    const keeper = makeKeeperStub();
+    const service = new AnchorOnchainAdapterService(client, keeper);
 
     const out = await service.commitState({
       deploymentId: DEPLOYMENT_UUID,
@@ -149,7 +159,8 @@ describe('AnchorOnchainAdapterService', () => {
 
   it('setPublicSnapshot maps risk band and status strings to codes', async () => {
     const { client, program } = makeClientStub();
-    const service = new AnchorOnchainAdapterService(client);
+    const keeper = makeKeeperStub();
+    const service = new AnchorOnchainAdapterService(client, keeper);
 
     const out = await service.setPublicSnapshot({
       deploymentId: DEPLOYMENT_UUID,
@@ -173,7 +184,8 @@ describe('AnchorOnchainAdapterService', () => {
 
   it('setLifecycleStatus accepts each lifecycle code', async () => {
     const { client, program } = makeClientStub();
-    const service = new AnchorOnchainAdapterService(client);
+    const keeper = makeKeeperStub();
+    const service = new AnchorOnchainAdapterService(client, keeper);
 
     await service.setLifecycleStatus({ deploymentId: DEPLOYMENT_UUID, newStatus: 'paused' });
     await service.setLifecycleStatus({ deploymentId: DEPLOYMENT_UUID, newStatus: 'deployed' });
@@ -185,7 +197,8 @@ describe('AnchorOnchainAdapterService', () => {
 
   it('closeDeployment submits close ix and returns signature', async () => {
     const { client, program } = makeClientStub();
-    const service = new AnchorOnchainAdapterService(client);
+    const keeper = makeKeeperStub();
+    const service = new AnchorOnchainAdapterService(client, keeper);
 
     const out = await service.closeDeployment({ deploymentId: DEPLOYMENT_UUID });
 
@@ -196,7 +209,8 @@ describe('AnchorOnchainAdapterService', () => {
 
   it('surfaces RPC failures as InternalServerError', async () => {
     const { client, program } = makeClientStub();
-    const service = new AnchorOnchainAdapterService(client);
+    const keeper = makeKeeperStub();
+    const service = new AnchorOnchainAdapterService(client, keeper);
     program.setSequence(['fail']);
 
     await expect(

@@ -52,7 +52,7 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
     params: InitializeDeploymentParams,
   ): Promise<InitializeDeploymentResult> {
     this.logger.debug(
-      `[noop] initializeDeployment deployment=${params.deploymentId} strategy=${params.strategyId} version=${params.strategyVersion} mode=${params.executionMode}`,
+      `[noop] initializeDeployment deployment=${params.deploymentId} strategy=${params.strategyId} version=${params.strategy_version} mode=${params.executionMode}`,
     );
     return {
       deploymentAccount: null,
@@ -77,6 +77,17 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
       `[noop] commitState deployment=${params.deploymentId} expectedRevision=${params.expectedRevision}`,
     );
     return { signature: null, newStateRevision: params.expectedRevision + 1 };
+  }
+
+  async buildCommitStateTransaction(
+    params: CommitStateParams,
+  ): Promise<{ transactionBase64: string }> {
+    this.logger.debug(
+      `[noop] buildCommitStateTransaction deployment=${params.deploymentId} expectedRevision=${params.expectedRevision}`,
+    );
+    return {
+      transactionBase64: `noop-commit-${params.deploymentId}-${params.expectedRevision}`,
+    };
   }
 
   async setPublicSnapshot(params: SetPublicSnapshotParams): Promise<OnchainCommitResult> {

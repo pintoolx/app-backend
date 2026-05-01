@@ -124,7 +124,7 @@ export class StrategyDeploymentsService {
     const onchainResult = await this.onchainAdapter.initializeDeployment({
       deploymentId,
       strategyId,
-      strategyVersion: version.version,
+      strategy_version: version.version,
       creatorWallet: walletAddress,
       vaultOwnerHint: dto.accountId,
       publicMetadataHash: compiled.publicMetadata.publicMetadataHash,

@@ -24,6 +24,7 @@ import {
   StrategyDeploymentsRepository,
   type StrategyDeploymentRow,
 } from '../strategy-deployments/strategy-deployments.repository';
+import { PrivateExecutionCyclesService } from '../follower-vaults/private-execution-cycles.service';
 import { MetricsService } from '../observability/metrics.service';
 import { StrategyEvaluationEvent } from './strategy-keeper.service';
 
@@ -36,8 +37,8 @@ import { StrategyEvaluationEvent } from './strategy-keeper.service';
  *
  * Execution flow per mode:
  *   offchain  → commitState() + setPublicSnapshot()
- *   er        → route() through MagicBlock ER (Phase 1.2: advisory only)
- *   per       → startCycle() via PrivateExecutionCyclesService (future)
+ *   er        → buildCommitStateTransaction() → route() through MagicBlock ER
+ *   per       → startCycle() via PrivateExecutionCyclesService
  */
 @Injectable()
 export class StrategyRunsService {
@@ -48,6 +49,7 @@ export class StrategyRunsService {
     private readonly deploymentsRepository: StrategyDeploymentsRepository,
     @Inject(ONCHAIN_ADAPTER) private readonly onchainAdapter: OnchainAdapterPort,
     @Inject(MAGICBLOCK_ER_ADAPTER) private readonly erAdapter: MagicBlockErAdapterPort,
+    private readonly privateExecutionCyclesService: PrivateExecutionCyclesService,
     private readonly metricsService: MetricsService,
   ) {}
 
@@ -220,46 +222,69 @@ export class StrategyRunsService {
   }
 
   /**
-   * ER execution: route a transaction through MagicBlock ER.
-   *
-   * Phase 1.2 limitation: constructing the actual ER transaction requires
-   * program-specific instruction building.  For now we log and return a
-   * placeholder outcome.  A future phase will build real instructions.
+   * ER execution: build a signed commitState transaction and route it
+   * through MagicBlock ER via the Magic Router.
    */
   private async executeEr(
-    _run: StrategyRunRow,
+    run: StrategyRunRow,
     deployment: StrategyDeploymentRow,
   ): Promise<Record<string, unknown>> {
-    this.logger.warn(
-      `ER execution not fully implemented in Phase 1.2 for deployment=${deployment.id}. ` +
-        `Returning advisory outcome.`,
-    );
+    const commitParams: CommitStateParams = {
+      deploymentId: deployment.id,
+      expectedRevision: deployment.state_revision,
+      newPrivateStateCommitment: this.generateMockCommitment(),
+      lastResultCode: 0,
+    };
+
+    const builtTx = await this.onchainAdapter.buildCommitStateTransaction(commitParams);
+
+    const routeResult = await this.erAdapter.route({
+      deploymentId: deployment.id,
+      base64Tx: builtTx.transactionBase64,
+    });
+
     return {
       layer: 'er',
-      advisory: true,
-      note: 'ER auto-execution requires client-signed tx or fee sponsorship (Phase 1.3+)',
+      commitSignature: routeResult.signature,
+      routedThrough: routeResult.routedThrough,
     };
   }
 
   /**
-   * PER execution: start a private execution cycle.
+   * PER execution: start a private execution cycle via
+   * PrivateExecutionCyclesService.
    *
-   * Phase 1.2 limitation: PER cycles require a creator wallet signature for
-   * the challenge/verify flow.  Keeper-operated PER execution needs a
-   * credential delegation model not yet implemented.
+   * The keeper acts as the deployment operator. Notional is read from
+   * deployment.metadata.auto_notional (string) and falls back to 0.
    */
   private async executePer(
-    _run: StrategyRunRow,
+    run: StrategyRunRow,
     deployment: StrategyDeploymentRow,
   ): Promise<Record<string, unknown>> {
-    this.logger.warn(
-      `PER execution not fully implemented in Phase 1.2 for deployment=${deployment.id}. ` +
-        `Returning advisory outcome.`,
+    const metadata = deployment.metadata ?? {};
+    const notional = metadata.auto_notional as string | undefined;
+
+    if (!notional) {
+      this.logger.warn(
+        `PER execution for deployment=${deployment.id} has no auto_notional configured; cycle will run with zero allocations.`,
+      );
+    }
+
+    const cycleResult = await this.privateExecutionCyclesService.startCycle(
+      deployment.id,
+      deployment.creator_wallet_address,
+      {
+        triggerType: 'keeper',
+        idempotencyKey: run.id,
+        notional,
+      },
     );
+
     return {
       layer: 'per',
-      advisory: true,
-      note: 'PER auto-execution needs credential delegation (Phase 1.3+)',
+      cycleId: cycleResult.cycle.id,
+      receiptCount: cycleResult.receipts.length,
+      cycleStatus: cycleResult.cycle.status,
     };
   }
 

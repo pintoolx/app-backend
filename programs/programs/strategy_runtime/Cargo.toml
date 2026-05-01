@@ -17,7 +17,8 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "1.0.1", features = ["init-if-needed"] }
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+ephemeral-rollups-sdk = { version = "0.12.0", features = ["anchor", "disable-realloc"] }
 
 # serde_json was previously pinned to avoid `select_unpredictable` in older
 # platform-tools. With rustc 1.95+ and Solana 3.1.x this is no longer needed.

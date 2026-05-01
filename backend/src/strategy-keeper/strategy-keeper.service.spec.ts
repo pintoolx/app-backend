@@ -45,7 +45,7 @@ describe('StrategyKeeperService', () => {
 
     configService = {
       get: jest.fn().mockImplementation((key: string) => {
-        if (key === 'SOLANA_RPC_URL') return 'https://api.devnet.solana.com';
+        if (key === 'SOLANA_RPC_URL') return 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
         if (key === 'STRATEGY_KEEPER_POLLING_MS') return 1000;
         return undefined;
       }),

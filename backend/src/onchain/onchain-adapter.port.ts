@@ -15,7 +15,7 @@ export type DeploymentExecutionMode = 'offchain' | 'er' | 'per';
 export interface InitializeDeploymentParams {
   deploymentId: string;
   strategyId: string;
-  strategyVersion: number;
+  strategy_version: number;
   creatorWallet: string;
   vaultOwnerHint: string | null;
   publicMetadataHash: string;
@@ -59,6 +59,11 @@ export interface CloseDeploymentParams {
 export interface OnchainCommitResult {
   signature: string | null;
   newStateRevision: number;
+}
+
+export interface BuildCommitStateTransactionResult {
+  /** Base64-encoded signed transaction ready for Magic Router forwarding. */
+  transactionBase64: string;
 }
 
 // ---------------- Phase 2: follower-vault provisioning ---------------------
@@ -172,6 +177,12 @@ export interface OnchainAdapterPort {
   initializeDeployment(params: InitializeDeploymentParams): Promise<InitializeDeploymentResult>;
   setLifecycleStatus(params: SetLifecycleStatusParams): Promise<{ signature: string | null }>;
   commitState(params: CommitStateParams): Promise<OnchainCommitResult>;
+  /**
+   * Build a signed commitState transaction for MagicBlock ER routing.
+   * The adapter constructs the Anchor instruction, attaches a recent blockhash,
+   * signs with the keeper wallet, and returns the serialized tx as base64.
+   */
+  buildCommitStateTransaction(params: CommitStateParams): Promise<BuildCommitStateTransactionResult>;
   setPublicSnapshot(params: SetPublicSnapshotParams): Promise<OnchainCommitResult>;
   closeDeployment(params: CloseDeploymentParams): Promise<{ signature: string | null }>;
 

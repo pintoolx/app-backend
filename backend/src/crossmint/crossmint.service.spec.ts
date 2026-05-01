@@ -48,7 +48,7 @@ const buildConfigService = (overrides: Record<string, any> = {}) => {
     'crossmint.signerSecret':
       'xmsk1_0000000000000000000000000000000000000000000000000000000000000000',
     'crossmint.environment': 'staging',
-    'solana.rpcUrl': 'https://api.devnet.solana.com',
+    'solana.rpcUrl': 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a',
   };
   return {
     get: jest.fn((key: string) => (key in overrides ? overrides[key] : defaults[key])),

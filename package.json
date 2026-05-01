@@ -19,6 +19,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
     "@jup-ag/api": "^6.0.45",
     "@kamino-finance/klend-sdk": "^7.1.9",
     "@kamino-finance/kswap-sdk": "^2.0.0",

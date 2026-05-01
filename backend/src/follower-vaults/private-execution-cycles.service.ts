@@ -131,7 +131,7 @@ export class PrivateExecutionCyclesService {
         ? this.allocationsService.computeAllocationsWithStrategyOutput(inputs, strategyOutput)
         : this.allocationsService.computeAllocations(inputs, notional);
 
-      const strategyVersion = strategyOutput?.meta.strategyVersion ?? null;
+      const strategyVersion = strategyOutput?.meta.strategy_version ?? null;
 
       // Build receipt inserts. If the allocation has a `skipReason` we go
       // straight to status='skipped' to avoid a useless PER fan-out.

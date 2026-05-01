@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 /**
  * Real ER + PER Integration Tests
  *
@@ -25,10 +27,11 @@ import { MagicBlockPerClientService } from './magicblock-per-client.service';
 import { AnchorOnchainAdapterService } from '../onchain/anchor-onchain-adapter.service';
 import { AnchorClientService } from '../onchain/anchor-client.service';
 import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
+import { withRpcRetry } from './__test-helpers__/rpc-retry';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DEVNET_RPC = 'https://api.devnet.solana.com';
+const DEVNET_RPC = 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
 const PROGRAM_ID = 'FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF';
 const MAGICBLOCK_ROUTER = 'https://as.magicblock.app';
 
@@ -40,7 +43,9 @@ function loadTestWallet(): Keypair {
 }
 
 async function ensureBalance(connection: Connection, pubkey: PublicKey, minSol = 1) {
-  const balance = await connection.getBalance(pubkey);
+  const balance = await withRpcRetry(() => connection.getBalance(pubkey), {
+    label: 'getBalance',
+  });
   if (balance < minSol * 1e9) {
     throw new Error(
       `Insufficient devnet balance: ${balance / 1e9} SOL. Need at least ${minSol} SOL.`,
@@ -51,6 +56,10 @@ async function ensureBalance(connection: Connection, pubkey: PublicKey, minSol =
 const SKIP_INTEGRATION_TESTS = process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
 
 describe('MagicBlock ER + PER — Real Integration', () => {
+  // Devnet RPC + Magic Router round-trips routinely take well over Jest's 5s
+  // default per-test timeout (especially under 429 backoff). Bump globally.
+  jest.setTimeout(180_000);
+
   let erAdapter: MagicBlockErRealAdapter;
   let perAdapter: MagicBlockPerRealAdapter | null;
   let onchainAdapter: AnchorOnchainAdapterService;
@@ -136,16 +145,19 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const deploymentId = crypto.randomUUID();
       const strategyId = crypto.randomUUID();
 
-      const result = await onchainAdapter.initializeDeployment({
-        deploymentId,
-        strategyId,
-        strategyVersion: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'a'.repeat(64),
-        privateDefinitionCommitment: 'b'.repeat(64),
-        executionMode: 'per',
-      });
+      const result = await withRpcRetry(
+        () => onchainAdapter.initializeDeployment({
+          deploymentId,
+          strategyId,
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'a'.repeat(64),
+          privateDefinitionCommitment: 'b'.repeat(64),
+          executionMode: 'per',
+        }),
+        { label: 'initializeDeployment(per-er-per-create)' },
+      );
 
       expect(result.deploymentAccount).toBeTruthy();
       expect(result.signature).toBeTruthy();
@@ -164,16 +176,19 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const deploymentId = crypto.randomUUID();
       const strategyId = crypto.randomUUID();
 
-      const result = await onchainAdapter.initializeDeployment({
-        deploymentId,
-        strategyId,
-        strategyVersion: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'a'.repeat(64),
-        privateDefinitionCommitment: 'b'.repeat(64),
-        executionMode: 'er',
-      });
+      const result = await withRpcRetry(
+        () => onchainAdapter.initializeDeployment({
+          deploymentId,
+          strategyId,
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'a'.repeat(64),
+          privateDefinitionCommitment: 'b'.repeat(64),
+          executionMode: 'er',
+        }),
+        { label: 'initializeDeployment(er-er-per)' },
+      );
 
       expect(result.deploymentAccount).toBeTruthy();
       expect(result.signature).toBeTruthy();
@@ -275,7 +290,7 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const result = await onchainAdapter.initializeDeployment({
         deploymentId,
         strategyId,
-        strategyVersion: 1,
+        strategy_version: 1,
         creatorWallet: wallet.publicKey.toBase58(),
         vaultOwnerHint: null,
         publicMetadataHash: 'a'.repeat(64),
@@ -309,16 +324,19 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const deploymentId = crypto.randomUUID();
       const strategyId = crypto.randomUUID();
 
-      const deployResult = await onchainAdapter.initializeDeployment({
-        deploymentId,
-        strategyId,
-        strategyVersion: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'a'.repeat(64),
-        privateDefinitionCommitment: 'b'.repeat(64),
-        executionMode: 'er',
-      });
+      const deployResult = await withRpcRetry(
+        () => onchainAdapter.initializeDeployment({
+          deploymentId,
+          strategyId,
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'a'.repeat(64),
+          privateDefinitionCommitment: 'b'.repeat(64),
+          executionMode: 'er',
+        }),
+        { label: 'initializeDeployment(er-er-per)' },
+      );
 
       // 2. Verify execution_mode on chain
       const program = await (onchainAdapter as any).anchorClient.getProgram();
@@ -362,28 +380,33 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const erDeploymentId = crypto.randomUUID();
       const perDeploymentId = crypto.randomUUID();
 
-      const [erResult, perResult] = await Promise.all([
-        onchainAdapter.initializeDeployment({
+      const erResult = await withRpcRetry(
+        () => onchainAdapter.initializeDeployment({
           deploymentId: erDeploymentId,
           strategyId: crypto.randomUUID(),
-          strategyVersion: 1,
+          strategy_version: 1,
           creatorWallet: wallet.publicKey.toBase58(),
           vaultOwnerHint: null,
           publicMetadataHash: 'a'.repeat(64),
           privateDefinitionCommitment: 'b'.repeat(64),
           executionMode: 'er',
         }),
-        onchainAdapter.initializeDeployment({
+        { label: 'initializeDeployment(er-coexist)' },
+      );
+
+      const perResult = await withRpcRetry(
+        () => onchainAdapter.initializeDeployment({
           deploymentId: perDeploymentId,
           strategyId: crypto.randomUUID(),
-          strategyVersion: 1,
+          strategy_version: 1,
           creatorWallet: wallet.publicKey.toBase58(),
           vaultOwnerHint: null,
           publicMetadataHash: 'b'.repeat(64),
           privateDefinitionCommitment: 'c'.repeat(64),
           executionMode: 'per',
         }),
-      ]);
+        { label: 'initializeDeployment(per-coexist)' },
+      );
 
       const program = await (onchainAdapter as any).anchorClient.getProgram();
       const [erDeployment, perDeployment] = await Promise.all([

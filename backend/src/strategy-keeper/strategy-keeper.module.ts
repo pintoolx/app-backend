@@ -8,6 +8,7 @@ import { DatabaseModule } from '../database/database.module';
 import { ObservabilityModule } from '../observability/observability.module';
 import { StrategyDeploymentsModule } from '../strategy-deployments/strategy-deployments.module';
 import { MagicBlockModule } from '../magicblock/magicblock.module';
+import { FollowerVaultsModule } from '../follower-vaults/follower-vaults.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { MagicBlockModule } from '../magicblock/magicblock.module';
     ObservabilityModule,
     forwardRef(() => StrategyDeploymentsModule),
     MagicBlockModule,
+    FollowerVaultsModule,
   ],
   providers: [StrategyKeeperService, StrategyRunsService, StrategyRunsRepository],
   exports: [StrategyKeeperService, StrategyRunsService],

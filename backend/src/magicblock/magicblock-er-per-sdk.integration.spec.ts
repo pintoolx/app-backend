@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 /**
  * MagicBlock SDK Integration Tests — Backend-layer ER Delegation
  *
@@ -31,10 +33,11 @@ import { MagicBlockClientService } from './magicblock-client.service';
 import { AnchorOnchainAdapterService } from '../onchain/anchor-onchain-adapter.service';
 import { AnchorClientService } from '../onchain/anchor-client.service';
 import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
+import { checkDelegation, pollUntil, withRpcRetry } from './__test-helpers__/rpc-retry';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DEVNET_RPC = 'https://api.devnet.solana.com';
+const DEVNET_RPC = 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
 const PROGRAM_ID = 'FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF';
 const MAGICBLOCK_ROUTER = 'https://devnet-router.magicblock.app';
 const ER_VALIDATOR = new PublicKey('MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57'); // Asia devnet
@@ -46,7 +49,9 @@ function loadTestWallet(): Keypair {
 }
 
 async function ensureBalance(connection: Connection, pubkey: PublicKey, minSol = 1) {
-  const balance = await connection.getBalance(pubkey);
+  const balance = await withRpcRetry(() => connection.getBalance(pubkey), {
+    label: 'getBalance',
+  });
   if (balance < minSol * 1e9) {
     throw new Error(`Insufficient balance: ${balance / 1e9} SOL`);
   }
@@ -116,16 +121,19 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     const deploymentId = crypto.randomUUID();
     const strategyId = crypto.randomUUID();
 
-    const result = await onchainAdapter.initializeDeployment({
-      deploymentId,
-      strategyId,
-      strategyVersion: 1,
-      creatorWallet: wallet.publicKey.toBase58(),
-      vaultOwnerHint: null,
-      publicMetadataHash: 'a'.repeat(64),
-      privateDefinitionCommitment: 'b'.repeat(64),
-      executionMode: 'er',
-    });
+    const result = await withRpcRetry(
+      () => onchainAdapter.initializeDeployment({
+        deploymentId,
+        strategyId,
+        strategy_version: 1,
+        creatorWallet: wallet.publicKey.toBase58(),
+        vaultOwnerHint: null,
+        publicMetadataHash: 'a'.repeat(64),
+        privateDefinitionCommitment: 'b'.repeat(64),
+        executionMode: 'er',
+      }),
+      { label: 'initializeDeployment(er-sdk-create)' },
+    );
 
     expect(result.deploymentAccount).toBeTruthy();
     expect(result.strategyStateAccount).toBeTruthy();
@@ -200,16 +208,19 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     const deploymentId = crypto.randomUUID();
     const strategyId = crypto.randomUUID();
 
-    const result = await onchainAdapter.initializeDeployment({
-      deploymentId,
-      strategyId,
-      strategyVersion: 1,
-      creatorWallet: wallet.publicKey.toBase58(),
-      vaultOwnerHint: null,
-      publicMetadataHash: 'c'.repeat(64),
-      privateDefinitionCommitment: 'd'.repeat(64),
-      executionMode: 'per',
-    });
+    const result = await withRpcRetry(
+      () => onchainAdapter.initializeDeployment({
+        deploymentId,
+        strategyId,
+        strategy_version: 1,
+        creatorWallet: wallet.publicKey.toBase58(),
+        vaultOwnerHint: null,
+        publicMetadataHash: 'c'.repeat(64),
+        privateDefinitionCommitment: 'd'.repeat(64),
+        executionMode: 'per',
+      }),
+      { label: 'initializeDeployment(per-sdk)' },
+    );
 
     const program = await (onchainAdapter as any).anchorClient.getProgram();
     const deployment = await program.account.strategyDeployment.fetch(
@@ -223,16 +234,19 @@ describe('MagicBlock SDK — Real ER Integration', () => {
   it('full ER flow: deploy → route through Magic Router', async () => {
     // 1. Deploy with ER mode
     const deploymentId = crypto.randomUUID();
-    const deployResult = await onchainAdapter.initializeDeployment({
-      deploymentId,
-      strategyId: crypto.randomUUID(),
-      strategyVersion: 1,
-      creatorWallet: wallet.publicKey.toBase58(),
-      vaultOwnerHint: null,
-      publicMetadataHash: 'e'.repeat(64),
-      privateDefinitionCommitment: 'f'.repeat(64),
-      executionMode: 'er',
-    });
+    const deployResult = await withRpcRetry(
+      () => onchainAdapter.initializeDeployment({
+        deploymentId,
+        strategyId: crypto.randomUUID(),
+        strategy_version: 1,
+        creatorWallet: wallet.publicKey.toBase58(),
+        vaultOwnerHint: null,
+        publicMetadataHash: 'e'.repeat(64),
+        privateDefinitionCommitment: 'f'.repeat(64),
+        executionMode: 'er',
+      }),
+      { label: 'initializeDeployment(er-sdk-flow)' },
+    );
 
     const program = await (onchainAdapter as any).anchorClient.getProgram();
     const deployment = await program.account.strategyDeployment.fetch(
@@ -270,16 +284,19 @@ describe('MagicBlock SDK — Real ER Integration', () => {
 
   it('delegates strategy_state to ER via program CPI', async () => {
     // 1. Create ER deployment
-    const deployResult = await onchainAdapter.initializeDeployment({
-      deploymentId: crypto.randomUUID(),
-      strategyId: crypto.randomUUID(),
-      strategyVersion: 1,
-      creatorWallet: wallet.publicKey.toBase58(),
-      vaultOwnerHint: null,
-      publicMetadataHash: '0a'.repeat(32),
-      privateDefinitionCommitment: '0b'.repeat(32),
-      executionMode: 'er',
-    });
+    const deployResult = await withRpcRetry(
+      () => onchainAdapter.initializeDeployment({
+        deploymentId: crypto.randomUUID(),
+        strategyId: crypto.randomUUID(),
+        strategy_version: 1,
+        creatorWallet: wallet.publicKey.toBase58(),
+        vaultOwnerHint: null,
+        publicMetadataHash: '0a'.repeat(32),
+        privateDefinitionCommitment: '0b'.repeat(32),
+        executionMode: 'er',
+      }),
+      { label: 'initializeDeployment(er-sdk-delegate)' },
+    );
     console.log(`ER deployment for delegation: ${deployResult.deploymentAccount}`);
 
     // 2. Build delegation instruction via program CPI
@@ -306,14 +323,11 @@ describe('MagicBlock SDK — Real ER Integration', () => {
         creator: wallet.publicKey,
         deployment: deployResult.deploymentAccount,
         strategyState: strategyStatePda,
-        delegationBuffer,
-        delegationRecord,
-        delegationMetadata,
         delegationProgram: 'DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh',
         ownerProgram: new PublicKey(PROGRAM_ID),
         systemProgram: SystemProgram.programId,
         validator: ER_VALIDATOR,
-      })
+      } as any)
       .instruction();
 
     // 3. Build and sign transaction
@@ -330,23 +344,25 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     await baseConnection.confirmTransaction(sig, 'confirmed');
     console.log(`Delegated strategy_state to ER, signature: ${sig}`);
 
-    // 4. Wait for propagation then poll delegation status on ER
+    // 4. Wait for propagation, then verify delegation. We try the Magic
+    //    Router's getDelegationStatus first (preferred) and fall back to a
+    //    base-layer account-owner check, which is authoritative because the
+    //    delegation program rewrites the owner of the delegated account.
     await new Promise((r) => setTimeout(r, 8000));
 
-    let status: { isDelegated: boolean } | undefined;
-    for (let i = 0; i < 30; i++) {
-      await new Promise((r) => setTimeout(r, 3000));
-      try {
-        status = await routerConnection.getDelegationStatus(strategyStatePda);
-      } catch {
-        continue;
-      }
-      if (status.isDelegated) {
-        console.log(`Delegation confirmed on ER after ${(i + 1) * 3 + 8}s`);
-        break;
-      }
+    const isDelegated = await pollUntil(
+      () =>
+        checkDelegation(baseConnection, strategyStatePda, (pk) =>
+          routerConnection
+            .getDelegationStatus(pk)
+            .catch(() => undefined as { isDelegated: boolean } | undefined),
+        ),
+      { intervalMs: 3000, maxAttempts: 30, label: 'delegation-poll' },
+    );
+    if (isDelegated) {
+      console.log('Delegation confirmed (router or base-layer owner check)');
     }
-    expect(status?.isDelegated).toBe(true);
+    expect(isDelegated).toBe(true);
 
     // 5. Route a transaction through Magic Router (ER should now handle it)
     const testIx = SystemProgram.transfer({

@@ -4,6 +4,7 @@ import { StrategyRunsRepository, StrategyRunRow } from './strategy-runs.reposito
 import { StrategyDeploymentsRepository, StrategyDeploymentRow } from '../strategy-deployments/strategy-deployments.repository';
 import { OnchainAdapterPort } from '../onchain/onchain-adapter.port';
 import { MagicBlockErAdapterPort } from '../magicblock/magicblock.port';
+import { PrivateExecutionCyclesService } from '../follower-vaults/private-execution-cycles.service';
 import { MetricsService } from '../observability/metrics.service';
 import { StrategyEvaluationEvent } from './strategy-keeper.service';
 import { ONCHAIN_ADAPTER } from '../onchain/onchain-adapter.port';
@@ -28,6 +29,7 @@ describe('StrategyRunsService', () => {
   let deploymentsRepository: jest.Mocked<Partial<StrategyDeploymentsRepository>>;
   let onchainAdapter: jest.Mocked<Partial<OnchainAdapterPort>>;
   let erAdapter: jest.Mocked<Partial<MagicBlockErAdapterPort>>;
+  let privateExecutionCyclesService: jest.Mocked<Partial<PrivateExecutionCyclesService>>;
   let metricsService: jest.Mocked<Partial<MetricsService>>;
 
   beforeEach(async () => {
@@ -46,6 +48,9 @@ describe('StrategyRunsService', () => {
         signature: 'sig-commit-123',
         newStateRevision: 5,
       }),
+      buildCommitStateTransaction: jest.fn().mockResolvedValue({
+        transactionBase64: 'base64-signed-tx-mock',
+      }),
       setPublicSnapshot: jest.fn().mockResolvedValue({
         signature: 'sig-snapshot-456',
         newStateRevision: 5,
@@ -56,6 +61,19 @@ describe('StrategyRunsService', () => {
       route: jest.fn().mockResolvedValue({
         signature: 'sig-route-789',
         routedThrough: 'er',
+      }),
+    };
+
+    privateExecutionCyclesService = {
+      startCycle: jest.fn().mockResolvedValue({
+        cycle: {
+          id: 'cycle-001',
+          status: 'completed',
+        },
+        receipts: [
+          { id: 'receipt-001', status: 'applied' },
+          { id: 'receipt-002', status: 'applied' },
+        ],
       }),
     };
 
@@ -70,6 +88,7 @@ describe('StrategyRunsService', () => {
         { provide: StrategyDeploymentsRepository, useValue: deploymentsRepository },
         { provide: ONCHAIN_ADAPTER, useValue: onchainAdapter },
         { provide: MAGICBLOCK_ER_ADAPTER, useValue: erAdapter },
+        { provide: PrivateExecutionCyclesService, useValue: privateExecutionCyclesService },
         { provide: MetricsService, useValue: metricsService },
       ],
     }).compile();
@@ -162,9 +181,9 @@ describe('StrategyRunsService', () => {
       );
     });
 
-    it('executes er run with advisory outcome', async () => {
+    it('executes er run: buildCommitStateTransaction + route through ER', async () => {
       const run = mockStrategyRun({ execution_layer: 'er' });
-      const deployment = mockDeployment();
+      const deployment = mockDeployment({ state_revision: 3 });
 
       runsRepository.getById!.mockResolvedValue(run);
       deploymentsRepository.getById!.mockResolvedValue(deployment);
@@ -172,14 +191,31 @@ describe('StrategyRunsService', () => {
 
       const result = await service.executeRun(run.id);
 
-      expect(onchainAdapter.commitState).not.toHaveBeenCalled();
+      expect(onchainAdapter.buildCommitStateTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentId: deployment.id,
+          expectedRevision: 3,
+        }),
+      );
+      expect(erAdapter.route).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentId: deployment.id,
+          base64Tx: 'base64-signed-tx-mock',
+        }),
+      );
       expect(result.status).toBe('completed');
-      expect(result.public_outcome).toMatchObject({ layer: 'er', advisory: true });
+      expect(result.public_outcome).toMatchObject({
+        layer: 'er',
+        commitSignature: 'sig-route-789',
+        routedThrough: 'er',
+      });
     });
 
-    it('executes per run with advisory outcome', async () => {
-      const run = mockStrategyRun({ execution_layer: 'per' });
-      const deployment = mockDeployment();
+    it('executes per run: startCycle via PrivateExecutionCyclesService', async () => {
+      const run = mockStrategyRun({ execution_layer: 'per', id: 'run-per-001' });
+      const deployment = mockDeployment({
+        metadata: { auto_notional: '5000000000' },
+      });
 
       runsRepository.getById!.mockResolvedValue(run);
       deploymentsRepository.getById!.mockResolvedValue(deployment);
@@ -187,8 +223,44 @@ describe('StrategyRunsService', () => {
 
       const result = await service.executeRun(run.id);
 
+      expect(privateExecutionCyclesService.startCycle).toHaveBeenCalledWith(
+        deployment.id,
+        deployment.creator_wallet_address,
+        expect.objectContaining({
+          triggerType: 'keeper',
+          idempotencyKey: 'run-per-001',
+          notional: '5000000000',
+        }),
+      );
       expect(result.status).toBe('completed');
-      expect(result.public_outcome).toMatchObject({ layer: 'per', advisory: true });
+      expect(result.public_outcome).toMatchObject({
+        layer: 'per',
+        cycleId: 'cycle-001',
+        receiptCount: 2,
+        cycleStatus: 'completed',
+      });
+    });
+
+    it('executes per run with zero notional when auto_notional is missing', async () => {
+      const run = mockStrategyRun({ execution_layer: 'per', id: 'run-per-002' });
+      const deployment = mockDeployment({ metadata: {} });
+
+      runsRepository.getById!.mockResolvedValue(run);
+      deploymentsRepository.getById!.mockResolvedValue(deployment);
+      runsRepository.updateRun = mockUpdateRun(run);
+
+      const result = await service.executeRun(run.id);
+
+      expect(privateExecutionCyclesService.startCycle).toHaveBeenCalledWith(
+        deployment.id,
+        deployment.creator_wallet_address,
+        expect.objectContaining({
+          triggerType: 'keeper',
+          idempotencyKey: 'run-per-002',
+          notional: undefined,
+        }),
+      );
+      expect(result.status).toBe('completed');
     });
 
     it('marks run as failed when deployment not found', async () => {
@@ -225,6 +297,48 @@ describe('StrategyRunsService', () => {
 
       expect(result.status).toBe('failed');
       expect(result.error_message).toContain('RPC timeout');
+      expect(metricsService.recordAdapterCall).toHaveBeenCalledWith(
+        'keeper',
+        'executeRun',
+        'fail',
+        expect.any(Number),
+      );
+    });
+
+    it('marks er run as failed when route throws', async () => {
+      const run = mockStrategyRun({ execution_layer: 'er' });
+      const deployment = mockDeployment();
+
+      runsRepository.getById!.mockResolvedValue(run);
+      deploymentsRepository.getById!.mockResolvedValue(deployment);
+      erAdapter.route!.mockRejectedValue(new Error('Router timeout'));
+      runsRepository.updateRun = mockUpdateRun(run);
+
+      const result = await service.executeRun(run.id);
+
+      expect(result.status).toBe('failed');
+      expect(result.error_message).toContain('Router timeout');
+      expect(metricsService.recordAdapterCall).toHaveBeenCalledWith(
+        'keeper',
+        'executeRun',
+        'fail',
+        expect.any(Number),
+      );
+    });
+
+    it('marks per run as failed when startCycle throws', async () => {
+      const run = mockStrategyRun({ execution_layer: 'per' });
+      const deployment = mockDeployment();
+
+      runsRepository.getById!.mockResolvedValue(run);
+      deploymentsRepository.getById!.mockResolvedValue(deployment);
+      privateExecutionCyclesService.startCycle!.mockRejectedValue(new Error('Cycle engine error'));
+      runsRepository.updateRun = mockUpdateRun(run);
+
+      const result = await service.executeRun(run.id);
+
+      expect(result.status).toBe('failed');
+      expect(result.error_message).toContain('Cycle engine error');
       expect(metricsService.recordAdapterCall).toHaveBeenCalledWith(
         'keeper',
         'executeRun',
