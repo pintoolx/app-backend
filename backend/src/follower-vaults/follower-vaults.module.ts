@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { OnchainModule } from '../onchain/onchain.module';
 import { MagicBlockModule } from '../magicblock/magicblock.module';
@@ -31,7 +31,13 @@ import { NoopPrivateStrategyOutputProvider } from './noop-private-strategy-outpu
  * imported for `KeeperKeypairService`, used by the HKDF signer derivation.
  */
 @Module({
-  imports: [AuthModule, OnchainModule, MagicBlockModule, UmbraModule, StrategyDeploymentsModule],
+  imports: [
+    AuthModule,
+    OnchainModule,
+    MagicBlockModule,
+    UmbraModule,
+    forwardRef(() => StrategyDeploymentsModule),
+  ],
   controllers: [
     SubscriptionsController,
     MySubscriptionsController,
