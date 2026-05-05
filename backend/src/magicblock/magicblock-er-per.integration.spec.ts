@@ -53,7 +53,12 @@ async function ensureBalance(connection: Connection, pubkey: PublicKey, minSol =
   }
 }
 
-const SKIP_INTEGRATION_TESTS = process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
+const RUN_EXTERNAL_INTEGRATION_TESTS =
+  process.env.RUN_EXTERNAL_INTEGRATION_TESTS === '1' ||
+  process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
+const SKIP_INTEGRATION_TESTS =
+  !RUN_EXTERNAL_INTEGRATION_TESTS ||
+  process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
 
 describe('MagicBlock ER + PER — Real Integration', () => {
   // Devnet RPC + Magic Router round-trips routinely take well over Jest's 5s
@@ -120,9 +125,7 @@ describe('MagicBlock ER + PER — Real Integration', () => {
 
     if (isPerConfigured) {
       // Only create PER adapter if endpoint is configured
-      const perClient = new MagicBlockPerClientService(
-        moduleRef.get(ConfigService),
-      );
+      const perClient = new MagicBlockPerClientService(moduleRef.get(ConfigService));
       // PER adapter needs repos - skip for now unless fully wired
       perAdapter = null;
     }
@@ -146,16 +149,17 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const strategyId = crypto.randomUUID();
 
       const result = await withRpcRetry(
-        () => onchainAdapter.initializeDeployment({
-          deploymentId,
-          strategyId,
-          strategy_version: 1,
-          creatorWallet: wallet.publicKey.toBase58(),
-          vaultOwnerHint: null,
-          publicMetadataHash: 'a'.repeat(64),
-          privateDefinitionCommitment: 'b'.repeat(64),
-          executionMode: 'per',
-        }),
+        () =>
+          onchainAdapter.initializeDeployment({
+            deploymentId,
+            strategyId,
+            strategy_version: 1,
+            creatorWallet: wallet.publicKey.toBase58(),
+            vaultOwnerHint: null,
+            publicMetadataHash: 'a'.repeat(64),
+            privateDefinitionCommitment: 'b'.repeat(64),
+            executionMode: 'per',
+          }),
         { label: 'initializeDeployment(per-er-per-create)' },
       );
 
@@ -164,9 +168,7 @@ describe('MagicBlock ER + PER — Real Integration', () => {
 
       // Verify on-chain
       const program = await (onchainAdapter as any).anchorClient.getProgram();
-      const deployment = await program.account.strategyDeployment.fetch(
-        result.deploymentAccount!,
-      );
+      const deployment = await program.account.strategyDeployment.fetch(result.deploymentAccount!);
       expect(deployment.executionMode).toBe(2); // PER = 2
       console.log(`PER deployment created: ${result.deploymentAccount}`);
     });
@@ -177,16 +179,17 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const strategyId = crypto.randomUUID();
 
       const result = await withRpcRetry(
-        () => onchainAdapter.initializeDeployment({
-          deploymentId,
-          strategyId,
-          strategy_version: 1,
-          creatorWallet: wallet.publicKey.toBase58(),
-          vaultOwnerHint: null,
-          publicMetadataHash: 'a'.repeat(64),
-          privateDefinitionCommitment: 'b'.repeat(64),
-          executionMode: 'er',
-        }),
+        () =>
+          onchainAdapter.initializeDeployment({
+            deploymentId,
+            strategyId,
+            strategy_version: 1,
+            creatorWallet: wallet.publicKey.toBase58(),
+            vaultOwnerHint: null,
+            publicMetadataHash: 'a'.repeat(64),
+            privateDefinitionCommitment: 'b'.repeat(64),
+            executionMode: 'er',
+          }),
         { label: 'initializeDeployment(er-er-per)' },
       );
 
@@ -195,9 +198,7 @@ describe('MagicBlock ER + PER — Real Integration', () => {
 
       // Verify on-chain
       const program = await (onchainAdapter as any).anchorClient.getProgram();
-      const deployment = await program.account.strategyDeployment.fetch(
-        result.deploymentAccount!,
-      );
+      const deployment = await program.account.strategyDeployment.fetch(result.deploymentAccount!);
       expect(deployment.executionMode).toBe(1); // ER = 1
       console.log(`ER deployment created: ${result.deploymentAccount}`);
     });
@@ -299,9 +300,7 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       });
 
       const program = await (onchainAdapter as any).anchorClient.getProgram();
-      const deployment = await program.account.strategyDeployment.fetch(
-        result.deploymentAccount!,
-      );
+      const deployment = await program.account.strategyDeployment.fetch(result.deploymentAccount!);
 
       // The PER adapter in the backend reads this field to know
       // that this deployment uses Private Ephemeral Rollups
@@ -325,16 +324,17 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const strategyId = crypto.randomUUID();
 
       const deployResult = await withRpcRetry(
-        () => onchainAdapter.initializeDeployment({
-          deploymentId,
-          strategyId,
-          strategy_version: 1,
-          creatorWallet: wallet.publicKey.toBase58(),
-          vaultOwnerHint: null,
-          publicMetadataHash: 'a'.repeat(64),
-          privateDefinitionCommitment: 'b'.repeat(64),
-          executionMode: 'er',
-        }),
+        () =>
+          onchainAdapter.initializeDeployment({
+            deploymentId,
+            strategyId,
+            strategy_version: 1,
+            creatorWallet: wallet.publicKey.toBase58(),
+            vaultOwnerHint: null,
+            publicMetadataHash: 'a'.repeat(64),
+            privateDefinitionCommitment: 'b'.repeat(64),
+            executionMode: 'er',
+          }),
         { label: 'initializeDeployment(er-er-per)' },
       );
 
@@ -351,7 +351,11 @@ describe('MagicBlock ER + PER — Real Integration', () => {
         programId: new PublicKey(PROGRAM_ID),
         keys: [
           { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
-          { pubkey: new PublicKey(deployResult.deploymentAccount!), isSigner: false, isWritable: false },
+          {
+            pubkey: new PublicKey(deployResult.deploymentAccount!),
+            isSigner: false,
+            isWritable: false,
+          },
         ],
         data: Buffer.from([]),
       };
@@ -381,30 +385,32 @@ describe('MagicBlock ER + PER — Real Integration', () => {
       const perDeploymentId = crypto.randomUUID();
 
       const erResult = await withRpcRetry(
-        () => onchainAdapter.initializeDeployment({
-          deploymentId: erDeploymentId,
-          strategyId: crypto.randomUUID(),
-          strategy_version: 1,
-          creatorWallet: wallet.publicKey.toBase58(),
-          vaultOwnerHint: null,
-          publicMetadataHash: 'a'.repeat(64),
-          privateDefinitionCommitment: 'b'.repeat(64),
-          executionMode: 'er',
-        }),
+        () =>
+          onchainAdapter.initializeDeployment({
+            deploymentId: erDeploymentId,
+            strategyId: crypto.randomUUID(),
+            strategy_version: 1,
+            creatorWallet: wallet.publicKey.toBase58(),
+            vaultOwnerHint: null,
+            publicMetadataHash: 'a'.repeat(64),
+            privateDefinitionCommitment: 'b'.repeat(64),
+            executionMode: 'er',
+          }),
         { label: 'initializeDeployment(er-coexist)' },
       );
 
       const perResult = await withRpcRetry(
-        () => onchainAdapter.initializeDeployment({
-          deploymentId: perDeploymentId,
-          strategyId: crypto.randomUUID(),
-          strategy_version: 1,
-          creatorWallet: wallet.publicKey.toBase58(),
-          vaultOwnerHint: null,
-          publicMetadataHash: 'b'.repeat(64),
-          privateDefinitionCommitment: 'c'.repeat(64),
-          executionMode: 'per',
-        }),
+        () =>
+          onchainAdapter.initializeDeployment({
+            deploymentId: perDeploymentId,
+            strategyId: crypto.randomUUID(),
+            strategy_version: 1,
+            creatorWallet: wallet.publicKey.toBase58(),
+            vaultOwnerHint: null,
+            publicMetadataHash: 'b'.repeat(64),
+            privateDefinitionCommitment: 'c'.repeat(64),
+            executionMode: 'per',
+          }),
         { label: 'initializeDeployment(per-coexist)' },
       );
 

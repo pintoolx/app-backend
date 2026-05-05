@@ -62,8 +62,7 @@ export class SubscriptionsController {
 
   @Get()
   @ApiOperation({
-    summary:
-      'List every follower subscription attached to this deployment. Creator-only.',
+    summary: 'List every follower subscription attached to this deployment. Creator-only.',
   })
   async listForDeployment(
     @Param('deploymentId') deploymentId: string,
@@ -107,8 +106,7 @@ export class SubscriptionsController {
   @Post(':subscriptionId/submit-fund-intent')
   @HttpCode(200)
   @ApiOperation({
-    summary:
-      'Phase 2.1 — Submit a signed fund-intent transaction on-chain.',
+    summary: 'Phase 2.1 — Submit a signed fund-intent transaction on-chain.',
   })
   async submitFundIntent(
     @Param('deploymentId') deploymentId: string,

@@ -8,7 +8,10 @@ import {
   type BuildFundIntentInstructionParams,
   type CloseDeploymentParams,
   type CloseFollowerVaultParams,
+  type ClosePublicSnapshotParams,
+  type CloseVaultAuthorityParams,
   type CommitStateParams,
+  type DelegateStrategyStateToErParams,
   type DeriveFollowerPdasParams,
   type DeploymentLifecycleStatus,
   type DeploymentExecutionMode,
@@ -24,6 +27,7 @@ import {
   type OnchainAdapterPort,
   type OnchainCommitResult,
   type SetFollowerVaultStatusParams,
+  type SetKeeperParams,
   type SetLifecycleStatusParams,
   type SetPublicSnapshotParams,
 } from './onchain-adapter.port';
@@ -133,7 +137,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           creator,
           strategyVersion: strategyVersionPda,
           systemProgram: SystemProgram.programId,
-        } ).rpc();
+        })
+        .rpc();
     } catch (err) {
       if (!this.isAccountAlreadyExistsError(err)) {
         throw this.toInternalError('initializeStrategyVersion', err);
@@ -156,7 +161,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           strategyVersion: strategyVersionPda,
           deployment: deploymentPda,
           systemProgram: SystemProgram.programId,
-        } ).rpc();
+        })
+        .rpc();
     } catch (err) {
       // If a previous attempt (or a parallel caller using the same
       // deploymentId) already created the deployment PDA, treat it as a
@@ -165,9 +171,7 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
       if (!this.isAccountAlreadyExistsError(err)) {
         throw this.toInternalError('initializeDeployment', err);
       }
-      this.logger.debug(
-        `deployment ${deploymentPda.toBase58()} already exists, skipping init`,
-      );
+      this.logger.debug(`deployment ${deploymentPda.toBase58()} already exists, skipping init`);
     }
 
     try {
@@ -178,7 +182,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           deployment: deploymentPda,
           vaultAuthority: vaultAuthorityPda,
           systemProgram: SystemProgram.programId,
-        } ).rpc();
+        })
+        .rpc();
     } catch (err) {
       if (!this.isAccountAlreadyExistsError(err)) {
         throw this.toInternalError('initializeVaultAuthority', err);
@@ -196,7 +201,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           deployment: deploymentPda,
           strategyState: strategyStatePda,
           systemProgram: SystemProgram.programId,
-        } ).rpc();
+        })
+        .rpc();
     } catch (err) {
       if (!this.isAccountAlreadyExistsError(err)) {
         throw this.toInternalError('initializeStrategyState', err);
@@ -213,7 +219,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           creator,
           deployment: deploymentPda,
           strategyState: strategyStatePda,
-        } ).rpc();
+        })
+        .rpc();
     } catch (err) {
       // Re-issuing setLifecycleStatus(deployed) on an already-deployed
       // strategy is a no-op from the operator's perspective; the program
@@ -254,7 +261,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           creator,
           deployment: deploymentPda,
           strategyState: strategyStatePda,
-        } ).rpc();
+        })
+        .rpc();
       return { signature: sig };
     } catch (err) {
       throw this.toInternalError('setLifecycleStatus', err);
@@ -281,7 +289,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           creator,
           deployment: deploymentPda,
           strategyState: strategyStatePda,
-        } ).rpc();
+        })
+        .rpc();
       return { signature: sig, newStateRevision: params.expectedRevision + 1 };
     } catch (err) {
       throw this.toInternalError('commitState', err);
@@ -319,7 +328,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           creator,
           deployment: deploymentPda,
           strategyState: strategyStatePda,
-        } ).instruction();
+        })
+        .instruction();
 
       const tx = new Transaction().add(ix);
       tx.feePayer = creator;
@@ -367,7 +377,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           deployment: deploymentPda,
           publicSnapshot: publicSnapshotPda,
           systemProgram: SystemProgram.programId,
-        } ).rpc();
+        })
+        .rpc();
       return {
         signature: sig,
         newStateRevision: params.expectedSnapshotRevision,
@@ -393,7 +404,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           creator,
           deployment: deploymentPda,
           strategyState: strategyStatePda,
-        } ).rpc();
+        })
+        .rpc();
       return { signature: sig };
     } catch (err) {
       throw this.toInternalError('closeDeployment', err);
@@ -459,7 +471,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           deployment: deploymentPda,
           subscription: subscriptionPda,
           systemProgram: SystemProgram.programId,
-        } ).instruction();
+        })
+        .instruction();
       return await this.encodeUnsigned(ix as TransactionInstruction);
     } catch (err) {
       throw this.toInternalError('initializeFollowerSubscription', err);
@@ -486,7 +499,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           subscription: subscriptionKey,
           followerVault: followerVaultPda,
           systemProgram: SystemProgram.programId,
-        } ).instruction();
+        })
+        .instruction();
       return await this.encodeUnsigned(ix as TransactionInstruction);
     } catch (err) {
       throw this.toInternalError('initializeFollowerVault', err);
@@ -510,7 +524,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           followerVault: followerVaultKey,
           authority: authorityPda,
           systemProgram: SystemProgram.programId,
-        } ).instruction();
+        })
+        .instruction();
       return await this.encodeUnsigned(ix as TransactionInstruction);
     } catch (err) {
       throw this.toInternalError('initializeFollowerVaultAuthority', err);
@@ -532,7 +547,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           follower: followerKey,
           followerVault: followerVaultKey,
           subscription: subscriptionKey,
-        } ).instruction();
+        })
+        .instruction();
       return await this.encodeUnsigned(ix as TransactionInstruction);
     } catch (err) {
       throw this.toInternalError('setFollowerVaultStatus', err);
@@ -556,7 +572,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           followerVault: followerVaultKey,
           authority: authorityKey,
           subscription: subscriptionKey,
-        } ).instruction();
+        })
+        .instruction();
       return await this.encodeUnsigned(ix as TransactionInstruction);
     } catch (err) {
       throw this.toInternalError('closeFollowerVault', err);
@@ -645,7 +662,9 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
 
   // ---------- Phase 4 — application-layer closure ----------
 
-  async collectFees(params: { deploymentId: string }): Promise<{ signature: string | null; collectedLamports: number }> {
+  async collectFees(params: {
+    deploymentId: string;
+  }): Promise<{ signature: string | null; collectedLamports: number }> {
     const program = await this.anchorClient.getProgram();
     const programId = this.anchorClient.getProgramId();
     const provider = await this.anchorClient.getProvider();
@@ -656,7 +675,10 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
 
     try {
       // Pre-fetch lamports to report how much was collected
-      const preAccountInfo = await provider.connection.getAccountInfo(vaultAuthorityPda, 'confirmed');
+      const preAccountInfo = await provider.connection.getAccountInfo(
+        vaultAuthorityPda,
+        'confirmed',
+      );
       const preLamports = preAccountInfo?.lamports ?? 0;
 
       const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
@@ -666,9 +688,13 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           creator,
           deployment: deploymentPda,
           vaultAuthority: vaultAuthorityPda,
-        } ).rpc();
+        })
+        .rpc();
 
-      const postAccountInfo = await provider.connection.getAccountInfo(vaultAuthorityPda, 'confirmed');
+      const postAccountInfo = await provider.connection.getAccountInfo(
+        vaultAuthorityPda,
+        'confirmed',
+      );
       const postLamports = postAccountInfo?.lamports ?? 0;
       const collected = Math.max(0, preLamports - postLamports);
 
@@ -695,7 +721,8 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           authority,
           deployment: deploymentPda,
           strategyState: strategyStatePda,
-        } ).rpc();
+        })
+        .rpc();
       return { signature: sig };
     } catch (err) {
       throw this.toInternalError('emergencyPause', err);
@@ -719,10 +746,120 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
           authority,
           deployment: deploymentPda,
           strategyState: strategyStatePda,
-        } ).rpc();
+        })
+        .rpc();
       return { signature: sig };
     } catch (err) {
       throw this.toInternalError('emergencyResume', err);
+    }
+  }
+
+  // ---------- Keeper + delegation management ----------
+
+  async setKeeper(params: SetKeeperParams): Promise<{ signature: string | null }> {
+    const program = await this.anchorClient.getProgram();
+    const programId = this.anchorClient.getProgramId();
+    const provider = await this.anchorClient.getProvider();
+    const creator = provider.wallet.publicKey;
+
+    const [deploymentPda] = deriveDeploymentPda(programId, params.deploymentId);
+    const newKeeper = params.newKeeperWallet
+      ? new PublicKey(params.newKeeperWallet)
+      : PublicKey.default;
+
+    try {
+      const sig = await program.methods
+        .setKeeper(newKeeper)
+        .accountsPartial({
+          creator,
+          deployment: deploymentPda,
+        })
+        .rpc();
+      return { signature: sig };
+    } catch (err) {
+      throw this.toInternalError('setKeeper', err);
+    }
+  }
+
+  async closeVaultAuthority(
+    params: CloseVaultAuthorityParams,
+  ): Promise<{ signature: string | null }> {
+    const program = await this.anchorClient.getProgram();
+    const programId = this.anchorClient.getProgramId();
+    const provider = await this.anchorClient.getProvider();
+    const creator = provider.wallet.publicKey;
+
+    const [deploymentPda] = deriveDeploymentPda(programId, params.deploymentId);
+    const [vaultAuthorityPda] = deriveVaultAuthorityPda(programId, deploymentPda);
+
+    try {
+      const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
+      const sig = await methods
+        .closeVaultAuthority()
+        .accountsPartial({
+          creator,
+          deployment: deploymentPda,
+          vaultAuthority: vaultAuthorityPda,
+        })
+        .rpc();
+      return { signature: sig };
+    } catch (err) {
+      throw this.toInternalError('closeVaultAuthority', err);
+    }
+  }
+
+  async closePublicSnapshot(
+    params: ClosePublicSnapshotParams,
+  ): Promise<{ signature: string | null }> {
+    const program = await this.anchorClient.getProgram();
+    const programId = this.anchorClient.getProgramId();
+    const provider = await this.anchorClient.getProvider();
+    const creator = provider.wallet.publicKey;
+
+    const [deploymentPda] = deriveDeploymentPda(programId, params.deploymentId);
+    const [publicSnapshotPda] = derivePublicSnapshotPda(programId, deploymentPda);
+
+    try {
+      const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
+      const sig = await methods
+        .closePublicSnapshot()
+        .accountsPartial({
+          creator,
+          deployment: deploymentPda,
+          publicSnapshot: publicSnapshotPda,
+        })
+        .rpc();
+      return { signature: sig };
+    } catch (err) {
+      throw this.toInternalError('closePublicSnapshot', err);
+    }
+  }
+
+  async delegateStrategyStateToEr(
+    params: DelegateStrategyStateToErParams,
+  ): Promise<{ signature: string | null }> {
+    const program = await this.anchorClient.getProgram();
+    const programId = this.anchorClient.getProgramId();
+    const provider = await this.anchorClient.getProvider();
+    const creator = provider.wallet.publicKey;
+
+    const [deploymentPda] = deriveDeploymentPda(programId, params.deploymentId);
+    const [strategyStatePda] = deriveStrategyStatePda(programId, deploymentPda);
+
+    const validator = new PublicKey(params.validatorWallet);
+
+    try {
+      const sig = await program.methods
+        .delegateStrategyState(validator, params.commitFrequencyMs)
+        .accountsPartial({
+          creator,
+          deployment: deploymentPda,
+          strategyState: strategyStatePda,
+        })
+        .rpc();
+      return { signature: sig };
+    } catch (err) {
+      throw this.toInternalError('delegateStrategyStateToEr', err);
     }
   }
 

@@ -25,9 +25,7 @@ require('dotenv').config();
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { Connection, Keypair, PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
-import {
-  ConnectionMagicRouter,
-} from '@magicblock-labs/ephemeral-rollups-sdk';
+import { ConnectionMagicRouter } from '@magicblock-labs/ephemeral-rollups-sdk';
 import { MagicBlockErRealAdapter } from './magicblock-er-real.adapter';
 import { MagicBlockClientService } from './magicblock-client.service';
 import { AnchorOnchainAdapterService } from '../onchain/anchor-onchain-adapter.service';
@@ -57,7 +55,13 @@ async function ensureBalance(connection: Connection, pubkey: PublicKey, minSol =
   }
 }
 
-describe('MagicBlock SDK — Real ER Integration', () => {
+const RUN_EXTERNAL_INTEGRATION_TESTS =
+  process.env.RUN_EXTERNAL_INTEGRATION_TESTS === '1' ||
+  process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
+
+const describeExternalIntegration = RUN_EXTERNAL_INTEGRATION_TESTS ? describe : describe.skip;
+
+describeExternalIntegration('MagicBlock SDK — Real ER Integration', () => {
   jest.setTimeout(180_000);
 
   let erAdapter: MagicBlockErRealAdapter;
@@ -122,16 +126,17 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     const strategyId = crypto.randomUUID();
 
     const result = await withRpcRetry(
-      () => onchainAdapter.initializeDeployment({
-        deploymentId,
-        strategyId,
-        strategy_version: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'a'.repeat(64),
-        privateDefinitionCommitment: 'b'.repeat(64),
-        executionMode: 'er',
-      }),
+      () =>
+        onchainAdapter.initializeDeployment({
+          deploymentId,
+          strategyId,
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'a'.repeat(64),
+          privateDefinitionCommitment: 'b'.repeat(64),
+          executionMode: 'er',
+        }),
       { label: 'initializeDeployment(er-sdk-create)' },
     );
 
@@ -139,9 +144,7 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     expect(result.strategyStateAccount).toBeTruthy();
 
     const program = await (onchainAdapter as any).anchorClient.getProgram();
-    const deployment = await program.account.strategyDeployment.fetch(
-      result.deploymentAccount!,
-    );
+    const deployment = await program.account.strategyDeployment.fetch(result.deploymentAccount!);
     expect(deployment.executionMode).toBe(1); // ER = 1
     console.log(`ER deployment created: ${result.deploymentAccount}`);
   });
@@ -209,23 +212,22 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     const strategyId = crypto.randomUUID();
 
     const result = await withRpcRetry(
-      () => onchainAdapter.initializeDeployment({
-        deploymentId,
-        strategyId,
-        strategy_version: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'c'.repeat(64),
-        privateDefinitionCommitment: 'd'.repeat(64),
-        executionMode: 'per',
-      }),
+      () =>
+        onchainAdapter.initializeDeployment({
+          deploymentId,
+          strategyId,
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'c'.repeat(64),
+          privateDefinitionCommitment: 'd'.repeat(64),
+          executionMode: 'per',
+        }),
       { label: 'initializeDeployment(per-sdk)' },
     );
 
     const program = await (onchainAdapter as any).anchorClient.getProgram();
-    const deployment = await program.account.strategyDeployment.fetch(
-      result.deploymentAccount!,
-    );
+    const deployment = await program.account.strategyDeployment.fetch(result.deploymentAccount!);
 
     expect(deployment.executionMode).toBe(2); // PER
     console.log(`PER deployment created: ${result.deploymentAccount}`);
@@ -235,16 +237,17 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     // 1. Deploy with ER mode
     const deploymentId = crypto.randomUUID();
     const deployResult = await withRpcRetry(
-      () => onchainAdapter.initializeDeployment({
-        deploymentId,
-        strategyId: crypto.randomUUID(),
-        strategy_version: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'e'.repeat(64),
-        privateDefinitionCommitment: 'f'.repeat(64),
-        executionMode: 'er',
-      }),
+      () =>
+        onchainAdapter.initializeDeployment({
+          deploymentId,
+          strategyId: crypto.randomUUID(),
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'e'.repeat(64),
+          privateDefinitionCommitment: 'f'.repeat(64),
+          executionMode: 'er',
+        }),
       { label: 'initializeDeployment(er-sdk-flow)' },
     );
 
@@ -285,16 +288,17 @@ describe('MagicBlock SDK — Real ER Integration', () => {
   it('delegates strategy_state to ER via program CPI', async () => {
     // 1. Create ER deployment
     const deployResult = await withRpcRetry(
-      () => onchainAdapter.initializeDeployment({
-        deploymentId: crypto.randomUUID(),
-        strategyId: crypto.randomUUID(),
-        strategy_version: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: '0a'.repeat(32),
-        privateDefinitionCommitment: '0b'.repeat(32),
-        executionMode: 'er',
-      }),
+      () =>
+        onchainAdapter.initializeDeployment({
+          deploymentId: crypto.randomUUID(),
+          strategyId: crypto.randomUUID(),
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: '0a'.repeat(32),
+          privateDefinitionCommitment: '0b'.repeat(32),
+          executionMode: 'er',
+        }),
       { label: 'initializeDeployment(er-sdk-delegate)' },
     );
     console.log(`ER deployment for delegation: ${deployResult.deploymentAccount}`);
@@ -318,7 +322,7 @@ describe('MagicBlock SDK — Real ER Integration', () => {
     );
 
     const delegateIx = await program.methods
-      .delegateStrategyState()
+      .delegateStrategyState(ER_VALIDATOR, 5000)
       .accounts({
         creator: wallet.publicKey,
         deployment: deployResult.deploymentAccount,
@@ -326,7 +330,6 @@ describe('MagicBlock SDK — Real ER Integration', () => {
         delegationProgram: 'DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh',
         ownerProgram: new PublicKey(PROGRAM_ID),
         systemProgram: SystemProgram.programId,
-        validator: ER_VALIDATOR,
       } as any)
       .instruction();
 

@@ -16,7 +16,8 @@ import { type StrategyRuntime } from './anchor/strategy_runtime';
 // returns the object directly.  Unwrap so the service works in both test runners.
 const idlJson = (idlJsonModule as any).default ?? idlJsonModule;
 
-const DEFAULT_RPC_URL = 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
+const DEFAULT_RPC_URL =
+  'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
 const DEFAULT_COMMITMENT: Commitment = 'confirmed';
 
 /**

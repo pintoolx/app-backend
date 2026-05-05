@@ -291,7 +291,7 @@ async function main() {
   );
 
   const delegateIx = await program.methods
-    .delegateStrategyState()
+    .delegateStrategyState(ER_VALIDATOR, 5000)
     .accountsPartial({
       creator: wallet.publicKey,
       deployment: er.deploymentPda,
@@ -302,7 +302,6 @@ async function main() {
       delegationProgram: DELEGATION_PROGRAM_ID,
       ownerProgram: PROGRAM_ID,
       systemProgram: SystemProgram.programId,
-      validator: ER_VALIDATOR,
     })
     .instruction();
 

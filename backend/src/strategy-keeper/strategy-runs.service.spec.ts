@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StrategyRunsService } from './strategy-runs.service';
 import { StrategyRunsRepository, StrategyRunRow } from './strategy-runs.repository';
-import { StrategyDeploymentsRepository, StrategyDeploymentRow } from '../strategy-deployments/strategy-deployments.repository';
+import {
+  StrategyDeploymentsRepository,
+  StrategyDeploymentRow,
+} from '../strategy-deployments/strategy-deployments.repository';
 import { OnchainAdapterPort } from '../onchain/onchain-adapter.port';
 import { MagicBlockErAdapterPort } from '../magicblock/magicblock.port';
 import { PrivateExecutionCyclesService } from '../follower-vaults/private-execution-cycles.service';
@@ -33,14 +36,18 @@ describe('StrategyRunsService', () => {
   let metricsService: jest.Mocked<Partial<MetricsService>>;
 
   beforeEach(async () => {
+    const defaultRun = mockStrategyRun({ id: 'run-default-insert' });
     runsRepository = {
-      insertRun: jest.fn(),
+      insertRun: jest.fn().mockResolvedValue(defaultRun),
       getById: jest.fn(),
       updateRun: jest.fn(),
+      listByDeployment: jest.fn().mockResolvedValue([]),
+      findActiveForDeployment: jest.fn().mockResolvedValue(null),
     };
 
     deploymentsRepository = {
       getById: jest.fn(),
+      updateDeployment: jest.fn(),
     };
 
     onchainAdapter = {
@@ -117,6 +124,19 @@ describe('StrategyRunsService', () => {
         strategyVersionId: null,
       });
     });
+
+    it('returns existing active run instead of creating a duplicate', async () => {
+      const activeRun = mockStrategyRun({ id: 'run-active', status: 'running' });
+      runsRepository.findActiveForDeployment!.mockResolvedValue(activeRun);
+
+      const result = await service.createRun({
+        deploymentId: 'dep-123',
+        executionLayer: 'offchain',
+      });
+
+      expect(result).toEqual(activeRun);
+      expect(runsRepository.insertRun).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleStrategyEvaluated', () => {
@@ -127,6 +147,7 @@ describe('StrategyRunsService', () => {
 
       const deployment = mockDeployment();
       deploymentsRepository.getById!.mockResolvedValue(deployment);
+      deploymentsRepository.updateDeployment!.mockResolvedValue(deployment);
       runsRepository.updateRun = mockUpdateRun(baseRun);
 
       const event: StrategyEvaluationEvent = {
@@ -161,6 +182,10 @@ describe('StrategyRunsService', () => {
 
       runsRepository.getById!.mockResolvedValue(run);
       deploymentsRepository.getById!.mockResolvedValue(deployment);
+      deploymentsRepository.updateDeployment!.mockResolvedValue({
+        ...deployment,
+        state_revision: 5,
+      });
       runsRepository.updateRun = mockUpdateRun(run);
 
       const result = await service.executeRun(run.id);
@@ -171,7 +196,18 @@ describe('StrategyRunsService', () => {
           expectedRevision: 3,
         }),
       );
-      expect(onchainAdapter.setPublicSnapshot).toHaveBeenCalled();
+      expect(deploymentsRepository.updateDeployment).toHaveBeenCalledWith(
+        deployment.id,
+        deployment.creator_wallet_address,
+        { stateRevision: 5 },
+      );
+      expect(onchainAdapter.setPublicSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentId: deployment.id,
+          expectedSnapshotRevision: 5,
+          status: 'ok',
+        }),
+      );
       expect(result.status).toBe('completed');
       expect(metricsService.recordAdapterCall).toHaveBeenCalledWith(
         'keeper',
@@ -187,6 +223,10 @@ describe('StrategyRunsService', () => {
 
       runsRepository.getById!.mockResolvedValue(run);
       deploymentsRepository.getById!.mockResolvedValue(deployment);
+      deploymentsRepository.updateDeployment!.mockResolvedValue({
+        ...deployment,
+        state_revision: 4,
+      });
       runsRepository.updateRun = mockUpdateRun(run);
 
       const result = await service.executeRun(run.id);
@@ -203,11 +243,17 @@ describe('StrategyRunsService', () => {
           base64Tx: 'base64-signed-tx-mock',
         }),
       );
+      expect(deploymentsRepository.updateDeployment).toHaveBeenCalledWith(
+        deployment.id,
+        deployment.creator_wallet_address,
+        { stateRevision: 4 },
+      );
       expect(result.status).toBe('completed');
       expect(result.public_outcome).toMatchObject({
         layer: 'er',
         commitSignature: 'sig-route-789',
         routedThrough: 'er',
+        newStateRevision: 4,
       });
     });
 
@@ -220,6 +266,12 @@ describe('StrategyRunsService', () => {
       runsRepository.getById!.mockResolvedValue(run);
       deploymentsRepository.getById!.mockResolvedValue(deployment);
       runsRepository.updateRun = mockUpdateRun(run);
+      runsRepository.listByDeployment!.mockResolvedValue([
+        {
+          ...mockStrategyRun({ id: 'run-prev', status: 'completed' }),
+          deployment_id: deployment.id,
+        },
+      ]);
 
       const result = await service.executeRun(run.id);
 
@@ -239,6 +291,13 @@ describe('StrategyRunsService', () => {
         receiptCount: 2,
         cycleStatus: 'completed',
       });
+      expect(onchainAdapter.setPublicSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentId: deployment.id,
+          expectedSnapshotRevision: 2,
+          status: 'ok',
+        }),
+      );
     });
 
     it('executes per run with zero notional when auto_notional is missing', async () => {
@@ -353,6 +412,7 @@ describe('StrategyRunsService', () => {
 
       runsRepository.getById!.mockResolvedValue(run);
       deploymentsRepository.getById!.mockResolvedValue(deployment);
+      deploymentsRepository.updateDeployment!.mockResolvedValue(deployment);
       onchainAdapter.setPublicSnapshot!.mockRejectedValue(new Error('Snapshot rejected'));
       runsRepository.updateRun = mockUpdateRun(run);
 
@@ -360,6 +420,62 @@ describe('StrategyRunsService', () => {
 
       // Run should still succeed even if snapshot publish fails
       expect(result.status).toBe('completed');
+    });
+
+    it('schedules a retry when run fails and retries are available', async () => {
+      const run = mockStrategyRun({
+        id: 'run-fail-retry',
+        execution_layer: 'offchain',
+        retry_count: 0,
+        max_retries: 2,
+      });
+      const deployment = mockDeployment();
+
+      runsRepository.getById!.mockResolvedValue(run);
+      deploymentsRepository.getById!.mockResolvedValue(deployment);
+      onchainAdapter.commitState!.mockRejectedValue(new Error('RPC timeout'));
+      runsRepository.updateRun = mockUpdateRun(run);
+
+      const result = await service.executeRun(run.id);
+
+      expect(result.status).toBe('failed');
+      expect(result.error_message).toContain('RPC timeout');
+
+      // Verify a retry run was created
+      expect(runsRepository.insertRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentId: deployment.id,
+          executionLayer: 'offchain',
+          retryCount: 1,
+          maxRetries: 2,
+          retryOf: 'run-fail-retry',
+        }),
+      );
+    });
+
+    it('does not schedule retry when max retries exhausted', async () => {
+      const run = mockStrategyRun({
+        id: 'run-no-retry',
+        execution_layer: 'offchain',
+        retry_count: 2,
+        max_retries: 2,
+      });
+      const deployment = mockDeployment();
+
+      runsRepository.getById!.mockResolvedValue(run);
+      deploymentsRepository.getById!.mockResolvedValue(deployment);
+      onchainAdapter.commitState!.mockRejectedValue(new Error('RPC timeout'));
+      runsRepository.updateRun = mockUpdateRun(run);
+      jest.clearAllMocks();
+      runsRepository.getById!.mockResolvedValue(run);
+      deploymentsRepository.getById!.mockResolvedValue(deployment);
+      onchainAdapter.commitState!.mockRejectedValue(new Error('RPC timeout'));
+      runsRepository.updateRun = mockUpdateRun(run);
+
+      const result = await service.executeRun(run.id);
+
+      expect(result.status).toBe('failed');
+      expect(runsRepository.insertRun).not.toHaveBeenCalled();
     });
   });
 });
@@ -379,6 +495,9 @@ function mockStrategyRun(overrides: Partial<StrategyRunRow> = {}): StrategyRunRo
     started_at: new Date().toISOString(),
     completed_at: null,
     error_message: null,
+    retry_count: 0,
+    max_retries: 1,
+    retry_of: null,
     ...overrides,
   };
 }

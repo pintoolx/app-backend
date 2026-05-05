@@ -146,9 +146,7 @@ export interface MagicBlockPerAdapterPort {
   writeFollowerPrivateState(
     params: PerWriteFollowerStateParams,
   ): Promise<PerWriteFollowerStateResult>;
-  readFollowerPrivateState(
-    params: PerReadFollowerStateParams,
-  ): Promise<PerReadFollowerStateResult>;
+  readFollowerPrivateState(params: PerReadFollowerStateParams): Promise<PerReadFollowerStateResult>;
 }
 
 // ---------- Private Payments API ----------

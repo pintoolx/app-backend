@@ -118,8 +118,31 @@ pub mod strategy_runtime {
     }
 
     /// Phase 1 — close a stopped deployment, returning rent to the creator.
+    /// NOTE: this only closes `deployment` + `strategy_state`. Use
+    /// `close_vault_authority` and `close_public_snapshot` to reclaim rent
+    /// from the remaining sibling PDAs.
     pub fn close_deployment(ctx: Context<CloseDeployment>) -> Result<()> {
         instructions::close_deployment::handler(ctx)
+    }
+
+    /// Phase 1 — reclaim rent from the `vault_authority` PDA after the
+    /// parent deployment is stopped or closed. Any lamports above
+    /// rent-exempt are transferred to the creator (this also implicitly
+    /// sweeps any remaining accrued fees).
+    pub fn close_vault_authority(ctx: Context<CloseVaultAuthority>) -> Result<()> {
+        instructions::close_vault_authority::handler(ctx)
+    }
+
+    /// Phase 1 — reclaim rent from the `public_snapshot` PDA. Snapshots are
+    /// purely informational so the creator may close them at any time.
+    pub fn close_public_snapshot(ctx: Context<ClosePublicSnapshot>) -> Result<()> {
+        instructions::close_public_snapshot::handler(ctx)
+    }
+
+    /// Phase 1 — rotate the keeper signer for a deployment. Pass
+    /// `Pubkey::default()` to revert to creator-only mode.
+    pub fn set_keeper(ctx: Context<SetKeeper>, new_keeper: Pubkey) -> Result<()> {
+        instructions::set_keeper::handler(ctx, new_keeper)
     }
 
     // ---------- Phase 2 — follower-vault account model ----------
@@ -167,8 +190,14 @@ pub mod strategy_runtime {
 
     /// Delegate the strategy_state PDA to an Ephemeral Rollups validator.
     /// Uses #[delegate] macro from ephemeral-rollups-sdk for correct metadata.
-    pub fn delegate_strategy_state(ctx: Context<DelegateStrategyState>) -> Result<()> {
-        instructions::delegate_strategy_state::handler(ctx)
+    /// `validator` and `commit_frequency_ms` are caller-supplied so the
+    /// program does not have to be redeployed when validators rotate.
+    pub fn delegate_strategy_state(
+        ctx: Context<DelegateStrategyState>,
+        validator: Pubkey,
+        commit_frequency_ms: u32,
+    ) -> Result<()> {
+        instructions::delegate_strategy_state::handler(ctx, validator, commit_frequency_ms)
     }
 
     // ---------- MagicBlock ER Undelegation ----------

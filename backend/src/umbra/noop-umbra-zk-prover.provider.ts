@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  type UmbraZkProverProviderPort,
-  type UmbraZkProverSuite,
-} from './umbra-zk-prover.port';
+import { type UmbraZkProverProviderPort, type UmbraZkProverSuite } from './umbra-zk-prover.port';
 
 /**
  * Default Phase-5 provider. Returns `null` until production wiring lands:
@@ -33,9 +30,7 @@ export class NoopUmbraZkProverProvider implements UmbraZkProverProviderPort {
   async getRelayer(): Promise<unknown | null> {
     const apiEndpoint = this.configService.get<string>('UMBRA_RELAYER_ENDPOINT');
     if (!apiEndpoint) {
-      this.logger.debug(
-        'UMBRA_RELAYER_ENDPOINT not set; relayer-backed flows unavailable.',
-      );
+      this.logger.debug('UMBRA_RELAYER_ENDPOINT not set; relayer-backed flows unavailable.');
       return null;
     }
     if (this.cachedRelayer) return this.cachedRelayer;

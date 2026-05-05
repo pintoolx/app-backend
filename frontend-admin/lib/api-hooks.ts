@@ -65,6 +65,32 @@ export function useUsers(params: { search?: string; limit?: number } = {}) {
   });
 }
 
+export interface AdminUserAccountRow {
+  id: string;
+  name: string;
+  status: string;
+  crossmintWalletAddress: string | null;
+  createdAt: string;
+}
+
+export interface AdminUserDetailRow {
+  walletAddress: string;
+  createdAt: string | null;
+  lastActiveAt: string | null;
+  accounts: AdminUserAccountRow[];
+  strategiesCount: number;
+  deploymentsCount: number;
+}
+
+export function useUserDetail(wallet?: string) {
+  return useQuery({
+    queryKey: ['admin', 'users', 'detail', wallet],
+    queryFn: () => proxyFetch<ApiEnvelope<AdminUserDetailRow>>(`/admin/users/${wallet}`),
+    enabled: Boolean(wallet),
+    staleTime: 15_000,
+  });
+}
+
 export interface BannedWalletRow {
   wallet: string;
   reason: string | null;
@@ -153,6 +179,27 @@ export function useStrategies(params: {
     queryKey: ['admin', 'strategies', params],
     queryFn: () =>
       proxyFetch<ApiEnvelope<StrategyRow[]>>(`/admin/strategies${qs ? `?${qs}` : ''}`),
+    staleTime: 30_000,
+  });
+}
+
+export interface StrategyVersionRow {
+  id: string;
+  strategy_id: string;
+  version: number;
+  definition: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface StrategyDetailRow extends StrategyRow {
+  versions: StrategyVersionRow[];
+}
+
+export function useStrategyDetail(id?: string) {
+  return useQuery({
+    queryKey: ['admin', 'strategies', 'detail', id],
+    queryFn: () => proxyFetch<ApiEnvelope<StrategyDetailRow>>(`/admin/strategies/${id}`),
+    enabled: Boolean(id),
     staleTime: 30_000,
   });
 }
@@ -274,6 +321,136 @@ export function useDeploymentAction(
 }
 
 // ---------------------------------------------------------------- privacy ----
+
+export interface SnapshotRow {
+  id: string;
+  deploymentId: string;
+  snapshotRevision: number;
+  status: string;
+  pnlSummaryBps: number | null;
+  riskBand: string | null;
+  publicMetricsHash: string | null;
+  publishedSlot: number | null;
+  publishedAt: string;
+}
+
+export function useSnapshots(params: {
+  deploymentId?: string;
+  since?: string;
+  limit?: number;
+} = {}) {
+  const search = new URLSearchParams();
+  if (params.deploymentId) search.set('deploymentId', params.deploymentId);
+  if (params.since) search.set('since', params.since);
+  if (params.limit) search.set('limit', String(params.limit));
+  const qs = search.toString();
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'snapshots', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<SnapshotRow[]>>(`/admin/privacy/snapshots${qs ? `?${qs}` : ''}`),
+    staleTime: 30_000,
+  });
+}
+
+export interface EncryptionKeyEntry {
+  name: string;
+  present: boolean;
+  source: string | null;
+  fingerprint: string | null;
+  note: string | null;
+}
+
+export function useEncryptionKeys() {
+  return useQuery({
+    queryKey: ['admin', 'privacy', 'keys'],
+    queryFn: () => proxyFetch<ApiEnvelope<EncryptionKeyEntry[]>>('/admin/privacy/keys'),
+    staleTime: 60_000,
+  });
+}
+
+export interface ReferralCodeRow {
+  id: string;
+  code: string;
+  creator_wallet: string;
+  target_wallet: string | null;
+  redeemed_by: string | null;
+  status: 'active' | 'redeemed' | 'expired';
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface ReferralQuotaRow {
+  wallet: string;
+  max_codes: number;
+  current_count: number;
+}
+
+export function useReferralCodes(wallet?: string) {
+  const search = new URLSearchParams();
+  if (wallet) search.set('wallet', wallet);
+  const qs = search.toString();
+  return useQuery({
+    queryKey: ['admin', 'referrals', 'codes', wallet],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<ReferralCodeRow[]>>(`/referrals/my-codes${qs ? `?${qs}` : ''}`),
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminGenerateReferralCodes() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      targetWalletAddress: string;
+      count: number;
+      expiresAt?: string;
+    }) =>
+      proxyFetch('/referrals/admin/codes', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'referrals'] });
+      toast.success(t('referralCodesGenerated'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}
+
+export function useSetReferralQuota() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { walletAddress: string; maxCodes: number }) =>
+      proxyFetch(`/referrals/admin/quotas/${encodeURIComponent(input.walletAddress)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ maxCodes: input.maxCodes }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'referrals'] });
+      toast.success(t('referralQuotaSet'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}
+
+export function useIncreaseReferralQuota() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { walletAddress: string; amount: number }) =>
+      proxyFetch(`/referrals/admin/quotas/${encodeURIComponent(input.walletAddress)}/increase`, {
+        method: 'PATCH',
+        body: JSON.stringify({ amount: input.amount }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'referrals'] });
+      toast.success(t('referralQuotaIncreased'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}
 
 export interface AdminPrivacyOverview {
   generatedAt: string;
@@ -466,6 +643,40 @@ export function useRevokeAllPerTokens() {
 }
 
 // ---------------------------------------------------------------- executions
+
+export interface AdminExecutionRow {
+  id: string;
+  workflow_id: string;
+  account_id: string | null;
+  owner_wallet_address: string;
+  status: string;
+  trigger_type: string | null;
+  started_at: string;
+  completed_at: string | null;
+  duration_ms: number | null;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export function useExecutions(params: {
+  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  wallet?: string;
+  workflowId?: string;
+  limit?: number;
+} = {}) {
+  const search = new URLSearchParams();
+  if (params.status) search.set('status', params.status);
+  if (params.wallet) search.set('wallet', params.wallet);
+  if (params.workflowId) search.set('workflowId', params.workflowId);
+  if (params.limit) search.set('limit', String(params.limit));
+  const qs = search.toString();
+  return useQuery({
+    queryKey: ['admin', 'executions', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<AdminExecutionRow[]>>(`/admin/executions${qs ? `?${qs}` : ''}`),
+    staleTime: 10_000,
+  });
+}
 
 export function useKillExecution() {
   const t = useTranslations('toast');

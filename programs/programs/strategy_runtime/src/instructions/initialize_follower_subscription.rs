@@ -1,7 +1,10 @@
 use anchor_lang::prelude::*;
 
 use crate::constants::STRATEGY_SUBSCRIPTION_SEED;
-use crate::state::{FollowerVaultLifecycleStatus, StrategyDeployment, StrategySubscription};
+use crate::errors::StrategyRuntimeError;
+use crate::state::{
+    FollowerVaultLifecycleStatus, LifecycleStatus, StrategyDeployment, StrategySubscription,
+};
 
 /// Enrol the signing wallet as a follower of the supplied deployment. The
 /// follower self-signs because subscriptions are public discovery actions —
@@ -36,6 +39,21 @@ pub fn handler(
     ctx: Context<InitializeFollowerSubscription>,
     subscription_id: [u8; 16],
 ) -> Result<()> {
+    // Reject subscriptions to deployments that are not ready to take followers.
+    // `Deployed` and `Paused` are both acceptable: paused is a temporary creator
+    // intervention and we still want followers to enrol so they get notified
+    // when the strategy resumes.
+    let deployment_status =
+        LifecycleStatus::from_u8(ctx.accounts.deployment.lifecycle_status)
+            .ok_or(StrategyRuntimeError::InvalidLifecycleCode)?;
+    require!(
+        matches!(
+            deployment_status,
+            LifecycleStatus::Deployed | LifecycleStatus::Paused
+        ),
+        StrategyRuntimeError::InvalidLifecycleTransition
+    );
+
     let clock = Clock::get()?;
 
     let acc = &mut ctx.accounts.subscription;

@@ -170,7 +170,7 @@ export class PerAuthTokensRepository {
     payload: InsertChallengeInput & { status: PerAuthTokenStatus },
   ): Promise<PerAuthTokenRow> {
     const scopeKind: PerAuthTokenScopeKind = payload.scopeKind ?? 'deployment';
-    const subscriptionId = scopeKind === 'subscription' ? payload.subscriptionId ?? null : null;
+    const subscriptionId = scopeKind === 'subscription' ? (payload.subscriptionId ?? null) : null;
     if (scopeKind === 'subscription' && !subscriptionId) {
       throw new InternalServerErrorException(
         'subscription-scoped PER token requires subscriptionId',

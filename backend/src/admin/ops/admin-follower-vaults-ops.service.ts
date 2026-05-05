@@ -1,17 +1,11 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { StrategyDeploymentsRepository } from '../../strategy-deployments/strategy-deployments.repository';
 import {
   FollowerVaultsRepository,
   type FollowerVaultRow,
 } from '../../follower-vaults/follower-vaults.repository';
-import {
-  StrategySubscriptionsRepository,
-} from '../../follower-vaults/subscriptions.repository';
+import { StrategySubscriptionsRepository } from '../../follower-vaults/subscriptions.repository';
 import {
   FollowerVisibilityGrantsRepository,
   type FollowerVisibilityGrantRow,
@@ -71,9 +65,7 @@ export class AdminFollowerVaultsOpsService {
       throw new BadRequestException('Closed vaults cannot be paused');
     }
     if (vault.lifecycle_status === 'exiting') {
-      throw new BadRequestException(
-        'Vault is exiting; complete or revert the exit before pausing',
-      );
+      throw new BadRequestException('Vault is exiting; complete or revert the exit before pausing');
     }
 
     // Pause both the vault and the parent subscription so the cycle scaffold

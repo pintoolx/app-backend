@@ -95,7 +95,9 @@ const buildService = (overrides?: {
     input: Record<string, unknown>,
   ): StrategySubscriptionRow => ({
     ...base,
-    ...(input.status !== undefined ? { status: input.status as StrategySubscriptionRow['status'] } : {}),
+    ...(input.status !== undefined
+      ? { status: input.status as StrategySubscriptionRow['status'] }
+      : {}),
     ...(input.provisioningState !== undefined
       ? {
           provisioning_state:
@@ -282,21 +284,31 @@ const buildService = (overrides?: {
       vaultAuthorityPda: 'FvaPda1111111111111111111111111111111111111',
       vaultAuthorityPdaBump: 252,
     }),
-    initializeFollowerSubscription: jest
-      .fn()
-      .mockResolvedValue({ signature: null, unsignedInstructionBase64: null, recentBlockhash: null }),
-    initializeFollowerVault: jest
-      .fn()
-      .mockResolvedValue({ signature: null, unsignedInstructionBase64: null, recentBlockhash: null }),
-    initializeFollowerVaultAuthority: jest
-      .fn()
-      .mockResolvedValue({ signature: null, unsignedInstructionBase64: null, recentBlockhash: null }),
-    setFollowerVaultStatus: jest
-      .fn()
-      .mockResolvedValue({ signature: null, unsignedInstructionBase64: null, recentBlockhash: null }),
-    closeFollowerVault: jest
-      .fn()
-      .mockResolvedValue({ signature: null, unsignedInstructionBase64: null, recentBlockhash: null }),
+    initializeFollowerSubscription: jest.fn().mockResolvedValue({
+      signature: null,
+      unsignedInstructionBase64: null,
+      recentBlockhash: null,
+    }),
+    initializeFollowerVault: jest.fn().mockResolvedValue({
+      signature: null,
+      unsignedInstructionBase64: null,
+      recentBlockhash: null,
+    }),
+    initializeFollowerVaultAuthority: jest.fn().mockResolvedValue({
+      signature: null,
+      unsignedInstructionBase64: null,
+      recentBlockhash: null,
+    }),
+    setFollowerVaultStatus: jest.fn().mockResolvedValue({
+      signature: null,
+      unsignedInstructionBase64: null,
+      recentBlockhash: null,
+    }),
+    closeFollowerVault: jest.fn().mockResolvedValue({
+      signature: null,
+      unsignedInstructionBase64: null,
+      recentBlockhash: null,
+    }),
     buildFundIntentInstruction: jest.fn().mockResolvedValue({
       instructionBase64: 'eyJ0ZXN0Ijp0cnVlfQ==',
       recentBlockhash: null,
@@ -403,7 +415,7 @@ describe('SubscriptionsService', () => {
     const { service, subRepo } = buildService();
     const rows = await service.listForDeployment(DEPLOYMENT_ID, CREATOR);
     expect(rows).toHaveLength(1);
-    expect((subRepo.listByDeployment as jest.Mock)).toHaveBeenCalledWith(DEPLOYMENT_ID);
+    expect(subRepo.listByDeployment as jest.Mock).toHaveBeenCalledWith(DEPLOYMENT_ID);
   });
 
   it('flips pending_funding -> active when shielding succeeds', async () => {
@@ -543,12 +555,7 @@ describe('SubscriptionsService', () => {
       expires_at: new Date(Date.now() + 600_000).toISOString(),
       revoked_at: null,
     };
-    const out = await service.getFollowerPrivateState(
-      DEPLOYMENT_ID,
-      SUB_ID,
-      FOLLOWER,
-      ownerToken,
-    );
+    const out = await service.getFollowerPrivateState(DEPLOYMENT_ID, SUB_ID, FOLLOWER, ownerToken);
     expect(out.privateStateRevision).toBe(7);
     expect(perAdapter.readFollowerPrivateState).toHaveBeenCalledWith(
       expect.objectContaining({

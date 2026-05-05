@@ -187,11 +187,10 @@ describe('PrivateExecutionCyclesService', () => {
       }),
     );
     // PER fan-out invoked once per receipt with a sanitized payload only.
-    expect(
-      (perAdapter.writeFollowerPrivateState as jest.Mock).mock.calls.length,
-    ).toBe(2);
-    for (const [args] of (perAdapter.writeFollowerPrivateState as jest.Mock).mock
-      .calls as Array<[Record<string, unknown>]>) {
+    expect((perAdapter.writeFollowerPrivateState as jest.Mock).mock.calls.length).toBe(2);
+    for (const [args] of (perAdapter.writeFollowerPrivateState as jest.Mock).mock.calls as Array<
+      [Record<string, unknown>]
+    >) {
       const payload = args.payload as Record<string, unknown>;
       expect(Object.keys(payload)).not.toContain('signal');
       expect(Object.keys(payload)).not.toContain('parameters');

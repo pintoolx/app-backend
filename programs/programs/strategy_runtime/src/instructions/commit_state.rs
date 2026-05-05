@@ -3,12 +3,26 @@ use anchor_lang::prelude::*;
 use crate::errors::StrategyRuntimeError;
 use crate::state::{LifecycleStatus, StrategyDeployment, StrategyState};
 
+/// Append a new private-state commitment.
+///
+/// The `signer` account must be either the deployment's `creator` or its
+/// configured `keeper` — this lets the off-chain runner commit on behalf of
+/// the creator without holding the creator's keypair.
+///
+/// `expected_revision` is the **current** on-chain revision the caller has
+/// observed. Replay protection succeeds when `expected_revision ==
+/// strategy_state.state_revision`; the new revision becomes
+/// `expected_revision + 1`.
 #[derive(Accounts)]
 pub struct CommitState<'info> {
+    /// Authorised signer — must be either `deployment.creator` or
+    /// `deployment.keeper`. Field name kept as `creator` for IDL backward
+    /// compatibility; semantically it accepts any authorised principal.
     pub creator: Signer<'info>,
 
     #[account(
-        constraint = deployment.creator == creator.key() @ StrategyRuntimeError::UnauthorizedCreator,
+        constraint = deployment.is_authorized_keeper(&creator.key())
+            @ StrategyRuntimeError::UnauthorizedCreator,
     )]
     pub deployment: Account<'info, StrategyDeployment>,
 
@@ -28,10 +42,7 @@ pub fn handler(
     let lifecycle = LifecycleStatus::from_u8(ctx.accounts.deployment.lifecycle_status)
         .ok_or(StrategyRuntimeError::InvalidLifecycleCode)?;
     require!(
-        matches!(
-            lifecycle,
-            LifecycleStatus::Deployed | LifecycleStatus::Paused | LifecycleStatus::Stopped
-        ),
+        matches!(lifecycle, LifecycleStatus::Deployed),
         StrategyRuntimeError::InvalidLifecycleTransition
     );
 

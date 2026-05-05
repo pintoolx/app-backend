@@ -82,12 +82,8 @@ export class PrivateExecutionCyclesService {
       }
       // Replan: supersede planned/failed receipts so the audit trail keeps
       // both attempts; applied receipts are intentionally NOT touched.
-      const supersededCount = await this.receiptsRepository.supersedeUnappliedForCycle(
-        existing.id,
-      );
-      this.logger.log(
-        `replan cycle=${existing.id} superseded=${supersededCount}`,
-      );
+      const supersededCount = await this.receiptsRepository.supersedeUnappliedForCycle(existing.id);
+      this.logger.log(`replan cycle=${existing.id} superseded=${supersededCount}`);
       cycle = await this.cyclesRepository.update(existing.id, {
         status: 'running',
         completedAt: null,

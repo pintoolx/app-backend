@@ -167,7 +167,8 @@ export class MagicBlockPerRealAdapter implements MagicBlockPerAdapterPort {
         throw new Error('TEE returned no token');
       }
       teeToken = res.data.token;
-      teeExpires = res.data.expiresAt ?? new Date(Date.now() + DEFAULT_AUTH_TTL_MIN * 60 * 1000).toISOString();
+      teeExpires =
+        res.data.expiresAt ?? new Date(Date.now() + DEFAULT_AUTH_TTL_MIN * 60 * 1000).toISOString();
     } catch (err) {
       const msg = this.extractAxiosError(err);
       this.logger.error(`TEE login failed: ${msg}`);

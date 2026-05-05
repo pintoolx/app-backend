@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Logger,
   Param,
   Post,
   Query,
@@ -46,6 +47,8 @@ import {
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class StrategyDeploymentsController {
+  private readonly logger = new Logger(StrategyDeploymentsController.name);
+
   constructor(
     private readonly deploymentsService: StrategyDeploymentsService,
     private readonly strategyRunsService: StrategyRunsService,
@@ -129,10 +132,7 @@ export class StrategyDeploymentsController {
   @Post('deployments/:id/collect-fees')
   @HttpCode(200)
   @ApiOperation({ summary: 'Collect accumulated fees from the vault authority' })
-  async collectFees(
-    @Param('id') id: string,
-    @CurrentUser('walletAddress') walletAddress: string,
-  ) {
+  async collectFees(@Param('id') id: string, @CurrentUser('walletAddress') walletAddress: string) {
     const data = await this.deploymentsService.collectFees(id, walletAddress);
     return { success: true, data };
   }
@@ -209,9 +209,10 @@ export class StrategyDeploymentsController {
       strategyVersionId: deployment.strategy_version_id,
     });
 
-    // Execute asynchronously so the HTTP response returns immediately
     this.strategyRunsService.executeRun(run.id).catch((err) => {
-      // Errors are logged by StrategyRunsService; we don't await here.
+      this.logger.error(
+        `executeRun failed for run=${run.id}: ${err instanceof Error ? err.message : err}`,
+      );
     });
 
     return {

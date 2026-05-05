@@ -507,9 +507,7 @@ export class AdminPrivacyService {
       'closed',
     ];
     const counts = await Promise.all(
-      statuses.map((s) =>
-        this.countRows('follower_vaults', (q) => q.eq('lifecycle_status', s)),
-      ),
+      statuses.map((s) => this.countRows('follower_vaults', (q) => q.eq('lifecycle_status', s))),
     );
     const byStatus = Object.fromEntries(statuses.map((s, i) => [s, counts[i]])) as Record<
       FollowerVaultLifecycleStatus,
@@ -529,13 +527,9 @@ export class AdminPrivacyService {
     ];
     const [counts, withIdentity] = await Promise.all([
       Promise.all(
-        statuses.map((s) =>
-          this.countRows('strategy_subscriptions', (q) => q.eq('status', s)),
-        ),
+        statuses.map((s) => this.countRows('strategy_subscriptions', (q) => q.eq('status', s))),
       ),
-      this.countRows('strategy_subscriptions', (q) =>
-        q.not('umbra_identity_ref', 'is', null),
-      ),
+      this.countRows('strategy_subscriptions', (q) => q.not('umbra_identity_ref', 'is', null)),
     ]);
     const byStatus = Object.fromEntries(statuses.map((s, i) => [s, counts[i]])) as Record<
       FollowerVaultLifecycleStatus,

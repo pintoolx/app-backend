@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { StrategyPermissionsService, StrategyRole } from '../strategy-permissions.service';
 import { STRATEGY_ROLE_KEY } from '../decorators/require-strategy-role.decorator';

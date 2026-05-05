@@ -75,10 +75,9 @@ export async function checkDelegation(
     }
   }
   try {
-    const info = await withRpcRetry(
-      () => baseConnection.getAccountInfo(account),
-      { label: 'getAccountInfo(delegation-check)' },
-    );
+    const info = await withRpcRetry(() => baseConnection.getAccountInfo(account), {
+      label: 'getAccountInfo(delegation-check)',
+    });
     return !!info && info.owner.equals(MAGICBLOCK_DELEGATION_PROGRAM);
   } catch {
     return false;

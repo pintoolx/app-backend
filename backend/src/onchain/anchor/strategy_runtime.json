@@ -10,7 +10,10 @@
     {
       "name": "close_deployment",
       "docs": [
-        "Phase 1 — close a stopped deployment, returning rent to the creator."
+        "Phase 1 — close a stopped deployment, returning rent to the creator.",
+        "NOTE: this only closes `deployment` + `strategy_state`. Use",
+        "`close_vault_authority` and `close_public_snapshot` to reclaim rent",
+        "from the remaining sibling PDAs."
       ],
       "discriminator": [
         0,
@@ -71,6 +74,128 @@
         {
           "name": "subscription",
           "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_public_snapshot",
+      "docs": [
+        "Phase 1 — reclaim rent from the `public_snapshot` PDA. Snapshots are",
+        "purely informational so the creator may close them at any time."
+      ],
+      "discriminator": [
+        150,
+        156,
+        154,
+        247,
+        250,
+        176,
+        124,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "deployment"
+        },
+        {
+          "name": "public_snapshot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  98,
+                  108,
+                  105,
+                  99,
+                  95,
+                  115,
+                  110,
+                  97,
+                  112,
+                  115,
+                  104,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "deployment"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_vault_authority",
+      "docs": [
+        "Phase 1 — reclaim rent from the `vault_authority` PDA after the",
+        "parent deployment is stopped or closed. Any lamports above",
+        "rent-exempt are transferred to the creator (this also implicitly",
+        "sweeps any remaining accrued fees)."
+      ],
+      "discriminator": [
+        164,
+        99,
+        111,
+        180,
+        51,
+        128,
+        67,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "deployment"
+        },
+        {
+          "name": "vault_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "deployment"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -157,6 +282,11 @@
       "accounts": [
         {
           "name": "creator",
+          "docs": [
+            "Authorised signer — must be either `deployment.creator` or",
+            "`deployment.keeper`. Field name kept as `creator` for IDL backward",
+            "compatibility; semantically it accepts any authorised principal."
+          ],
           "signer": true
         },
         {
@@ -250,7 +380,9 @@
       "name": "delegate_strategy_state",
       "docs": [
         "Delegate the strategy_state PDA to an Ephemeral Rollups validator.",
-        "Uses #[delegate] macro from ephemeral-rollups-sdk for correct metadata."
+        "Uses #[delegate] macro from ephemeral-rollups-sdk for correct metadata.",
+        "`validator` and `commit_frequency_ms` are caller-supplied so the",
+        "program does not have to be redeployed when validators rotate."
       ],
       "discriminator": [
         26,
@@ -419,7 +551,16 @@
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "validator",
+          "type": "pubkey"
+        },
+        {
+          "name": "commit_frequency_ms",
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "emergency_pause",
@@ -1109,6 +1250,39 @@
       ]
     },
     {
+      "name": "set_keeper",
+      "docs": [
+        "Phase 1 — rotate the keeper signer for a deployment. Pass",
+        "`Pubkey::default()` to revert to creator-only mode."
+      ],
+      "discriminator": [
+        102,
+        94,
+        23,
+        78,
+        157,
+        222,
+        243,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "signer": true
+        },
+        {
+          "name": "deployment",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_keeper",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "set_lifecycle_status",
       "docs": [
         "Phase 1 — apply a lifecycle transition (state machine enforced)."
@@ -1660,11 +1834,20 @@
             "type": "u8"
           },
           {
+            "name": "keeper",
+            "docs": [
+              "Optional keeper signer authorised to commit private state on behalf of",
+              "the creator. `Pubkey::default()` means \"not configured\" — fall back to",
+              "the creator. New deployments set this equal to `creator` at init."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "_reserved",
             "type": {
               "array": [
                 "u8",
-                64
+                32
               ]
             }
           }

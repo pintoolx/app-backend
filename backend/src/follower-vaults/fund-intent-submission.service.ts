@@ -96,9 +96,7 @@ export class FundIntentSubmissionService {
         );
       }
     } catch (confirmErr) {
-      this.logger.warn(
-        `Fund intent confirmation timeout: sig=${signature} sub=${subscriptionId}`,
-      );
+      this.logger.warn(`Fund intent confirmation timeout: sig=${signature} sub=${subscriptionId}`);
     }
 
     return {

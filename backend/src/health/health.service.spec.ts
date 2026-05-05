@@ -1,7 +1,12 @@
+import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { HealthService } from './health.service';
 import type { SupabaseService } from '../database/supabase.service';
 import type { MagicBlockClientService } from '../magicblock/magicblock-client.service';
+
+jest.mock('axios');
+
+const mockedAxios = jest.mocked(axios);
 
 const buildSupabaseStub = (error: { message: string } | null = null) => {
   const chain = {
@@ -35,6 +40,10 @@ describe('HealthService.readiness', () => {
     }));
   });
 
+  beforeEach(() => {
+    mockedAxios.get.mockReset();
+  });
+
   it('reports ok when DB query succeeds and all adapters are skipped', async () => {
     originalGetVersion.mockResolvedValue({ 'solana-core': '1.18.0' });
     const svc = new HealthService(
@@ -61,5 +70,22 @@ describe('HealthService.readiness', () => {
     const res = await svc.readiness();
     expect(res.status).toBe('fail');
     expect(res.checks['db'].status).toBe('fail');
+  });
+
+  it('treats non-2xx adapter responses as failed readiness', async () => {
+    originalGetVersion.mockResolvedValue({ 'solana-core': '1.18.0' });
+    mockedAxios.get.mockResolvedValue({ status: 401 } as never);
+
+    const svc = new HealthService(
+      buildSupabaseStub(),
+      buildMagicBlockClient(null),
+      buildConfig({ MAGICBLOCK_PER_ENDPOINT: 'https://tee.example' }),
+    );
+
+    const res = await svc.readiness();
+
+    expect(res.status).toBe('fail');
+    expect(res.checks['magicblock-per'].status).toBe('fail');
+    expect(res.checks['magicblock-per'].note).toBe('HTTP 401');
   });
 });

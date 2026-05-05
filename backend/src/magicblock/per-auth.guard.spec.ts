@@ -1,9 +1,5 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import {
-  PerAuthGuard,
-  assertSubscriptionScope,
-  assertDeploymentScope,
-} from './per-auth.guard';
+import { PerAuthGuard, assertSubscriptionScope, assertDeploymentScope } from './per-auth.guard';
 import { PerAuthTokensRepository, type PerAuthTokenRow } from './per-auth-tokens.repository';
 
 const buildContext = (headers: Record<string, string>): ExecutionContext => {

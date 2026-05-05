@@ -89,7 +89,7 @@ export async function monitorPrice(options: PriceMonitorOptions): Promise<PriceM
           }
         };
 
-        eventSource.onerror = (error) => {
+        eventSource.onerror = (_error) => {
           cleanup();
           reject(new Error('Error receiving price updates from Hermes'));
         };
@@ -176,7 +176,7 @@ export async function getCurrentPrices(
           }
         };
 
-        eventSource.onerror = (error) => {
+        eventSource.onerror = (_error) => {
           eventSource.close();
           reject(new Error('Error receiving price updates'));
         };

@@ -81,6 +81,7 @@ impl ExecutionMode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anchor_lang::prelude::Pubkey;
 
     #[test]
     fn lifecycle_from_u8_valid() {
@@ -275,5 +276,63 @@ mod tests {
     fn vault_authority_size_is_stable() {
         // If this changes, collect_fees must be updated as well.
         assert_eq!(VaultAuthority::SIZE, 171);
+    }
+
+    // ── B6: keeper authorisation ──
+
+    #[test]
+    fn is_authorized_keeper_creator_always_allowed() {
+        let creator = Pubkey::new_unique();
+        let mut d = StrategyDeployment {
+            creator,
+            strategy_version: Pubkey::default(),
+            vault_authority: Pubkey::default(),
+            deployment_id: [0; 16],
+            execution_mode: 0,
+            lifecycle_status: 0,
+            deployment_nonce: 0,
+            initialized_slot: 0,
+            bump: 0,
+            keeper: Pubkey::default(),
+            _reserved: [0; 32],
+        };
+        // Default keeper (zero pubkey) → only creator may act.
+        assert!(d.is_authorized_keeper(&creator));
+        assert!(!d.is_authorized_keeper(&Pubkey::new_unique()));
+
+        // Once a keeper is configured, both keys are accepted.
+        let keeper = Pubkey::new_unique();
+        d.keeper = keeper;
+        assert!(d.is_authorized_keeper(&creator));
+        assert!(d.is_authorized_keeper(&keeper));
+        assert!(!d.is_authorized_keeper(&Pubkey::new_unique()));
+    }
+
+    #[test]
+    fn is_authorized_keeper_default_keeper_not_silent_open() {
+        // Defensive: an unset keeper (Pubkey::default()) must NOT match a
+        // signer that happens to also be the default pubkey.
+        let creator = Pubkey::new_unique();
+        let d = StrategyDeployment {
+            creator,
+            strategy_version: Pubkey::default(),
+            vault_authority: Pubkey::default(),
+            deployment_id: [0; 16],
+            execution_mode: 0,
+            lifecycle_status: 0,
+            deployment_nonce: 0,
+            initialized_slot: 0,
+            bump: 0,
+            keeper: Pubkey::default(),
+            _reserved: [0; 32],
+        };
+        assert!(!d.is_authorized_keeper(&Pubkey::default()));
+    }
+
+    #[test]
+    fn strategy_deployment_size_unchanged_after_keeper_carve_out() {
+        // Total account size stayed at 203 bytes (8 + 32+32+32+16+1+1+8+8+1
+        // + 32 (keeper) + 32 (reserved tail)).
+        assert_eq!(StrategyDeployment::SIZE, 203);
     }
 }

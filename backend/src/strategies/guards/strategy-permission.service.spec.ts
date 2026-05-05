@@ -214,7 +214,12 @@ describe('StrategyPermissionsService', () => {
                 then: (cb: any) =>
                   cb({
                     data: [
-                      { id: 'p1', member_wallet: '0xA', role: 'operator', created_at: '2024-01-01' },
+                      {
+                        id: 'p1',
+                        member_wallet: '0xA',
+                        role: 'operator',
+                        created_at: '2024-01-01',
+                      },
                       { id: 'p2', member_wallet: '0xB', role: 'viewer', created_at: '2024-01-02' },
                     ],
                     error: null,

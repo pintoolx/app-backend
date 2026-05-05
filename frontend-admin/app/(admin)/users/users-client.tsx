@@ -7,6 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -19,6 +26,7 @@ import {
   useBanWallet,
   useBannedWallets,
   useUnbanWallet,
+  useUserDetail,
   useUsers,
 } from '@/lib/api-hooks';
 import { truncateMiddle } from '@/lib/utils';
@@ -39,6 +47,7 @@ export function UsersClient({ role }: { role: AdminRole }) {
   const [search, setSearch] = React.useState('');
   const [debounced, setDebounced] = React.useState('');
   const [dialog, setDialog] = React.useState<DialogState | null>(null);
+  const [detailWallet, setDetailWallet] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const id = setTimeout(() => setDebounced(search), 300);
@@ -49,6 +58,7 @@ export function UsersClient({ role }: { role: AdminRole }) {
   const bannedQuery = useBannedWallets();
   const banMutation = useBanWallet();
   const unbanMutation = useUnbanWallet();
+  const detailQuery = useUserDetail(detailWallet ?? undefined);
 
   const bannedSet = React.useMemo(
     () => new Set((bannedQuery.data?.data ?? []).map((b) => b.wallet)),
@@ -156,27 +166,32 @@ export function UsersClient({ role }: { role: AdminRole }) {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {isSuper ? (
-                        banned ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setDialog({ kind: 'unban', wallet: u.walletAddress })
-                            }
-                          >
-                            {t('unban')}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => setDialog({ kind: 'ban', wallet: u.walletAddress })}
-                          >
-                            {t('ban')}
-                          </Button>
-                        )
-                      ) : null}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setDetailWallet(u.walletAddress)}>
+                          {t('detail')}
+                        </Button>
+                        {isSuper ? (
+                          banned ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setDialog({ kind: 'unban', wallet: u.walletAddress })
+                              }
+                            >
+                              {t('unban')}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => setDialog({ kind: 'ban', wallet: u.walletAddress })}
+                            >
+                              {t('ban')}
+                            </Button>
+                          )
+                        ) : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -192,6 +207,47 @@ export function UsersClient({ role }: { role: AdminRole }) {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(detailWallet)} onOpenChange={(open) => !open && setDetailWallet(null)}>
+        <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('detailTitle', { wallet: truncateMiddle(detailWallet ?? '—', 8, 6) })}</DialogTitle>
+            <DialogDescription>{t('detailDescription')}</DialogDescription>
+          </DialogHeader>
+          {detailQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
+          ) : detailQuery.error ? (
+            <p className="text-sm text-destructive">{(detailQuery.error as Error).message}</p>
+          ) : detailQuery.data?.data ? (
+            <div className="space-y-4 text-sm">
+              <div className="grid gap-3 md:grid-cols-2">
+                <StatusRow label={t('detailCreated')} value={detailQuery.data.data.createdAt ? formatDistanceToNow(new Date(detailQuery.data.data.createdAt), { addSuffix: true, locale: dateLocale }) : '—'} />
+                <StatusRow label={t('detailLastActive')} value={detailQuery.data.data.lastActiveAt ? formatDistanceToNow(new Date(detailQuery.data.data.lastActiveAt), { addSuffix: true, locale: dateLocale }) : '—'} />
+                <StatusRow label={t('detailStrategies')} value={String(detailQuery.data.data.strategiesCount)} />
+                <StatusRow label={t('detailDeployments')} value={String(detailQuery.data.data.deploymentsCount)} />
+              </div>
+              {detailQuery.data.data.accounts.length > 0 ? (
+                <div className="space-y-2">
+                  <h4 className="font-medium">{t('detailAccounts')}</h4>
+                  <div className="space-y-2">
+                    {detailQuery.data.data.accounts.map((acc) => (
+                      <div key={acc.id} className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2">
+                        <div>
+                          <span className="font-medium">{acc.name}</span>
+                          <p className="font-mono text-xs text-muted-foreground">{acc.id.slice(0, 8)}</p>
+                        </div>
+                        <Badge variant={acc.status === 'active' ? 'success' : 'secondary'}>{acc.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">{t('detailNoAccounts')}</p>
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {dialog ? (
         <ConfirmDialog
@@ -218,6 +274,15 @@ export function UsersClient({ role }: { role: AdminRole }) {
           }}
         />
       ) : null}
+    </div>
+  );
+}
+
+function StatusRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-md border bg-card/50 px-3 py-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right">{value}</span>
     </div>
   );
 }

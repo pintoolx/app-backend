@@ -10,12 +10,10 @@ export class KaminoClient {
     wallet;
     manager;
     kvaultProgramId;
-    isMainnet;
-    constructor(wallet, manager, kvaultProgramId, isMainnet) {
+    constructor(wallet, manager, kvaultProgramId) {
         this.wallet = wallet;
         this.manager = manager;
         this.kvaultProgramId = kvaultProgramId;
-        this.isMainnet = isMainnet;
     }
     /**
      * 初始化 KaminoClient
@@ -30,7 +28,7 @@ export class KaminoClient {
             : address('stKvQfwRsQiKnLtMNVLHKS3exFJmZFsgfzBPWHECUYK');
         const manager = new KaminoManager(getConnectionPool().rpc, 400, // recentSlotDurationMs  
         klendProgramId, kvaultProgramId);
-        return new KaminoClient(wallet, manager, kvaultProgramId, config.isMainnet);
+        return new KaminoClient(wallet, manager, kvaultProgramId);
     }
     /**
      * 獲取所有可用的 vaults

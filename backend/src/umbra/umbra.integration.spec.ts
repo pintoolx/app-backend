@@ -45,10 +45,9 @@ async function ensureBalance(connection: Connection, pubkey: Keypair['publicKey'
   if (balance < LAMPORTS_PER_SOL) {
     console.log(`Requesting airdrop for ${pubkey.toBase58()}...`);
     try {
-      await withRpcRetry(
-        () => connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL),
-        { label: 'requestAirdrop' },
-      );
+      await withRpcRetry(() => connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL), {
+        label: 'requestAirdrop',
+      });
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 1000));
         const b = await withRpcRetry(() => connection.getBalance(pubkey), {
@@ -69,7 +68,11 @@ describe('Umbra — Devnet Integration', () => {
   let wallet: Keypair;
   let isConfigured = false;
 
+  const RUN_EXTERNAL_INTEGRATION_TESTS =
+    process.env.RUN_EXTERNAL_INTEGRATION_TESTS === '1' ||
+    process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
   const SKIP_INTEGRATION_TESTS =
+    !RUN_EXTERNAL_INTEGRATION_TESTS ||
     process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
 
   beforeAll(async () => {

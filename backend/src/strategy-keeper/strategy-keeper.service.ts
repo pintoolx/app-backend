@@ -1,11 +1,6 @@
-import {
-  Injectable,
-  OnModuleInit,
-  OnModuleDestroy,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { SupabaseService } from '../database/supabase.service';
 import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
 import { MetricsService } from '../observability/metrics.service';
@@ -52,11 +47,14 @@ export class StrategyKeeperService implements OnModuleInit, OnModuleDestroy {
     private readonly eventEmitter: EventEmitter2,
   ) {
     this.POLLING_MS =
-      this.configService.get<number>('STRATEGY_KEEPER_POLLING_MS') ??
-      DEFAULT_POLLING_MS;
+      this.configService.get<number>('STRATEGY_KEEPER_POLLING_MS') ?? DEFAULT_POLLING_MS;
   }
 
   onModuleInit() {
+    const rpcUrl = this.configService.get<string>('SOLANA_RPC_URL');
+    if (!rpcUrl) {
+      this.logger.error('SOLANA_RPC_URL is not configured — strategy keeper cannot operate');
+    }
     this.startPolling();
   }
 
@@ -65,9 +63,7 @@ export class StrategyKeeperService implements OnModuleInit, OnModuleDestroy {
   }
 
   private startPolling() {
-    this.logger.log(
-      `Starting strategy keeper polling (interval=${this.POLLING_MS}ms)...`,
-    );
+    this.logger.log(`Starting strategy keeper polling (interval=${this.POLLING_MS}ms)...`);
     if (this.pollingTimeout) return;
     this.pollingTimeout = setTimeout(() => {
       this.pollingLoop();
@@ -244,18 +240,17 @@ export class StrategyKeeperService implements OnModuleInit, OnModuleDestroy {
         const pending = metadata.manual_trigger_pending === true;
         if (pending) {
           // Clear the pending flag so it doesn't trigger again
-          await this.clearManualTriggerFlag(deployment.id);
+          await this.clearManualTriggerFlag(deployment.id, metadata);
           return { triggered: true, triggerType, note: 'manual trigger pending' };
         }
         return { triggered: false, triggerType, note: 'no manual trigger pending' };
       }
 
       case 'price': {
-        // Phase 1.3+ — placeholder; always false in Phase 1.1
         return {
           triggered: false,
           triggerType,
-          note: 'price trigger not yet implemented (Phase 1.3+)',
+          note: 'price trigger not yet supported — remove trigger_config.type=price from deployment metadata',
         };
       }
 
@@ -268,17 +263,17 @@ export class StrategyKeeperService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async clearManualTriggerFlag(deploymentId: string): Promise<void> {
+  private async clearManualTriggerFlag(
+    deploymentId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
     try {
+      const nextMetadata = { ...metadata };
+      delete nextMetadata.manual_trigger_pending;
       await this.supabaseService.client
         .from('strategy_deployments')
         .update({
-          metadata: {
-            // We need to merge; raw SQL would be safer but Supabase supports
-            // jsonb merge via the RPC or we can read-update-write.
-            // For simplicity we rely on the caller (StrategyRunsService) to
-            // update metadata atomically when creating a run.
-          },
+          metadata: nextMetadata,
         })
         .eq('id', deploymentId);
     } catch (err) {
@@ -292,9 +287,11 @@ export class StrategyKeeperService implements OnModuleInit, OnModuleDestroy {
   private async checkKeeperBalance(): Promise<boolean> {
     try {
       const keeper = await this.keeperKeypairService.loadKeypair();
-      const rpcUrl =
-        this.configService.get<string>('SOLANA_RPC_URL') ??
-        'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
+      const rpcUrl = this.configService.get<string>('SOLANA_RPC_URL');
+      if (!rpcUrl) {
+        this.logger.error('SOLANA_RPC_URL is not configured — keeper balance check cannot run');
+        return false;
+      }
       const connection = new Connection(rpcUrl, 'confirmed');
       const lamports = await connection.getBalance(keeper.publicKey);
       const balance = lamports / LAMPORTS_PER_SOL;
@@ -311,9 +308,7 @@ export class StrategyKeeperService implements OnModuleInit, OnModuleDestroy {
 
       return balance >= MINIMUM_KEEPER_SOL;
     } catch (err) {
-      this.logger.warn(
-        `Keeper balance check failed: ${err instanceof Error ? err.message : err}`,
-      );
+      this.logger.warn(`Keeper balance check failed: ${err instanceof Error ? err.message : err}`);
       return false;
     }
   }
@@ -327,12 +322,10 @@ export class StrategyKeeperService implements OnModuleInit, OnModuleDestroy {
     evaluatedAt: Date;
     note?: string;
   }> {
-    return Array.from(this.lastEvaluationResults.entries()).map(
-      ([deploymentId, result]) => ({
-        deploymentId,
-        ...result,
-      }),
-    );
+    return Array.from(this.lastEvaluationResults.entries()).map(([deploymentId, result]) => ({
+      deploymentId,
+      ...result,
+    }));
   }
 
   /**

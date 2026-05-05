@@ -23,6 +23,7 @@
     "admin:disable": "ts-node -P tsconfig.json scripts/admin/create-admin.ts disable",
     "admin:enable": "ts-node -P tsconfig.json scripts/admin/create-admin.ts enable",
     "test": "jest --runInBand",
+    "test:integration": "RUN_EXTERNAL_INTEGRATION_TESTS=1 jest --runInBand --testRegex='.*\\.integration\\.spec\\.ts$'",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInWorker",

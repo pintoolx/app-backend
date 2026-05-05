@@ -137,9 +137,8 @@ export class HealthService {
     const t = Date.now();
     try {
       const res = await axios.get(url, { timeout: 2000, validateStatus: () => true });
-      const ok = res.status >= 200 && res.status < 500;
       return {
-        status: ok ? 'ok' : 'fail',
+        status: res.status >= 200 && res.status < 300 ? 'ok' : 'fail',
         latencyMs: Date.now() - t,
         note: `HTTP ${res.status}`,
       };

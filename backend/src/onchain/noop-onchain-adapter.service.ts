@@ -5,7 +5,10 @@ import {
   type BuildFundIntentInstructionParams,
   type CloseDeploymentParams,
   type CloseFollowerVaultParams,
+  type ClosePublicSnapshotParams,
+  type CloseVaultAuthorityParams,
   type CommitStateParams,
+  type DelegateStrategyStateToErParams,
   type DeriveFollowerPdasParams,
   type FollowerOnchainInstructionResult,
   type FollowerPdaSet,
@@ -18,6 +21,7 @@ import {
   type OnchainAdapterPort,
   type OnchainCommitResult,
   type SetFollowerVaultStatusParams,
+  type SetKeeperParams,
   type SetLifecycleStatusParams,
   type SetPublicSnapshotParams,
 } from './onchain-adapter.port';
@@ -177,7 +181,9 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
     return { signature: null, unsignedInstructionBase64: null, recentBlockhash: null };
   }
 
-  async collectFees(params: { deploymentId: string }): Promise<{ signature: string | null; collectedLamports: number }> {
+  async collectFees(params: {
+    deploymentId: string;
+  }): Promise<{ signature: string | null; collectedLamports: number }> {
     this.logger.debug(`[noop] collectFees deployment=${params.deploymentId}`);
     return { signature: null, collectedLamports: 0 };
   }
@@ -189,6 +195,36 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
 
   async emergencyResume(params: { deploymentId: string }): Promise<{ signature: string | null }> {
     this.logger.debug(`[noop] emergencyResume deployment=${params.deploymentId}`);
+    return { signature: null };
+  }
+
+  async setKeeper(params: SetKeeperParams): Promise<{ signature: string | null }> {
+    this.logger.debug(
+      `[noop] setKeeper deployment=${params.deploymentId} keeper=${params.newKeeperWallet ?? 'default'}`,
+    );
+    return { signature: null };
+  }
+
+  async closeVaultAuthority(
+    params: CloseVaultAuthorityParams,
+  ): Promise<{ signature: string | null }> {
+    this.logger.debug(`[noop] closeVaultAuthority deployment=${params.deploymentId}`);
+    return { signature: null };
+  }
+
+  async closePublicSnapshot(
+    params: ClosePublicSnapshotParams,
+  ): Promise<{ signature: string | null }> {
+    this.logger.debug(`[noop] closePublicSnapshot deployment=${params.deploymentId}`);
+    return { signature: null };
+  }
+
+  async delegateStrategyStateToEr(
+    params: DelegateStrategyStateToErParams,
+  ): Promise<{ signature: string | null }> {
+    this.logger.debug(
+      `[noop] delegateStrategyStateToEr deployment=${params.deploymentId} validator=${params.validatorWallet} freq=${params.commitFrequencyMs}`,
+    );
     return { signature: null };
   }
 

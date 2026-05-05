@@ -45,7 +45,8 @@ describe('StrategyKeeperService', () => {
 
     configService = {
       get: jest.fn().mockImplementation((key: string) => {
-        if (key === 'SOLANA_RPC_URL') return 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
+        if (key === 'SOLANA_RPC_URL')
+          return 'https://devnet.helius-rpc.com/?api-key=8939699e-77dc-4fa7-aa0a-8c486f30276a';
         if (key === 'STRATEGY_KEEPER_POLLING_MS') return 1000;
         return undefined;
       }),
@@ -102,9 +103,7 @@ describe('StrategyKeeperService', () => {
       const mockFrom = jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            order: jest
-              .fn()
-              .mockResolvedValue({ data: [mockDeployment()], error: null }),
+            order: jest.fn().mockResolvedValue({ data: [mockDeployment()], error: null }),
           }),
         }),
       });
@@ -185,15 +184,20 @@ describe('StrategyKeeperService', () => {
         metadata: {
           trigger_config: { type: 'manual' },
           manual_trigger_pending: true,
+          auto_notional: '5000000000',
         },
       });
 
+      const clearManualTrigger = jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ data: null, error: null }),
+      });
       const mockFrom = jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
             order: jest.fn().mockResolvedValue({ data: [deployment], error: null }),
           }),
         }),
+        update: clearManualTrigger,
       });
       (supabaseService.client as any).from = mockFrom;
 
@@ -209,6 +213,12 @@ describe('StrategyKeeperService', () => {
           triggerType: 'manual',
         }),
       );
+      expect(clearManualTrigger).toHaveBeenCalledWith({
+        metadata: {
+          trigger_config: { type: 'manual' },
+          auto_notional: '5000000000',
+        },
+      });
     });
 
     it('records metrics on success and failure', async () => {
@@ -300,9 +310,7 @@ describe('StrategyKeeperService', () => {
   });
 });
 
-function mockDeployment(
-  overrides: Partial<StrategyDeploymentRow> = {},
-): StrategyDeploymentRow {
+function mockDeployment(overrides: Partial<StrategyDeploymentRow> = {}): StrategyDeploymentRow {
   return {
     id: 'dep-' + Math.random().toString(36).slice(2, 10),
     strategy_id: 'strat-' + Math.random().toString(36).slice(2, 10),

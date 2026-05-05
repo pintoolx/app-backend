@@ -6,7 +6,7 @@ use anchor_lang::solana_program::{
 
 use crate::constants::VAULT_AUTHORITY_SEED;
 use crate::errors::StrategyRuntimeError;
-use crate::state::{StrategyDeployment, VaultAuthority};
+use crate::state::{LifecycleStatus, StrategyDeployment, VaultAuthority};
 
 #[derive(Accounts)]
 pub struct CollectFees<'info> {
@@ -31,6 +31,19 @@ pub fn handler(ctx: Context<CollectFees>) -> Result<()> {
     let vault_authority = &ctx.accounts.vault_authority;
     let creator_key = ctx.accounts.creator.key();
     let vault_key = vault_authority.key();
+
+    // Refuse to collect from a deployment that is `Closed` — at that point
+    // creators should reclaim rent through `close_vault_authority` instead,
+    // which transfers the full balance and removes the account.
+    let lifecycle = LifecycleStatus::from_u8(ctx.accounts.deployment.lifecycle_status)
+        .ok_or(StrategyRuntimeError::InvalidLifecycleCode)?;
+    require!(
+        matches!(
+            lifecycle,
+            LifecycleStatus::Deployed | LifecycleStatus::Paused | LifecycleStatus::Stopped
+        ),
+        StrategyRuntimeError::InvalidLifecycleTransition
+    );
 
     // Ensure custody_mode is program_owned (1) or private_payments_relay (2)
     // so that only vaults that actually hold fees can be collected from.

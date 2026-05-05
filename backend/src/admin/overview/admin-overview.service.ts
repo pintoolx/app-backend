@@ -35,7 +35,11 @@ const ADAPTER_HINTS: AdapterMatrixEntry[] = [
   { adapter: 'er', mode: 'noop', hint: 'Set MAGICBLOCK_ROUTER_URL to enable real mode' },
   { adapter: 'per', mode: 'noop', hint: 'Set MAGICBLOCK_PER_ENDPOINT to enable real mode' },
   { adapter: 'pp', mode: 'noop', hint: 'Set MAGICBLOCK_PP_ENDPOINT to enable real mode' },
-  { adapter: 'umbra', mode: 'noop', hint: 'Set UMBRA_ENABLED=true to enable real mode (requires keeper keypair)' },
+  {
+    adapter: 'umbra',
+    mode: 'noop',
+    hint: 'Set UMBRA_ENABLED=true to enable real mode (requires keeper keypair)',
+  },
 ];
 
 @Injectable()

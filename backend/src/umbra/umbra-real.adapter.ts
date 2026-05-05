@@ -30,10 +30,7 @@ import {
   type UmbraWithdrawParams,
 } from './umbra.port';
 import { UmbraClientService } from './umbra-client.service';
-import {
-  UMBRA_ZK_PROVER_PROVIDER,
-  type UmbraZkProverProviderPort,
-} from './umbra-zk-prover.port';
+import { UMBRA_ZK_PROVER_PROVIDER, type UmbraZkProverProviderPort } from './umbra-zk-prover.port';
 
 const DEFAULT_SCAN_TREE_INDEX = 0;
 const DEFAULT_SCAN_START = 0;
@@ -77,7 +74,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
     try {
       const runWithClient = async (clientRaw: unknown): Promise<UmbraRegisterResult> => {
         const client = clientRaw as { signer: { address: string } };
-        const register = getUserRegistrationFunction({ client } as Parameters<typeof getUserRegistrationFunction>[0]);
+        const register = getUserRegistrationFunction({ client } as Parameters<
+          typeof getUserRegistrationFunction
+        >[0]);
         const options = {
           confidential: true,
           anonymous: params.mode === 'anonymous',
@@ -85,7 +84,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const signatures = await register(options as Parameters<typeof register>[0]);
 
-        const querier = getUserAccountQuerierFunction({ client } as Parameters<typeof getUserAccountQuerierFunction>[0]);
+        const querier = getUserAccountQuerierFunction({ client } as Parameters<
+          typeof getUserAccountQuerierFunction
+        >[0]);
         const accountResult = await querier(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           client.signer.address as any,
@@ -93,9 +94,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const account = accountResult as any;
 
-        this.logger.log(
-          `umbra.register signer=${client.signer.address} status=confirmed`,
-        );
+        this.logger.log(`umbra.register signer=${client.signer.address} status=confirmed`);
 
         return {
           encryptedUserAccount: account?.x25519PublicKey ?? account?.x25519_public_key ?? null,
@@ -110,10 +109,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
         // Phase-2 isolation: build a scoped Umbra client backed by the
         // follower-vault's HKDF-derived signer so the registration ETA is
         // owned by the per-vault identity rather than the platform keeper.
-        return await this.clientService.withSigner(
-          params.signerOverride.secretKey,
-          runWithClient,
-        );
+        return await this.clientService.withSigner(params.signerOverride.secretKey, runWithClient);
       }
       const clientRaw = await this.clientService.getClient();
       return await runWithClient(clientRaw);
@@ -134,9 +130,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
   async deposit(params: UmbraDepositParams): Promise<UmbraTreasuryResult> {
     try {
       const runDeposit = async (client: unknown): Promise<UmbraTreasuryResult> => {
-        const depositFn = getPublicBalanceToEncryptedBalanceDirectDepositorFunction(
-          { client } as Parameters<typeof getPublicBalanceToEncryptedBalanceDirectDepositorFunction>[0],
-        );
+        const depositFn = getPublicBalanceToEncryptedBalanceDirectDepositorFunction({
+          client,
+        } as Parameters<typeof getPublicBalanceToEncryptedBalanceDirectDepositorFunction>[0]);
         const amount = BigInt(params.amount);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = (await depositFn(
@@ -155,10 +151,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       };
 
       if (params.signerOverride) {
-        return await this.clientService.withSigner(
-          params.signerOverride.secretKey,
-          runDeposit,
-        );
+        return await this.clientService.withSigner(params.signerOverride.secretKey, runDeposit);
       }
       const client = await this.clientService.getClient();
       return await runDeposit(client);
@@ -173,9 +166,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
   async withdraw(params: UmbraWithdrawParams): Promise<UmbraTreasuryResult> {
     try {
       const runWithdraw = async (client: unknown): Promise<UmbraTreasuryResult> => {
-        const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction(
-          { client } as Parameters<typeof getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction>[0],
-        );
+        const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction({
+          client,
+        } as Parameters<typeof getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction>[0]);
         const amount = BigInt(params.amount);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = (await withdrawFn(
@@ -194,10 +187,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       };
 
       if (params.signerOverride) {
-        return await this.clientService.withSigner(
-          params.signerOverride.secretKey,
-          runWithdraw,
-        );
+        return await this.clientService.withSigner(params.signerOverride.secretKey, runWithdraw);
       }
       const client = await this.clientService.getClient();
       return await runWithdraw(client);
@@ -252,51 +242,43 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       return this.failedTransferIntent('zkprover-not-configured');
     }
     try {
-      return await this.clientService.withSigner(
-        params.fromSigner.secretKey,
-        async (clientRaw) => {
-          // Build the SDK function with the sender's scoped client and the
-          // platform-injected zkProver. The cast through `unknown` is
-          // intentional: the SDK exports branded types we deliberately
-          // keep out of the port interface.
-          const factory =
-            getEncryptedBalanceToReceiverClaimableUtxoCreatorFunction as unknown as (
-              args: { client: unknown },
-              deps: { zkProver: unknown },
-            ) => (input: {
-              amount: bigint;
-              destinationAddress: string;
-              mint: string;
-            }) => Promise<{
-              queueSignature?: string;
-              callbackSignature?: string;
-              callbackStatus?: 'finalized' | 'pruned' | 'timed-out';
-            }>;
-          const fn = factory({ client: clientRaw }, { zkProver: suite.utxoReceiverClaimable });
-          const result = await fn({
-            amount: BigInt(params.amount),
-            destinationAddress: params.toRecipientPubkey,
-            mint: params.mint,
-          });
-          const status: 'pending' | 'confirmed' | 'failed' =
-            result.callbackStatus === 'finalized'
-              ? 'confirmed'
-              : result.callbackStatus === 'timed-out'
-                ? 'failed'
-                : 'pending';
-          this.logger.log(
-            `umbra.createEncryptedTransferIntent deployment=${params.deploymentId} mint=${params.mint} qsig=${result.queueSignature ?? 'null'} status=${status}`,
-          );
-          return {
-            // SDK 4.0 doesn't surface a structured UTXO reference; we use
-            // the queue signature as the platform-side correlation key.
-            claimableUtxoRef: result.queueSignature ?? null,
-            queueSignature: result.queueSignature ?? null,
-            callbackSignature: result.callbackSignature ?? null,
-            status,
-          };
-        },
-      );
+      return await this.clientService.withSigner(params.fromSigner.secretKey, async (clientRaw) => {
+        // Build the SDK function with the sender's scoped client and the
+        // platform-injected zkProver. The cast through `unknown` is
+        // intentional: the SDK exports branded types we deliberately
+        // keep out of the port interface.
+        const factory = getEncryptedBalanceToReceiverClaimableUtxoCreatorFunction as unknown as (
+          args: { client: unknown },
+          deps: { zkProver: unknown },
+        ) => (input: { amount: bigint; destinationAddress: string; mint: string }) => Promise<{
+          queueSignature?: string;
+          callbackSignature?: string;
+          callbackStatus?: 'finalized' | 'pruned' | 'timed-out';
+        }>;
+        const fn = factory({ client: clientRaw }, { zkProver: suite.utxoReceiverClaimable });
+        const result = await fn({
+          amount: BigInt(params.amount),
+          destinationAddress: params.toRecipientPubkey,
+          mint: params.mint,
+        });
+        const status: 'pending' | 'confirmed' | 'failed' =
+          result.callbackStatus === 'finalized'
+            ? 'confirmed'
+            : result.callbackStatus === 'timed-out'
+              ? 'failed'
+              : 'pending';
+        this.logger.log(
+          `umbra.createEncryptedTransferIntent deployment=${params.deploymentId} mint=${params.mint} qsig=${result.queueSignature ?? 'null'} status=${status}`,
+        );
+        return {
+          // SDK 4.0 doesn't surface a structured UTXO reference; we use
+          // the queue signature as the platform-side correlation key.
+          claimableUtxoRef: result.queueSignature ?? null,
+          queueSignature: result.queueSignature ?? null,
+          callbackSignature: result.callbackSignature ?? null,
+          status,
+        };
+      });
     } catch (err) {
       this.logger.error(
         `umbra.createEncryptedTransferIntent failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -335,9 +317,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
         async (clientRaw) => {
           const scanned = await this.runScanner(clientRaw, params.scanWindow);
           if (!scanned || scanned.receiver.length === 0) {
-            this.logger.log(
-              `umbra.claimEncryptedTransfer no receiver-flow UTXOs to claim`,
-            );
+            this.logger.log(`umbra.claimEncryptedTransfer no receiver-flow UTXOs to claim`);
             return {
               queueSignature: null,
               callbackSignature: null,
@@ -345,21 +325,20 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
               claimedCount: 0,
             };
           }
-          const factory =
-            getReceiverClaimableUtxoToEncryptedBalanceClaimerFunction as unknown as (
-              args: { client: unknown },
-              deps: { zkProver: unknown; relayer: unknown },
-            ) => (utxos: readonly unknown[]) => Promise<{
-              batches: Map<
-                number,
-                {
-                  status?: string;
-                  txSignature?: string;
-                  callbackSignature?: string;
-                  failureReason?: string | null;
-                }
-              >;
-            }>;
+          const factory = getReceiverClaimableUtxoToEncryptedBalanceClaimerFunction as unknown as (
+            args: { client: unknown },
+            deps: { zkProver: unknown; relayer: unknown },
+          ) => (utxos: readonly unknown[]) => Promise<{
+            batches: Map<
+              number,
+              {
+                status?: string;
+                txSignature?: string;
+                callbackSignature?: string;
+                failureReason?: string | null;
+              }
+            >;
+          }>;
           const fn = factory(
             { client: clientRaw },
             {
@@ -399,9 +378,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
     }
   }
 
-  async scanClaimableUtxos(
-    params: UmbraScanClaimableParams,
-  ): Promise<UmbraScanClaimableResult> {
+  async scanClaimableUtxos(params: UmbraScanClaimableParams): Promise<UmbraScanClaimableResult> {
     if (!this.isTransferEnabled()) {
       return {
         receiverCount: 0,
@@ -478,9 +455,9 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
     const startInsertionIndex = window?.startInsertionIndex ?? DEFAULT_SCAN_START;
     const endInsertionIndex = window?.endInsertionIndex ?? DEFAULT_SCAN_END;
     try {
-      const factory = getClaimableUtxoScannerFunction as unknown as (
-        args: { client: unknown },
-      ) => (
+      const factory = getClaimableUtxoScannerFunction as unknown as (args: {
+        client: unknown;
+      }) => (
         treeIndex: number,
         start: number,
         end?: number,
@@ -488,18 +465,16 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       const fn = factory({ client: clientRaw });
       return await fn(treeIndex, startInsertionIndex, endInsertionIndex);
     } catch (err) {
-      this.logger.warn(
-        `umbra scanner failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      this.logger.warn(`umbra scanner failed: ${err instanceof Error ? err.message : String(err)}`);
       return null;
     }
   }
   async getEncryptedBalance(params: UmbraEncryptedBalanceParams): Promise<UmbraEncryptedBalance> {
     try {
       const runQuery = async (client: unknown): Promise<UmbraEncryptedBalance> => {
-        const querier = getEncryptedBalanceQuerierFunction(
-          { client } as Parameters<typeof getEncryptedBalanceQuerierFunction>[0],
-        );
+        const querier = getEncryptedBalanceQuerierFunction({ client } as Parameters<
+          typeof getEncryptedBalanceQuerierFunction
+        >[0]);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const address = params.walletAddress as any;
         const resultMap = await querier(address);
@@ -514,10 +489,7 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
       };
 
       if (params.signerOverride) {
-        return await this.clientService.withSigner(
-          params.signerOverride.secretKey,
-          runQuery,
-        );
+        return await this.clientService.withSigner(params.signerOverride.secretKey, runQuery);
       }
       const client = await this.clientService.getClient();
       return await runQuery(client);

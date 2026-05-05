@@ -27,18 +27,15 @@ export class KaminoClient {
   private wallet: TransactionSigner;  
   private manager: KaminoManager;  
   private kvaultProgramId: Address;  
-  private isMainnet: boolean;  
   
   private constructor(    
     wallet: TransactionSigner,  
     manager: KaminoManager,  
-    kvaultProgramId: Address,  
-    isMainnet: boolean  
+    kvaultProgramId: Address  
   ) {    
     this.wallet = wallet;  
     this.manager = manager;  
     this.kvaultProgramId = kvaultProgramId;  
-    this.isMainnet = isMainnet;  
   }
   
   /**  
@@ -62,7 +59,7 @@ export class KaminoClient {
       kvaultProgramId  
     );  
   
-    return new KaminoClient(wallet, manager, kvaultProgramId, config.isMainnet);  
+    return new KaminoClient(wallet, manager, kvaultProgramId);  
   }  
   
   /**  

@@ -37,6 +37,7 @@ import {
   usePrivacyOverview,
   useRevokeAllPerTokens,
   useRevokePerToken,
+  useSnapshots,
   type PerTokenRow,
 } from '@/lib/api-hooks';
 import { truncateMiddle } from '@/lib/utils';
@@ -67,94 +68,8 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
 
   const o = overview.data?.data;
 
-  const targetModules = [
-    {
-      key: 'follower-vaults',
-      title: t('targetFollowerVaultsTitle'),
-      summary: t('targetFollowerVaultsSummary'),
-      endpoint: 'GET /admin/privacy/follower-vaults',
-      hook: 'useFollowerVaults()',
-    },
-    {
-      key: 'subscriptions',
-      title: t('targetSubscriptionsTitle'),
-      summary: t('targetSubscriptionsSummary'),
-      endpoint: 'GET /admin/privacy/subscriptions',
-      hook: 'useSubscriptions()',
-    },
-    {
-      key: 'identities',
-      title: t('targetUmbraIdentitiesTitle'),
-      summary: t('targetUmbraIdentitiesSummary'),
-      endpoint: 'GET /admin/privacy/umbra-identities',
-      hook: 'useUmbraIdentityInventory()',
-    },
-    {
-      key: 'grants',
-      title: t('targetGrantsTitle'),
-      summary: t('targetGrantsSummary'),
-      endpoint: 'GET /admin/privacy/visibility-grants',
-      hook: 'useVisibilityGrants()',
-    },
-    {
-      key: 'cycles',
-      title: t('targetCyclesTitle'),
-      summary: t('targetCyclesSummary'),
-      endpoint: 'GET /admin/privacy/private-cycles',
-      hook: 'usePrivateExecutionCycles()',
-    },
-  ];
-
-  const backendBacklog = [
-    {
-      key: 'vaults',
-      label: 'GET /admin/privacy/follower-vaults',
-      note: t('backlogFollowerVaults'),
-    },
-    {
-      key: 'subscriptions',
-      label: 'GET /admin/privacy/subscriptions',
-      note: t('backlogSubscriptions'),
-    },
-    {
-      key: 'grants',
-      label: 'GET /admin/privacy/visibility-grants',
-      note: t('backlogGrants'),
-    },
-    {
-      key: 'cycles',
-      label: 'GET /admin/privacy/private-cycles',
-      note: t('backlogCycles'),
-    },
-    {
-      key: 'deployment-vaults',
-      label: 'GET /admin/privacy/deployments/:id/follower-vaults',
-      note: t('backlogDeploymentVaults'),
-    },
-  ];
-
-  const hookBacklog = [
-    { key: 'vaults', label: 'useFollowerVaults()', note: t('hookFollowerVaults') },
-    { key: 'subscriptions', label: 'useSubscriptions()', note: t('hookSubscriptions') },
-    { key: 'grants', label: 'useVisibilityGrants()', note: t('hookGrants') },
-    { key: 'cycles', label: 'usePrivateExecutionCycles()', note: t('hookCycles') },
-    {
-      key: 'identities',
-      label: 'useUmbraIdentityInventory()',
-      note: t('hookUmbraIdentities'),
-    },
-  ];
-
-  const pageBacklog = [
-    { key: 'privacy', label: t('pagePrivacyLabel'), note: t('pagePrivacyNote') },
-    {
-      key: 'deployments',
-      label: t('pageDeploymentsLabel'),
-      note: t('pageDeploymentsNote'),
-    },
-    { key: 'overview', label: t('pageOverviewLabel'), note: t('pageOverviewNote') },
-    { key: 'system', label: t('pageSystemLabel'), note: t('pageSystemNote') },
-  ];
+  const snapshotQuery = useSnapshots({ limit: 50 });
+  const snapRows = snapshotQuery.data?.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -307,8 +222,7 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
           <TabsTrigger value="cycles">{t('tabCycles')}</TabsTrigger>
           <TabsTrigger value="identities">{t('tabIdentities')}</TabsTrigger>
           <TabsTrigger value="grants">{t('tabGrants')}</TabsTrigger>
-          <TabsTrigger value="target">{t('tabTarget')}</TabsTrigger>
-          <TabsTrigger value="backlog">{t('tabBacklog')}</TabsTrigger>
+          <TabsTrigger value="snapshots">{t('tabSnapshots')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="current" className="space-y-4">
@@ -522,43 +436,54 @@ export function PrivacyClient({ role }: { role: AdminRole }) {
           <VisibilityGrantsTab role={role} />
         </TabsContent>
 
-        <TabsContent value="target" className="space-y-4">
+        <TabsContent value="snapshots" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('targetBlueprintTitle')}</CardTitle>
+              <CardTitle className="text-base">{t('snapshotsTitle')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                {t('targetBlueprintSummary')}
-              </p>
+              {snapshotQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
+              ) : snapRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('noSnapshots')}</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('snapshotRevision')}</TableHead>
+                      <TableHead>{t('deployment')}</TableHead>
+                      <TableHead>{t('status')}</TableHead>
+                      <TableHead>{t('pnlBps')}</TableHead>
+                      <TableHead>{t('riskBand')}</TableHead>
+                      <TableHead>{t('publishedAt')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {snapRows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-mono text-xs">{row.snapshotRevision}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {row.deploymentId.slice(0, 8)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={row.status === 'published' ? 'success' : 'secondary'}>
+                            {row.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {row.pnlSummaryBps ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-xs">{row.riskBand ?? '—'}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {format(new Date(row.publishedAt), 'MM-dd HH:mm')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {targetModules.map((module) => (
-              <Card key={module.key} className="border-border/70 bg-card/70">
-                <CardHeader className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="text-base">{module.title}</CardTitle>
-                    <Badge variant="warning">{t('plannedApiBadge')}</Badge>
-                  </div>
-                  <p className="text-sm leading-6 text-muted-foreground">{module.summary}</p>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <StatusRow label={t('targetEndpointLabel')} value={module.endpoint} mono />
-                  <StatusRow label={t('targetHookLabel')} value={module.hook} mono />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="backlog" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-3">
-            <BacklogCard title={t('backendBacklogTitle')} items={backendBacklog} />
-            <BacklogCard title={t('hookBacklogTitle')} items={hookBacklog} />
-            <BacklogCard title={t('pageBacklogTitle')} items={pageBacklog} />
-          </div>
         </TabsContent>
       </Tabs>
 
@@ -672,32 +597,5 @@ function GapPill({ text }: { text: string }) {
       <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
       <span>{text}</span>
     </div>
-  );
-}
-
-function BacklogCard({
-  title,
-  items,
-}: {
-  title: string;
-  items: Array<{ key: string; label: string; note: string }>;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {items.map((item) => (
-          <div key={item.key} className="rounded-md border bg-card/50 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-xs">{item.label}</span>
-              <Badge variant="secondary">draft</Badge>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.note}</p>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
   );
 }

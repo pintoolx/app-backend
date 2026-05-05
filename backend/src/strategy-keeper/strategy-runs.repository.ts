@@ -18,6 +18,9 @@ export interface StrategyRunRow {
   started_at: string;
   completed_at: string | null;
   error_message: string | null;
+  retry_count: number;
+  max_retries: number;
+  retry_of: string | null;
 }
 
 export interface InsertStrategyRunInput {
@@ -25,6 +28,9 @@ export interface InsertStrategyRunInput {
   strategyVersionId?: string | null;
   executionLayer: ExecutionLayer;
   publicOutcome?: Record<string, unknown>;
+  retryCount?: number;
+  maxRetries?: number;
+  retryOf?: string | null;
 }
 
 export interface UpdateStrategyRunInput {
@@ -36,6 +42,9 @@ export interface UpdateStrategyRunInput {
   workflowExecutionId?: string | null;
   completedAt?: string | null;
   errorMessage?: string | null;
+  retryCount?: number;
+  maxRetries?: number;
+  retryOf?: string | null;
 }
 
 const RUN_COLUMNS = [
@@ -52,6 +61,9 @@ const RUN_COLUMNS = [
   'started_at',
   'completed_at',
   'error_message',
+  'retry_count',
+  'max_retries',
+  'retry_of',
 ].join(', ');
 
 @Injectable()
@@ -69,6 +81,9 @@ export class StrategyRunsRepository {
         execution_layer: input.executionLayer,
         status: 'pending',
         public_outcome: input.publicOutcome ?? {},
+        retry_count: input.retryCount ?? 0,
+        max_retries: input.maxRetries ?? 1,
+        retry_of: input.retryOf ?? null,
       })
       .select(RUN_COLUMNS)
       .single();
@@ -105,6 +120,9 @@ export class StrategyRunsRepository {
       updates.workflow_execution_id = input.workflowExecutionId;
     if (input.completedAt !== undefined) updates.completed_at = input.completedAt;
     if (input.errorMessage !== undefined) updates.error_message = input.errorMessage;
+    if (input.retryCount !== undefined) updates.retry_count = input.retryCount;
+    if (input.maxRetries !== undefined) updates.max_retries = input.maxRetries;
+    if (input.retryOf !== undefined) updates.retry_of = input.retryOf;
 
     const { data, error } = await this.supabaseService.client
       .from('strategy_runs')
@@ -131,6 +149,38 @@ export class StrategyRunsRepository {
     if (error) {
       this.logger.error('Failed to list strategy runs', error);
       throw new InternalServerErrorException('Failed to list strategy runs');
+    }
+    return (data ?? []) as unknown as StrategyRunRow[];
+  }
+
+  async findActiveForDeployment(deploymentId: string): Promise<StrategyRunRow | null> {
+    const { data, error } = await this.supabaseService.client
+      .from('strategy_runs')
+      .select(RUN_COLUMNS)
+      .eq('deployment_id', deploymentId)
+      .in('status', ['pending', 'running'])
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      this.logger.warn(`Failed to find active run for deployment ${deploymentId}: ${error.message}`);
+    }
+    return data ? (data as unknown as StrategyRunRow) : null;
+  }
+
+  async findFailedRetriableForDeployment(deploymentId: string, limit = 5): Promise<StrategyRunRow[]> {
+    const { data, error } = await this.supabaseService.client
+      .from('strategy_runs')
+      .select(RUN_COLUMNS)
+      .eq('deployment_id', deploymentId)
+      .eq('status', 'failed')
+      .lt('retry_count', 'max_retries')
+      .order('started_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      this.logger.warn(`Failed to find retriable runs for deployment ${deploymentId}: ${error.message}`);
     }
     return (data ?? []) as unknown as StrategyRunRow[];
   }

@@ -1,9 +1,6 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  getUmbraClient,
-  createSignerFromPrivateKeyBytes,
-} from '@umbra-privacy/sdk';
+import { getUmbraClient, createSignerFromPrivateKeyBytes } from '@umbra-privacy/sdk';
 import { KeeperKeypairService } from '../onchain/keeper-keypair.service';
 
 /**
@@ -95,10 +92,7 @@ export class UmbraClientService {
    * (\`[seed(32) | pubkey(32)]\`) — the same format used everywhere else
    * in this codebase.
    */
-  async withSigner<T>(
-    secretKeyBytes: Uint8Array,
-    fn: (client: unknown) => Promise<T>,
-  ): Promise<T> {
+  async withSigner<T>(secretKeyBytes: Uint8Array, fn: (client: unknown) => Promise<T>): Promise<T> {
     if (secretKeyBytes.byteLength !== 64) {
       throw new InternalServerErrorException(
         `withSigner expected a 64-byte Solana keypair secret; got ${secretKeyBytes.byteLength}`,

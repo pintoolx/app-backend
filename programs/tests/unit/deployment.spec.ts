@@ -104,7 +104,7 @@ describe("strategy_runtime — Phase 1 Deployment Lifecycle (Unit)", () => {
       .rpc();
   }
 
-  async function initializeDeployment(executionMode = ExecutionMode.Offchain) {
+  async function initializeDeployment(executionMode: number = ExecutionMode.Offchain) {
     await program.methods
       .initializeDeployment(Array.from(deploymentId), executionMode, new anchor.BN(1))
       .accountsPartial({
@@ -516,6 +516,32 @@ describe("strategy_runtime — Phase 1 Deployment Lifecycle (Unit)", () => {
       expect(err.error.errorCode.code).to.eq("InvalidLifecycleTransition");
     }
     expect(raised).to.be.true;
+  });
+
+  [Lifecycle.Paused, Lifecycle.Stopped].forEach((blockedStatus) => {
+    it(`rejects commit_state when deployment is ${blockedStatus === Lifecycle.Paused ? 'Paused' : 'Stopped'}`, async () => {
+      await initializeStrategyVersion();
+      await initializeDeployment();
+      await initializeStrategyState();
+      await setLifecycle(Lifecycle.Deployed);
+      await setLifecycle(blockedStatus);
+
+      let raised = false;
+      try {
+        await program.methods
+          .commitState(0, Array.from(randomBytes(32)) as unknown as number[], 0)
+          .accountsPartial({
+            creator: creator.publicKey,
+            deployment: deploymentPda,
+            strategyState: strategyStatePda,
+          })
+          .rpc();
+      } catch (err: any) {
+        raised = true;
+        expect(err.error.errorCode.code).to.eq("InvalidLifecycleTransition");
+      }
+      expect(raised).to.be.true;
+    });
   });
 
   // ───────────────────────────────────────────

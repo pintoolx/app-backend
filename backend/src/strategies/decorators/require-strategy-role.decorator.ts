@@ -11,5 +11,4 @@ export const STRATEGY_ROLE_KEY = 'strategy_role';
  * Role hierarchy (from most to least privileged):
  *   creator > operator > viewer > subscriber > auditor
  */
-export const RequireStrategyRole = (role: StrategyRole) =>
-  SetMetadata(STRATEGY_ROLE_KEY, role);
+export const RequireStrategyRole = (role: StrategyRole) => SetMetadata(STRATEGY_ROLE_KEY, role);

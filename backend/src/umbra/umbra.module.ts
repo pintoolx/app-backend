@@ -6,10 +6,7 @@ import { UmbraNoopAdapter } from './umbra-noop.service';
 import { UmbraDeploymentSignerService } from './umbra-deployment-signer.service';
 import { UmbraRealAdapter } from './umbra-real.adapter';
 import { UmbraClientService } from './umbra-client.service';
-import {
-  UMBRA_ZK_PROVER_PROVIDER,
-  type UmbraZkProverProviderPort,
-} from './umbra-zk-prover.port';
+import { UMBRA_ZK_PROVER_PROVIDER, type UmbraZkProverProviderPort } from './umbra-zk-prover.port';
 import { NoopUmbraZkProverProvider } from './noop-umbra-zk-prover.provider';
 import { WebZkProverProvider } from './web-zk-prover.provider';
 import { KeeperKeypairService } from '../onchain/keeper-keypair.service';

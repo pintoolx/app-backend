@@ -9,7 +9,10 @@ import {
 import { randomBytes } from 'crypto';
 import { StrategyDeploymentsRepository } from '../strategy-deployments/strategy-deployments.repository';
 import { PerGroupsRepository } from '../magicblock/per-groups.repository';
-import { PerAuthTokensRepository, type PerAuthTokenRow } from '../magicblock/per-auth-tokens.repository';
+import {
+  PerAuthTokensRepository,
+  type PerAuthTokenRow,
+} from '../magicblock/per-auth-tokens.repository';
 import {
   MAGICBLOCK_PER_ADAPTER,
   type MagicBlockPerAdapterPort,
@@ -674,9 +677,7 @@ export class SubscriptionsService {
    * projection. Pulls each side concurrently to keep list endpoints O(N) on
    * roundtrips rather than O(3N).
    */
-  private async materializeView(
-    sub: StrategySubscriptionRow,
-  ): Promise<FollowerSubscriptionView> {
+  private async materializeView(sub: StrategySubscriptionRow): Promise<FollowerSubscriptionView> {
     const [vault, identity] = await Promise.all([
       this.followerVaultsRepository.getBySubscriptionId(sub.id),
       sub.umbra_identity_ref
@@ -714,7 +715,7 @@ export class SubscriptionsService {
     followerWallet: string,
   ): Promise<FollowerSubscriptionView> {
     let current = sub;
-    let currentVault = vault;
+    const currentVault = vault;
     try {
       // Step → subscription_initialized
       if (current.provisioning_state === 'db_inserted') {

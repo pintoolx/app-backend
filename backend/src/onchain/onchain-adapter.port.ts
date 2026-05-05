@@ -56,6 +56,28 @@ export interface CloseDeploymentParams {
   deploymentId: string;
 }
 
+export interface SetKeeperParams {
+  deploymentId: string;
+  /** Base58 keeper pubkey. Pass `null` to revert to creator-only mode (Pubkey::default()). */
+  newKeeperWallet: string | null;
+}
+
+export interface CloseVaultAuthorityParams {
+  deploymentId: string;
+}
+
+export interface ClosePublicSnapshotParams {
+  deploymentId: string;
+}
+
+export interface DelegateStrategyStateToErParams {
+  deploymentId: string;
+  /** ER validator pubkey (base58). */
+  validatorWallet: string;
+  /** Commit frequency in milliseconds (e.g. 5000). */
+  commitFrequencyMs: number;
+}
+
 export interface OnchainCommitResult {
   signature: string | null;
   newStateRevision: number;
@@ -182,7 +204,9 @@ export interface OnchainAdapterPort {
    * The adapter constructs the Anchor instruction, attaches a recent blockhash,
    * signs with the keeper wallet, and returns the serialized tx as base64.
    */
-  buildCommitStateTransaction(params: CommitStateParams): Promise<BuildCommitStateTransactionResult>;
+  buildCommitStateTransaction(
+    params: CommitStateParams,
+  ): Promise<BuildCommitStateTransactionResult>;
   setPublicSnapshot(params: SetPublicSnapshotParams): Promise<OnchainCommitResult>;
   closeDeployment(params: CloseDeploymentParams): Promise<{ signature: string | null }>;
 
@@ -200,15 +224,23 @@ export interface OnchainAdapterPort {
   setFollowerVaultStatus(
     params: SetFollowerVaultStatusParams,
   ): Promise<FollowerOnchainInstructionResult>;
-  closeFollowerVault(
-    params: CloseFollowerVaultParams,
-  ): Promise<FollowerOnchainInstructionResult>;
+  closeFollowerVault(params: CloseFollowerVaultParams): Promise<FollowerOnchainInstructionResult>;
   buildFundIntentInstruction(
     params: BuildFundIntentInstructionParams,
   ): Promise<FundIntentInstruction>;
 
   // Phase 4 — application-layer closure ------------------------------------
-  collectFees(params: { deploymentId: string }): Promise<{ signature: string | null; collectedLamports: number }>;
+  collectFees(params: {
+    deploymentId: string;
+  }): Promise<{ signature: string | null; collectedLamports: number }>;
   emergencyPause(params: { deploymentId: string }): Promise<{ signature: string | null }>;
   emergencyResume(params: { deploymentId: string }): Promise<{ signature: string | null }>;
+
+  // Keeper + delegation management -----------------------------------------
+  setKeeper(params: SetKeeperParams): Promise<{ signature: string | null }>;
+  closeVaultAuthority(params: CloseVaultAuthorityParams): Promise<{ signature: string | null }>;
+  closePublicSnapshot(params: ClosePublicSnapshotParams): Promise<{ signature: string | null }>;
+  delegateStrategyStateToEr(
+    params: DelegateStrategyStateToErParams,
+  ): Promise<{ signature: string | null }>;
 }

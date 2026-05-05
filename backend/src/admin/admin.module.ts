@@ -39,6 +39,7 @@ import { AdminFollowerVaultsOpsService } from './ops/admin-follower-vaults-ops.s
 import { AdminDeploymentsOpsController } from './ops/admin-deployments-ops.controller';
 import { AdminPrivacyOpsController } from './ops/admin-privacy-ops.controller';
 import { AdminExecutionsController } from './ops/admin-executions.controller';
+import { AdminExecutionsService } from './executions/admin-executions.service';
 import { AdminUsersOpsController } from './ops/admin-users-ops.controller';
 import { AdminMaintenanceController } from './ops/admin-maintenance.controller';
 import { BannedWalletsRepository } from './ops/banned-wallets.repository';
@@ -106,6 +107,7 @@ import { MaintenanceModeGuard } from './ops/maintenance-mode.guard';
     AdminPrivacyService,
     AdminFollowerVaultsService,
     // Phase 2 — Write ops
+    AdminExecutionsService,
     AdminOpsService,
     AdminFollowerVaultsOpsService,
     BannedWalletsRepository,

@@ -375,15 +375,14 @@ function DeploymentPrivacyDialogBody({
           </CardContent>
         </Card>
 
-        <Card className="border-warning/30 bg-warning/5">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base">{t('detailGapTitle')}</CardTitle>
+            <CardTitle className="text-base">{t('detailLiveSurfaces')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>{t('detailGapIntro')}</p>
-            <GapPill text={t('detailGapIdentity')} />
-            <GapPill text={t('detailGapRuntime')} />
-            <GapPill text={t('detailGapVaults')} />
+          <CardContent className="space-y-3 text-sm">
+            <StatusRow label={t('detailLiveSubscriptions')} value={t('detailLiveValueAvailable')} />
+            <StatusRow label={t('detailLiveVaults')} value={t('detailLiveValueAvailable')} />
+            <StatusRow label={t('detailLiveCycles')} value={t('detailLiveValueAvailable')} />
           </CardContent>
         </Card>
       </div>

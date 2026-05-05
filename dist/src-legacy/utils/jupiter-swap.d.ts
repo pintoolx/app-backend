@@ -39,7 +39,7 @@ export declare function getJupiterQuote(options: {
     outputToken: "JITOSOL" | "SOL" | "USDC";
     inputAmount: number;
     outputAmount: string;
-    priceImpactPct: any;
+    priceImpactPct: string;
     slippageBps: number;
-    routePlan: any;
+    routePlan: import("@jup-ag/api").RoutePlanStep[];
 }>;

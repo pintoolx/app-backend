@@ -47,7 +47,11 @@ pub fn handler(
     acc.deployment_nonce = deployment_nonce;
     acc.initialized_slot = clock.slot;
     acc.bump = ctx.bumps.deployment;
-    acc._reserved = [0u8; crate::constants::RESERVED_ACCOUNT_BYTES];
+    // Default keeper to the creator. The creator can later swap in a
+    // dedicated signer via `set_keeper` so the platform never has to
+    // hold the creator's private key.
+    acc.keeper = ctx.accounts.creator.key();
+    acc._reserved = [0u8; 32];
     msg!(
         "deployment initialized id={:?} creator={}",
         deployment_id,

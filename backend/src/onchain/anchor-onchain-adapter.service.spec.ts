@@ -70,7 +70,12 @@ function makeClientStub() {
   const client = {
     getProgramId: jest.fn().mockReturnValue(PROGRAM_ID),
     getProgram: jest.fn().mockResolvedValue(program),
-    getProvider: jest.fn().mockResolvedValue({ wallet, connection: { getLatestBlockhash: jest.fn().mockResolvedValue({ blockhash: 'test-blockhash' }) } }),
+    getProvider: jest.fn().mockResolvedValue({
+      wallet,
+      connection: {
+        getLatestBlockhash: jest.fn().mockResolvedValue({ blockhash: 'test-blockhash' }),
+      },
+    }),
   } as unknown as AnchorClientService;
   return { client, program };
 }

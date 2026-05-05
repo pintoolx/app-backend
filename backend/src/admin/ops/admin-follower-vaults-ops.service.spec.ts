@@ -43,9 +43,7 @@ const makeSub = (status: StrategySubscriptionRow['status']): StrategySubscriptio
   updated_at: '2026-01-01T00:00:00.000Z',
 });
 
-const makeGrant = (
-  status: FollowerVisibilityGrantRow['status'],
-): FollowerVisibilityGrantRow => ({
+const makeGrant = (status: FollowerVisibilityGrantRow['status']): FollowerVisibilityGrantRow => ({
   id: 'g-1',
   subscription_id: 'sub-1',
   grantee_wallet: 'wallet-g',
@@ -74,12 +72,14 @@ const makeCycle = (
   error_message: status === 'failed' ? 'mock failure' : null,
 });
 
-const buildHarness = (overrides: {
-  grant?: FollowerVisibilityGrantRow;
-  vault?: FollowerVaultRow;
-  sub?: StrategySubscriptionRow;
-  cycle?: PrivateExecutionCycleRow;
-} = {}) => {
+const buildHarness = (
+  overrides: {
+    grant?: FollowerVisibilityGrantRow;
+    vault?: FollowerVaultRow;
+    sub?: StrategySubscriptionRow;
+    cycle?: PrivateExecutionCycleRow;
+  } = {},
+) => {
   const grantsRepo = {
     getById: jest.fn().mockResolvedValue(overrides.grant ?? makeGrant('active')),
     revoke: jest.fn().mockImplementation(async (id: string) => ({

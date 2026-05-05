@@ -1,12 +1,7 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 
-export type FollowerReceiptStatus =
-  | 'planned'
-  | 'applied'
-  | 'skipped'
-  | 'failed'
-  | 'superseded';
+export type FollowerReceiptStatus = 'planned' | 'applied' | 'skipped' | 'failed' | 'superseded';
 
 export interface FollowerExecutionReceiptRow {
   id: string;

@@ -246,10 +246,8 @@ export class StrategySubscriptionsRepository {
     if (input.followerVaultPda !== undefined) updates.follower_vault_pda = input.followerVaultPda;
     if (input.vaultAuthorityPda !== undefined)
       updates.vault_authority_pda = input.vaultAuthorityPda;
-    if (input.provisioningState !== undefined)
-      updates.provisioning_state = input.provisioningState;
-    if (input.provisioningError !== undefined)
-      updates.provisioning_error = input.provisioningError;
+    if (input.provisioningState !== undefined) updates.provisioning_state = input.provisioningState;
+    if (input.provisioningError !== undefined) updates.provisioning_error = input.provisioningError;
     if (input.lifecycleDrift !== undefined) updates.lifecycle_drift = input.lifecycleDrift;
     if (input.subscriptionPdaBump !== undefined)
       updates.subscription_pda_bump = input.subscriptionPdaBump;

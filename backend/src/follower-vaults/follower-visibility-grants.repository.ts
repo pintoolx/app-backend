@@ -116,9 +116,7 @@ export class FollowerVisibilityGrantsRepository {
       this.logger.error('Failed to list visibility grants', error);
       throw new InternalServerErrorException('Failed to list visibility grants');
     }
-    return ((data ?? []) as unknown as FollowerVisibilityGrantRow[]).map((row) =>
-      this.mapRow(row),
-    );
+    return ((data ?? []) as unknown as FollowerVisibilityGrantRow[]).map((row) => this.mapRow(row));
   }
 
   async revoke(id: string): Promise<FollowerVisibilityGrantRow> {

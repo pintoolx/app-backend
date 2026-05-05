@@ -35,6 +35,12 @@ export interface RequestContext {
   ipAllowed: boolean;
 }
 
+interface PreparedAdminSession {
+  session: AdminSession;
+  refreshToken: string;
+  refreshExpiresAt: Date;
+}
+
 const BCRYPT_DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuOZl0YyB6jOY3dW58V0IDoxZsWvRhdZGS'; // never matches
 
 /**
@@ -158,12 +164,31 @@ export class AdminAuthService {
       throw new UnauthorizedException('Admin account is not currently allowed to sign in');
     }
 
-    const session = await this.issueSession(user, ctx);
-    const newRow = await this.refreshTokensRepo.findActiveByRaw(session.refreshToken);
-    if (newRow) {
-      await this.refreshTokensRepo.markReplaced(row.id, newRow.id);
+    const prepared = await this.prepareSession(user);
+    const rotation = await this.refreshTokensRepo.rotate({
+      oldRawToken: rawToken,
+      newRawToken: prepared.refreshToken,
+      expiresAt: prepared.refreshExpiresAt.toISOString(),
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+    if (rotation.outcome === 'rotated') {
+      return prepared.session;
     }
-    return session;
+
+    if (rotation.outcome === 'already_used' && rotation.admin_user_id) {
+      this.logger.warn(
+        `Admin refresh token reuse detected user=${rotation.admin_user_id} status=${rotation.previous_status}`,
+      );
+      await this.refreshTokensRepo.revokeAllForUser(rotation.admin_user_id);
+      throw new UnauthorizedException('Refresh token already used');
+    }
+
+    if (rotation.outcome === 'expired') {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+
+    throw new UnauthorizedException('Refresh token not recognised');
   }
 
   async logout(rawToken: string): Promise<void> {
@@ -173,29 +198,38 @@ export class AdminAuthService {
   // ------------------------------------------------------------------ utils
 
   private async issueSession(user: AdminUserRow, ctx: RequestContext): Promise<AdminSession> {
+    const prepared = await this.prepareSession(user);
+    await this.refreshTokensRepo.insert({
+      adminUserId: user.id,
+      rawToken: prepared.refreshToken,
+      expiresAt: prepared.refreshExpiresAt.toISOString(),
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+    return prepared.session;
+  }
+
+  private async prepareSession(user: AdminUserRow): Promise<PreparedAdminSession> {
     const accessToken = await this.tokenService.signAccessToken({
       sub: user.id,
       email: user.email,
       role: user.role,
     });
     const refreshToken = this.tokenService.generateRefreshToken();
-    const expiresAt = this.tokenService.computeRefreshExpiry();
-    await this.refreshTokensRepo.insert({
-      adminUserId: user.id,
-      rawToken: refreshToken,
-      expiresAt: expiresAt.toISOString(),
-      userAgent: ctx.userAgent,
-      ipAddress: ctx.ipAddress,
-    });
+    const refreshExpiresAt = this.tokenService.computeRefreshExpiry();
     return {
-      accessToken,
       refreshToken,
-      expiresInSec: 15 * 60,
-      refreshExpiresAt: expiresAt.toISOString(),
-      admin: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
+      refreshExpiresAt,
+      session: {
+        accessToken,
+        refreshToken,
+        expiresInSec: 15 * 60,
+        refreshExpiresAt: refreshExpiresAt.toISOString(),
+        admin: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
       },
     };
   }

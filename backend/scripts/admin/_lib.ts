@@ -38,10 +38,13 @@ export function loadEnv(): AdminEnv {
     fatal('ADMIN_TOTP_ENC_KEY must be 32 random bytes encoded as 64 hex chars.');
   }
   const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  const supabaseServiceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_KEY;
   if (!supabaseUrl || !supabaseServiceKey) {
     fatal(
-      'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY) must be set in .env to run admin CLI.',
+      'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY / SUPABASE_KEY) must be set in .env to run admin CLI.',
     );
   }
   return {

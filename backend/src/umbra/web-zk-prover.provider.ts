@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  type UmbraZkProverProviderPort,
-  type UmbraZkProverSuite,
-} from './umbra-zk-prover.port';
+import { type UmbraZkProverProviderPort, type UmbraZkProverSuite } from './umbra-zk-prover.port';
 
 /**
  * Production Phase-5 provider, backed by `@umbra-privacy/web-zk-prover`.
@@ -45,18 +42,13 @@ export class WebZkProverProvider implements UmbraZkProverProviderPort {
   async getZkProverSuite(): Promise<UmbraZkProverSuite | null> {
     if (this.cachedSuite) return this.cachedSuite;
     try {
-      const sdk = (await import('@umbra-privacy/web-zk-prover')) as Record<
-        string,
-        unknown
-      >;
-      const utxoCreatorFactory =
-        sdk.getCreateReceiverClaimableUtxoFromEncryptedBalanceProver as
-          | (() => unknown)
-          | undefined;
-      const claimerFactory =
-        sdk.getClaimReceiverClaimableUtxoIntoEncryptedBalanceProver as
-          | (() => unknown)
-          | undefined;
+      const sdk = (await import('@umbra-privacy/web-zk-prover')) as Record<string, unknown>;
+      const utxoCreatorFactory = sdk.getCreateReceiverClaimableUtxoFromEncryptedBalanceProver as
+        | (() => unknown)
+        | undefined;
+      const claimerFactory = sdk.getClaimReceiverClaimableUtxoIntoEncryptedBalanceProver as
+        | (() => unknown)
+        | undefined;
       if (typeof utxoCreatorFactory !== 'function' || typeof claimerFactory !== 'function') {
         this.logger.warn(
           '@umbra-privacy/web-zk-prover does not export expected factories; falling back to null suite.',
@@ -67,9 +59,7 @@ export class WebZkProverProvider implements UmbraZkProverProviderPort {
         utxoReceiverClaimable: utxoCreatorFactory(),
         claimReceiverClaimableIntoEncryptedBalance: claimerFactory(),
       };
-      this.logger.log(
-        'Umbra zkProver suite initialised (web-zk-prover, CDN asset provider).',
-      );
+      this.logger.log('Umbra zkProver suite initialised (web-zk-prover, CDN asset provider).');
       return this.cachedSuite;
     } catch (err) {
       this.logger.error(
@@ -88,9 +78,7 @@ export class WebZkProverProvider implements UmbraZkProverProviderPort {
     if (this.cachedRelayer) return this.cachedRelayer;
     const apiEndpoint = this.configService.get<string>('UMBRA_RELAYER_ENDPOINT');
     if (!apiEndpoint) {
-      this.logger.warn(
-        'UMBRA_RELAYER_ENDPOINT not set; transfer claim flow will short-circuit.',
-      );
+      this.logger.warn('UMBRA_RELAYER_ENDPOINT not set; transfer claim flow will short-circuit.');
       return null;
     }
     try {

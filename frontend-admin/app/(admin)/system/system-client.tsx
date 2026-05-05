@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import {
   useAdapterMatrix,
+  useEncryptionKeys,
   useKeeperStatus,
   useMaintenance,
   useSetMaintenance,
@@ -27,6 +28,7 @@ export function SystemClient({ role }: { role: AdminRole }) {
   const adapters = useAdapterMatrix();
   const health = useSystemHealth();
   const keeper = useKeeperStatus();
+  const keys = useEncryptionKeys();
   const maintenance = useMaintenance();
   const setMaintenance = useSetMaintenance();
 
@@ -160,6 +162,42 @@ export function SystemClient({ role }: { role: AdminRole }) {
               ) : null}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('keysTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {keys.isLoading ? (
+            <p className="text-muted-foreground">{tCommon('loading')}</p>
+          ) : (
+            <div className="space-y-2">
+              {(keys.data?.data ?? []).map((entry) => (
+                <div
+                  key={entry.name}
+                  className="flex items-center justify-between rounded-md border bg-card/50 px-3 py-2 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <HealthIcon status={entry.present ? 'ok' : 'fail'} />
+                    <span className="font-mono text-xs uppercase">{entry.name}</span>
+                    {entry.note ? (
+                      <span className="text-xs text-muted-foreground hidden sm:inline">{entry.note}</span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={entry.present ? 'success' : 'destructive'}>
+                      {entry.present ? t('keyPresent') : t('keyMissing')}
+                    </Badge>
+                    {entry.fingerprint ? (
+                      <Mono>{entry.fingerprint}</Mono>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

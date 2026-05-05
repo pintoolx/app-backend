@@ -10,7 +10,14 @@ import { StrategyDeploymentsService } from './strategy-deployments.service';
 import { StrategyDeploymentsRepository } from './strategy-deployments.repository';
 
 @Module({
-  imports: [AuthModule, StrategiesModule, OnchainModule, MagicBlockModule, UmbraModule, forwardRef(() => StrategyKeeperModule)],
+  imports: [
+    AuthModule,
+    StrategiesModule,
+    OnchainModule,
+    MagicBlockModule,
+    UmbraModule,
+    forwardRef(() => StrategyKeeperModule),
+  ],
   controllers: [StrategyDeploymentsController],
   providers: [StrategyDeploymentsService, StrategyDeploymentsRepository],
   exports: [StrategyDeploymentsService, StrategyDeploymentsRepository],

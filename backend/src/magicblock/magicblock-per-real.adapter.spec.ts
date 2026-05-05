@@ -224,12 +224,7 @@ describe('MagicBlockPerRealAdapter', () => {
     } as PerAuthTokenRow);
     const client = buildPerClientStub();
     client.get.mockResolvedValue({ state: { foo: 'bar' }, logs: [] });
-    const adapter = new MagicBlockPerRealAdapter(
-      config({}),
-      client,
-      buildGroupsRepoStub(),
-      tokens,
-    );
+    const adapter = new MagicBlockPerRealAdapter(config({}), client, buildGroupsRepoStub(), tokens);
     const res = await adapter.getPrivateState({ deploymentId: 'd1', authToken: 't1' });
     expect(res.state).toEqual({ foo: 'bar' });
     expect(res.logs).toEqual([]);

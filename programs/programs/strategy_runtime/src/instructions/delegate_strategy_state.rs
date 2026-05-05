@@ -6,7 +6,9 @@ use crate::constants::STRATEGY_STATE_SEED;
 use crate::errors::StrategyRuntimeError;
 use crate::state::StrategyDeployment;
 
-const ER_VALIDATOR: Pubkey = pubkey!("5G2FN3TadN9C1qPrJmqg6fjaB1ZyGD1pEoZoMhwgZyYi");
+/// Hard ceiling on `commit_frequency_ms`. 6 hours is generous; anything
+/// larger is almost certainly a unit error.
+const MAX_COMMIT_FREQUENCY_MS: u32 = 6 * 60 * 60 * 1000;
 
 #[delegate]
 #[derive(Accounts)]
@@ -24,27 +26,44 @@ pub struct DelegateStrategyState<'info> {
     pub strategy_state: AccountInfo<'info>,
 }
 
-pub fn handler(ctx: Context<DelegateStrategyState>) -> Result<()> {
-    let deployment_key = ctx.accounts.deployment.key();
+/// Delegate `strategy_state` to the supplied Ephemeral Rollups validator.
+///
+/// Both `validator` and `commit_frequency_ms` are now caller-supplied so the
+/// program does not have to be redeployed when the platform rotates ER
+/// validators or tunes commit cadence per environment (dev/stage/prod).
+///
+/// `commit_frequency_ms == 0` falls back to the SDK default.
+pub fn handler(
+    ctx: Context<DelegateStrategyState>,
+    validator: Pubkey,
+    commit_frequency_ms: u32,
+) -> Result<()> {
+    require!(
+        validator != Pubkey::default(),
+        StrategyRuntimeError::InvalidInstructionData
+    );
+    require!(
+        commit_frequency_ms <= MAX_COMMIT_FREQUENCY_MS,
+        StrategyRuntimeError::InvalidInstructionData
+    );
 
-    let seeds: &[&[u8]] = &[
-        STRATEGY_STATE_SEED,
-        deployment_key.as_ref(),
-    ];
+    let deployment_key = ctx.accounts.deployment.key();
+    let seeds: &[&[u8]] = &[STRATEGY_STATE_SEED, deployment_key.as_ref()];
 
     ctx.accounts.delegate_strategy_state(
         &ctx.accounts.creator,
         seeds,
         DelegateConfig {
-            commit_frequency_ms: 30_000,
-            validator: Some(ER_VALIDATOR),
+            commit_frequency_ms,
+            validator: Some(validator),
         },
     )?;
 
     msg!(
-        "strategy_state delegated: deployment={}, validator={}",
+        "strategy_state delegated: deployment={}, validator={}, commit_frequency_ms={}",
         deployment_key,
-        ER_VALIDATOR
+        validator,
+        commit_frequency_ms
     );
     Ok(())
 }

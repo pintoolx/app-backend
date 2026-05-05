@@ -14,7 +14,6 @@ export declare class KaminoClient {
     private wallet;
     private manager;
     private kvaultProgramId;
-    private isMainnet;
     private constructor();
     /**
      * 初始化 KaminoClient
@@ -35,7 +34,7 @@ export declare class KaminoClient {
     /**
      * 獲取 vault 的詳細概覽
      */
-    getVaultOverview(vaultAddress: Address, tokenPrice?: Decimal): Promise<any>;
+    getVaultOverview(vaultAddress: Address, tokenPrice?: Decimal): Promise<import("@kamino-finance/klend-sdk").VaultOverview>;
     /**
      * Deposit 到指定的 vault，並返回獲得的 share amount
      */

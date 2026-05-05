@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   Settings,
   ScrollText,
+  Activity,
+  Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
@@ -22,6 +24,8 @@ const SECTIONS = [
       { href: '/users', labelKey: 'users', icon: Users },
       { href: '/strategies', labelKey: 'strategies', icon: Workflow },
       { href: '/deployments', labelKey: 'deployments', icon: Boxes },
+      { href: '/executions', labelKey: 'executions', icon: Activity },
+      { href: '/referrals', labelKey: 'referrals', icon: Gift },
     ],
   },
   {

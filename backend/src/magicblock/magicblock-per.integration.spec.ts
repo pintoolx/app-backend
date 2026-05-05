@@ -70,7 +70,11 @@ describe('MagicBlock PER — Real Integration', () => {
   let deploymentId: string;
   let strategyId: string;
 
+  const RUN_EXTERNAL_INTEGRATION_TESTS =
+    process.env.RUN_EXTERNAL_INTEGRATION_TESTS === '1' ||
+    process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
   const SKIP_INTEGRATION_TESTS =
+    !RUN_EXTERNAL_INTEGRATION_TESTS ||
     process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
 
   const perEndpoint = process.env.MAGICBLOCK_PER_ENDPOINT;
@@ -147,12 +151,18 @@ describe('MagicBlock PER — Real Integration', () => {
   afterEach(async () => {
     if (SKIP_INTEGRATION_TESTS || !isFullyConfigured) return;
     try {
-      await supabaseService.client.from('strategy_per_groups').delete().eq('deployment_id', deploymentId);
+      await supabaseService.client
+        .from('strategy_per_groups')
+        .delete()
+        .eq('deployment_id', deploymentId);
     } catch {
       // ignore
     }
     try {
-      await supabaseService.client.from('per_auth_tokens').delete().eq('deployment_id', deploymentId);
+      await supabaseService.client
+        .from('per_auth_tokens')
+        .delete()
+        .eq('deployment_id', deploymentId);
     } catch {
       // ignore
     }

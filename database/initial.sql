@@ -103,7 +103,7 @@ CREATE TABLE public.workflow_executions (
   account_id uuid NOT NULL,
   owner_wallet_address text NOT NULL,
   status text NOT NULL CHECK (status = ANY (ARRAY['pending'::text, 'running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])),
-  trigger_type text CHECK (trigger_type = ANY (ARRAY['manual'::text, 'scheduled'::text, 'price_trigger'::text, 'webhook'::text, 'telegram_command'::text])),
+  trigger_type text CHECK (trigger_type = ANY (ARRAY['manual'::text, 'scheduled'::text, 'price_trigger'::text, 'webhook'::text, 'telegram_command'::text, 'auto'::text])),
   started_at timestamp with time zone NOT NULL DEFAULT now(),
   completed_at timestamp with time zone,
   duration_ms integer,

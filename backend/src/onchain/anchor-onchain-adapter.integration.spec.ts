@@ -42,10 +42,9 @@ async function ensureBalance(connection: Connection, pubkey: Keypair['publicKey'
   if (balance < LAMPORTS_PER_SOL) {
     console.log(`Requesting airdrop for ${pubkey.toBase58()}...`);
     try {
-      await withRpcRetry(
-        () => connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL),
-        { label: 'requestAirdrop' },
-      );
+      await withRpcRetry(() => connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL), {
+        label: 'requestAirdrop',
+      });
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 1000));
         const b = await withRpcRetry(() => connection.getBalance(pubkey), {
@@ -59,6 +58,14 @@ async function ensureBalance(connection: Connection, pubkey: Keypair['publicKey'
   }
 }
 
+const RUN_EXTERNAL_INTEGRATION_TESTS =
+  process.env.RUN_EXTERNAL_INTEGRATION_TESTS === '1' ||
+  process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
+const SKIP_INTEGRATION_TESTS =
+  !RUN_EXTERNAL_INTEGRATION_TESTS ||
+  process.env.SKIP_INTEGRATION_TESTS === '1' ||
+  process.env.SKIP_INTEGRATION_TESTS === 'true';
+
 describe('AnchorOnchainAdapterService — Devnet Integration', () => {
   // initializeDeployment makes 5 sequential on-chain calls; under devnet
   // load + rate-limit backoff a single call easily exceeds 60s. The
@@ -71,6 +78,7 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
   let wallet: Keypair;
 
   beforeAll(async () => {
+    if (SKIP_INTEGRATION_TESTS) return;
     wallet = loadTestWallet();
     connection = new Connection(DEVNET_RPC, 'confirmed');
     await ensureBalance(connection, wallet.publicKey);
@@ -105,20 +113,22 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
   });
 
   it('initializes a deployment on devnet and returns valid PDAs', async () => {
+    if (SKIP_INTEGRATION_TESTS) return;
     const deploymentId = crypto.randomUUID();
     const strategyId = crypto.randomUUID();
 
     const result = await withRpcRetry(
-      () => adapter.initializeDeployment({
-        deploymentId,
-        strategyId,
-        strategy_version: 1,
-        creatorWallet: wallet.publicKey.toBase58(),
-        vaultOwnerHint: null,
-        publicMetadataHash: 'a'.repeat(64),
-        privateDefinitionCommitment: 'b'.repeat(64),
-        executionMode: 'per',
-      }),
+      () =>
+        adapter.initializeDeployment({
+          deploymentId,
+          strategyId,
+          strategy_version: 1,
+          creatorWallet: wallet.publicKey.toBase58(),
+          vaultOwnerHint: null,
+          publicMetadataHash: 'a'.repeat(64),
+          privateDefinitionCommitment: 'b'.repeat(64),
+          executionMode: 'per',
+        }),
       { label: 'initializeDeployment(per)' },
     );
 
@@ -138,6 +148,7 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
   });
 
   it('derives follower PDAs deterministically', async () => {
+    if (SKIP_INTEGRATION_TESTS) return;
     const deploymentId = '11111111-2222-3333-4444-555555555555';
     const followerWallet = Keypair.generate().publicKey.toBase58();
 
@@ -157,6 +168,7 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
   });
 
   it('builds unsigned follower subscription instruction', async () => {
+    if (SKIP_INTEGRATION_TESTS) return;
     const deploymentId = '11111111-2222-3333-4444-555555555555';
     const followerWallet = Keypair.generate().publicKey.toBase58();
 
@@ -179,6 +191,7 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
   });
 
   it('builds unsigned follower vault instruction with custody mode', async () => {
+    if (SKIP_INTEGRATION_TESTS) return;
     const subscriptionPda = Keypair.generate().publicKey.toBase58();
     const followerWallet = Keypair.generate().publicKey.toBase58();
 
@@ -200,22 +213,24 @@ describe('AnchorOnchainAdapterService — Devnet Integration', () => {
   });
 
   it('maps execution modes correctly for ER and PER', async () => {
+    if (SKIP_INTEGRATION_TESTS) return;
     // This is a unit-level validation but critical for MagicBlock integration
     const deploymentId = crypto.randomUUID();
     const strategyId = crypto.randomUUID();
 
     for (const mode of ['offchain', 'er', 'per'] as const) {
       const result = await withRpcRetry(
-        () => adapter.initializeDeployment({
-          deploymentId: crypto.randomUUID(),
-          strategyId: crypto.randomUUID(),
-          strategy_version: 1,
-          creatorWallet: wallet.publicKey.toBase58(),
-          vaultOwnerHint: null,
-          publicMetadataHash: 'a'.repeat(64),
-          privateDefinitionCommitment: 'b'.repeat(64),
-          executionMode: mode,
-        }),
+        () =>
+          adapter.initializeDeployment({
+            deploymentId: crypto.randomUUID(),
+            strategyId: crypto.randomUUID(),
+            strategy_version: 1,
+            creatorWallet: wallet.publicKey.toBase58(),
+            vaultOwnerHint: null,
+            publicMetadataHash: 'a'.repeat(64),
+            privateDefinitionCommitment: 'b'.repeat(64),
+            executionMode: mode,
+          }),
         { label: `initializeDeployment(${mode})` },
       );
 

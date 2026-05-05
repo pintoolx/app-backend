@@ -65,12 +65,7 @@ describe('FundIntentSubmissionService', () => {
       confirmTransaction: jest.fn().mockResolvedValue({ value: { err: null } }),
     }));
 
-    const result = await service.submitFundIntent(
-      'dep-123',
-      'sub-123',
-      '0xabc',
-      'BASE64TX==',
-    );
+    const result = await service.submitFundIntent('dep-123', 'sub-123', '0xabc', 'BASE64TX==');
 
     expect(result.signature).toBe('sig-123');
     expect(result.confirmed).toBe(true);
@@ -129,12 +124,7 @@ describe('FundIntentSubmissionService', () => {
       }),
     }));
 
-    const result = await service.submitFundIntent(
-      'dep-123',
-      'sub-123',
-      '0xabc',
-      'BASE64TX==',
-    );
+    const result = await service.submitFundIntent('dep-123', 'sub-123', '0xabc', 'BASE64TX==');
 
     expect(result.signature).toBe('sig-fail');
     expect(result.confirmed).toBe(false);
@@ -154,12 +144,7 @@ describe('FundIntentSubmissionService', () => {
       confirmTransaction: jest.fn().mockRejectedValue(new Error('timeout')),
     }));
 
-    const result = await service.submitFundIntent(
-      'dep-123',
-      'sub-123',
-      '0xabc',
-      'BASE64TX==',
-    );
+    const result = await service.submitFundIntent('dep-123', 'sub-123', '0xabc', 'BASE64TX==');
 
     expect(result.signature).toBe('sig-timeout');
     expect(result.confirmed).toBe(false);

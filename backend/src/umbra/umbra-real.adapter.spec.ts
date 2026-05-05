@@ -33,15 +33,11 @@ const mockClaimFn = jest.fn().mockResolvedValue({
     ],
   ]),
 });
-const mockScannerFn = jest
-  .fn()
-  .mockResolvedValue({ receiver: [{ id: 'utxo-1' }], ephemeral: [] });
+const mockScannerFn = jest.fn().mockResolvedValue({ receiver: [{ id: 'utxo-1' }], ephemeral: [] });
 
 // Mock SDK modules before importing the adapter
 jest.mock('@umbra-privacy/sdk', () => ({
-  getUserRegistrationFunction: jest.fn(() =>
-    jest.fn().mockResolvedValue(['sig1', 'sig2']),
-  ),
+  getUserRegistrationFunction: jest.fn(() => jest.fn().mockResolvedValue(['sig1', 'sig2'])),
   getUserAccountQuerierFunction: jest.fn(() =>
     jest.fn().mockResolvedValue({
       x25519PublicKey: 'mockX25519PubkeyBase58',
@@ -305,9 +301,7 @@ describe('UmbraRealAdapter', () => {
 
     it('marks status pending when batches are still in flight', async () => {
       mockClaimFn.mockResolvedValueOnce({
-        batches: new Map([
-          [0, { requestId: 'r', status: 'submitted' }],
-        ]),
+        batches: new Map([[0, { requestId: 'r', status: 'submitted' }]]),
       });
       const a = await buildAdapterWithFlag(true);
       const result = await a.claimEncryptedTransfer(params);

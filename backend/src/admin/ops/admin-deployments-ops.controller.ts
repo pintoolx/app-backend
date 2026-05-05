@@ -86,12 +86,13 @@ export class AdminDeploymentsOpsController {
   @Post(':id/emergency-pause')
   @HttpCode(200)
   @AdminRoles('operator', 'superadmin')
-  @AdminAudit({ action: 'deployment.emergency_pause', targetType: 'deployment', targetIdParam: 'id' })
+  @AdminAudit({
+    action: 'deployment.emergency_pause',
+    targetType: 'deployment',
+    targetIdParam: 'id',
+  })
   @ApiOperation({ summary: 'Emergency pause a deployed deployment (operator+).' })
-  async emergencyPause(
-    @Param('id') id: string,
-    @CurrentAdmin() claims: AdminAccessClaims,
-  ) {
+  async emergencyPause(@Param('id') id: string, @CurrentAdmin() claims: AdminAccessClaims) {
     const data = await this.opsService.emergencyPauseDeployment(id, {
       id: claims.sub,
       email: claims.email,
@@ -103,12 +104,13 @@ export class AdminDeploymentsOpsController {
   @Post(':id/emergency-resume')
   @HttpCode(200)
   @AdminRoles('operator', 'superadmin')
-  @AdminAudit({ action: 'deployment.emergency_resume', targetType: 'deployment', targetIdParam: 'id' })
+  @AdminAudit({
+    action: 'deployment.emergency_resume',
+    targetType: 'deployment',
+    targetIdParam: 'id',
+  })
   @ApiOperation({ summary: 'Emergency resume a paused deployment (operator+).' })
-  async emergencyResume(
-    @Param('id') id: string,
-    @CurrentAdmin() claims: AdminAccessClaims,
-  ) {
+  async emergencyResume(@Param('id') id: string, @CurrentAdmin() claims: AdminAccessClaims) {
     const data = await this.opsService.emergencyResumeDeployment(id, {
       id: claims.sub,
       email: claims.email,
@@ -122,10 +124,7 @@ export class AdminDeploymentsOpsController {
   @AdminRoles('operator', 'superadmin')
   @AdminAudit({ action: 'deployment.collect_fees', targetType: 'deployment', targetIdParam: 'id' })
   @ApiOperation({ summary: 'Collect accumulated fees from the vault authority (operator+).' })
-  async collectFees(
-    @Param('id') id: string,
-    @CurrentAdmin() claims: AdminAccessClaims,
-  ) {
+  async collectFees(@Param('id') id: string, @CurrentAdmin() claims: AdminAccessClaims) {
     const data = await this.opsService.collectFees(id, {
       id: claims.sub,
       email: claims.email,

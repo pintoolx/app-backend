@@ -88,9 +88,7 @@ export class UmbraNoopAdapter implements UmbraAdapterPort {
     };
   }
 
-  async scanClaimableUtxos(
-    _params: UmbraScanClaimableParams,
-  ): Promise<UmbraScanClaimableResult> {
+  async scanClaimableUtxos(_params: UmbraScanClaimableParams): Promise<UmbraScanClaimableResult> {
     this.logger.debug(`[noop] umbra.scanClaimableUtxos`);
     return { receiverCount: 0, ephemeralCount: 0, unavailable: false };
   }

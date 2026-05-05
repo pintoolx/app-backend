@@ -157,15 +157,16 @@ export function OverviewClient() {
           </CardContent>
         </Card>
 
-        <Card className="border-warning/30 bg-warning/5">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base">{t('missingPiecesTitle')}</CardTitle>
+            <CardTitle className="text-base">{t('followerVaultHealthTitle')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <GapRow text={t('missingFollowerVaults')} />
-            <GapRow text={t('missingPerRuntime')} />
-            <GapRow text={t('missingUmbraIsolation')} />
-            <GapRow text={t('missingVisibilityGrants')} />
+          <CardContent className="space-y-3 text-sm">
+            <StatusRow label={t('followerVaultActive')} value={String(privacy?.followerVaults.byStatus.active ?? 0)} />
+            <StatusRow label={t('followerVaultPending')} value={String(privacy?.followerVaults.byStatus.pending_funding ?? 0)} />
+            <StatusRow label={t('followerVaultPaused')} value={String(privacy?.followerVaults.byStatus.paused ?? 0)} />
+            <StatusRow label={t('followerSubscriptionsActive')} value={String(privacy?.subscriptions.byStatus.active ?? 0)} />
+            <StatusRow label={t('followerCycles24h')} value={String(privacy?.privateCycles.last24h ?? 0)} />
           </CardContent>
         </Card>
       </section>
@@ -224,19 +225,6 @@ export function OverviewClient() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{t('rolloutNextTitle')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <BacklogNote title={t('rolloutItemVaults')} body={t('rolloutItemVaultsBody')} />
-            <BacklogNote title={t('rolloutItemSubscriptions')} body={t('rolloutItemSubscriptionsBody')} />
-            <BacklogNote title={t('rolloutItemCycles')} body={t('rolloutItemCyclesBody')} />
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
             <CardTitle className="text-base">{t('deploymentStatus')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -261,7 +249,9 @@ export function OverviewClient() {
             ))}
           </CardContent>
         </Card>
+      </section>
 
+      <section>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t('liveSignalsTitle')}</CardTitle>

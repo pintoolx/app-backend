@@ -163,6 +163,9 @@ export class X402PaymentNode {
                 console.log(`  Recipient: ${paymentReqs.payment.tokenAccount}`);
                 console.log(`  Mint: ${paymentReqs.payment.mint}`);
                 console.log(`  Amount: ${amountUSDC} USDC (${amount} smallest units)`);
+                if (paymentReqs.payment.mint !== tokenMint) {
+                    throw new Error(`Payment mint mismatch. Expected ${tokenMint}, got ${paymentReqs.payment.mint}`);
+                }
                 // Validate payment amount
                 if (amountUSDC > maxPaymentAmount) {
                     throw new Error(`Payment amount ${amountUSDC} USDC exceeds maximum ${maxPaymentAmount} USDC`);

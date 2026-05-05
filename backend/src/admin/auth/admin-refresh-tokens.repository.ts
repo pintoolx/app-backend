@@ -25,6 +25,25 @@ export interface InsertRefreshTokenInput {
   ipAddress: string | null;
 }
 
+export type RotateAdminRefreshTokenOutcome = 'rotated' | 'already_used' | 'expired' | 'missing';
+
+export interface RotateRefreshTokenInput {
+  oldRawToken: string;
+  newRawToken: string;
+  expiresAt: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+}
+
+export interface RotateRefreshTokenResult {
+  outcome: RotateAdminRefreshTokenOutcome;
+  admin_user_id: string | null;
+  previous_token_id: string | null;
+  replacement_token_id: string | null;
+  previous_status: AdminRefreshTokenStatus | null;
+  previous_expires_at: string | null;
+}
+
 const COLUMNS =
   'id, admin_user_id, token_hash, status, expires_at, created_at, revoked_at, replaced_by, user_agent, ip_address';
 
@@ -82,6 +101,34 @@ export class AdminRefreshTokensRepository {
       this.logger.error('Failed to mark admin refresh token as replaced', error);
       throw new InternalServerErrorException('Failed to rotate refresh token');
     }
+  }
+
+  async rotate(input: RotateRefreshTokenInput): Promise<RotateRefreshTokenResult> {
+    const { data, error } = await this.supabaseService.client.rpc('rotate_admin_refresh_token', {
+      p_old_token_hash: AdminRefreshTokensRepository.hashToken(input.oldRawToken),
+      p_new_token_hash: AdminRefreshTokensRepository.hashToken(input.newRawToken),
+      p_expires_at: input.expiresAt,
+      p_user_agent: input.userAgent,
+      p_ip_address: input.ipAddress,
+    });
+    if (error) {
+      this.logger.error('Failed to rotate admin refresh token', error);
+      throw new InternalServerErrorException('Failed to rotate refresh token');
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) {
+      return {
+        outcome: 'missing',
+        admin_user_id: null,
+        previous_token_id: null,
+        replacement_token_id: null,
+        previous_status: null,
+        previous_expires_at: null,
+      };
+    }
+
+    return row as RotateRefreshTokenResult;
   }
 
   async revokeByRaw(raw: string): Promise<void> {

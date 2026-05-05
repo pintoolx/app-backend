@@ -1,25 +1,14 @@
-import {
-  Injectable,
-  Logger,
-  Inject,
-  NotImplementedException,
-} from '@nestjs/common';
+import { Injectable, Logger, Inject, NotImplementedException } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import {
-  StrategyRunsRepository,
-  StrategyRunRow,
-  ExecutionLayer,
-} from './strategy-runs.repository';
+import { createHash } from 'crypto';
+import { StrategyRunsRepository, StrategyRunRow, ExecutionLayer } from './strategy-runs.repository';
 import {
   ONCHAIN_ADAPTER,
   type OnchainAdapterPort,
   type CommitStateParams,
   type SetPublicSnapshotParams,
 } from '../onchain/onchain-adapter.port';
-import {
-  MAGICBLOCK_ER_ADAPTER,
-  type MagicBlockErAdapterPort,
-} from '../magicblock/magicblock.port';
+import { MAGICBLOCK_ER_ADAPTER, type MagicBlockErAdapterPort } from '../magicblock/magicblock.port';
 import {
   StrategyDeploymentsRepository,
   type StrategyDeploymentRow,
@@ -85,12 +74,21 @@ export class StrategyRunsService {
 
   /**
    * Create a pending strategy run record.
+   * If an active run (pending/running) already exists for this deployment, returns it instead.
    */
   async createRun(params: {
     deploymentId: string;
     executionLayer: ExecutionLayer;
     strategyVersionId?: string | null;
   }): Promise<StrategyRunRow> {
+    const activeRun = await this.runsRepository.findActiveForDeployment(params.deploymentId);
+    if (activeRun) {
+      this.logger.debug(
+        `Returning existing active run ${activeRun.id} for deployment=${params.deploymentId} (status=${activeRun.status})`,
+      );
+      return activeRun;
+    }
+
     return this.runsRepository.insertRun({
       deploymentId: params.deploymentId,
       executionLayer: params.executionLayer,
@@ -138,18 +136,37 @@ export class StrategyRunsService {
 
     try {
       let outcome: Record<string, unknown> = {};
+      let stateRevision = deployment.state_revision;
 
       switch (run.execution_layer) {
         case 'offchain': {
           outcome = await this.executeOffchain(run, deployment);
+          stateRevision = this.extractStateRevision(outcome, deployment.state_revision + 1);
+          await this.deploymentsRepository.updateDeployment(
+            deployment.id,
+            deployment.creator_wallet_address,
+            { stateRevision },
+          );
           break;
         }
         case 'er': {
           outcome = await this.executeEr(run, deployment);
+          stateRevision = this.extractStateRevision(outcome, deployment.state_revision + 1);
+          await this.deploymentsRepository.updateDeployment(
+            deployment.id,
+            deployment.creator_wallet_address,
+            { stateRevision },
+          );
           break;
         }
         case 'per': {
           outcome = await this.executePer(run, deployment);
+          stateRevision = deployment.state_revision + 1;
+          await this.deploymentsRepository.updateDeployment(
+            deployment.id,
+            deployment.creator_wallet_address,
+            { stateRevision },
+          );
           break;
         }
         default:
@@ -160,7 +177,11 @@ export class StrategyRunsService {
 
       // Publish public snapshot (best-effort; failures are logged but don't
       // fail the run).
-      await this.publishPublicSnapshot(run, deployment, outcome);
+      const snapshotRevision = Math.max(
+        stateRevision,
+        await this.getNextSnapshotRevision(deployment.id, run.id),
+      );
+      await this.publishPublicSnapshot(deployment.id, snapshotRevision, outcome);
 
       const completed = await this.runsRepository.updateRun(runId, {
         status: 'completed',
@@ -168,12 +189,7 @@ export class StrategyRunsService {
         completedAt: new Date().toISOString(),
       });
 
-      this.metricsService.recordAdapterCall(
-        'keeper',
-        'executeRun',
-        'ok',
-        (Date.now() - t0) / 1000,
-      );
+      this.metricsService.recordAdapterCall('keeper', 'executeRun', 'ok', (Date.now() - t0) / 1000);
 
       this.logger.log(
         `Strategy run completed: run=${runId} deployment=${deployment.id} layer=${run.execution_layer}`,
@@ -190,11 +206,43 @@ export class StrategyRunsService {
         (Date.now() - t0) / 1000,
       );
 
-      return this.runsRepository.updateRun(runId, {
+      const failedRun = await this.runsRepository.updateRun(runId, {
         status: 'failed',
         errorMessage,
         completedAt: new Date().toISOString(),
       });
+
+      const retryCount = run.retry_count ?? 0;
+      const maxRetries = run.max_retries ?? 1;
+      if (retryCount < maxRetries) {
+        this.logger.log(
+          `Scheduling retry for run=${runId} (attempt ${retryCount + 1}/${maxRetries})`,
+        );
+        try {
+          const retryRun = await this.runsRepository.insertRun({
+            deploymentId: run.deployment_id,
+            executionLayer: run.execution_layer,
+            strategyVersionId: run.strategy_version_id,
+            retryCount: retryCount + 1,
+            maxRetries,
+            retryOf: runId,
+          });
+
+          setTimeout(() => {
+            this.executeRun(retryRun.id).catch((retryErr) => {
+              this.logger.error(
+                `Retry execution failed for run=${retryRun.id}: ${retryErr instanceof Error ? retryErr.message : retryErr}`,
+              );
+            });
+          }, 5000);
+        } catch (retryCreateErr) {
+          this.logger.warn(
+            `Failed to create retry run for run=${runId}: ${retryCreateErr instanceof Error ? retryCreateErr.message : retryCreateErr}`,
+          );
+        }
+      }
+
+      return failedRun;
     }
   }
 
@@ -208,7 +256,7 @@ export class StrategyRunsService {
     const commitParams: CommitStateParams = {
       deploymentId: deployment.id,
       expectedRevision: deployment.state_revision,
-      newPrivateStateCommitment: this.generateMockCommitment(),
+      newPrivateStateCommitment: this.generateStateCommitment(run, deployment),
       lastResultCode: 0,
     };
 
@@ -232,7 +280,7 @@ export class StrategyRunsService {
     const commitParams: CommitStateParams = {
       deploymentId: deployment.id,
       expectedRevision: deployment.state_revision,
-      newPrivateStateCommitment: this.generateMockCommitment(),
+      newPrivateStateCommitment: this.generateStateCommitment(run, deployment),
       lastResultCode: 0,
     };
 
@@ -247,6 +295,7 @@ export class StrategyRunsService {
       layer: 'er',
       commitSignature: routeResult.signature,
       routedThrough: routeResult.routedThrough,
+      newStateRevision: deployment.state_revision + 1,
     };
   }
 
@@ -293,15 +342,15 @@ export class StrategyRunsService {
    * strategy summary without touching private state.
    */
   private async publishPublicSnapshot(
-    run: StrategyRunRow,
-    deployment: StrategyDeploymentRow,
+    deploymentId: string,
+    snapshotRevision: number,
     outcome: Record<string, unknown>,
   ): Promise<void> {
     try {
       const snapshotParams: SetPublicSnapshotParams = {
-        deploymentId: deployment.id,
-        expectedSnapshotRevision: deployment.state_revision + 1,
-        status: run.status === 'completed' ? 'ok' : 'degraded',
+        deploymentId,
+        expectedSnapshotRevision: snapshotRevision,
+        status: 'ok',
         pnlSummaryBps: null,
         riskBand: null,
         publicMetricsHash: this.hashOutcome(outcome),
@@ -309,19 +358,37 @@ export class StrategyRunsService {
 
       const result = await this.onchainAdapter.setPublicSnapshot(snapshotParams);
       this.logger.debug(
-        `Public snapshot published for deployment=${deployment.id} sig=${result.signature}`,
+        `Public snapshot published for deployment=${deploymentId} sig=${result.signature}`,
       );
     } catch (err) {
       this.logger.warn(
-        `Public snapshot publish failed for deployment=${deployment.id}: ${err instanceof Error ? err.message : err}`,
+        `Public snapshot publish failed for deployment=${deploymentId}: ${err instanceof Error ? err.message : err}`,
       );
     }
   }
 
-  private generateMockCommitment(): string {
-    // In a real implementation this would be a hash of the private state.
-    // Phase 1.2 uses a deterministic placeholder so tests are stable.
-    return '0x' + 'ab'.repeat(32);
+  private extractStateRevision(outcome: Record<string, unknown>, fallback: number): number {
+    const candidate = outcome.newStateRevision;
+    return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : fallback;
+  }
+
+  private async getNextSnapshotRevision(
+    deploymentId: string,
+    currentRunId: string,
+  ): Promise<number> {
+    const priorRuns = await this.runsRepository.listByDeployment(deploymentId, 1000);
+    const completedSnapshots = priorRuns.filter(
+      (row) => row.id !== currentRunId && row.status === 'completed',
+    ).length;
+    return completedSnapshots + 1;
+  }
+
+  private generateStateCommitment(
+    run: StrategyRunRow,
+    deployment: StrategyDeploymentRow,
+  ): string {
+    const payload = `${run.id}:${deployment.id}:${deployment.state_revision}:${run.started_at}`;
+    return '0x' + createHash('sha256').update(payload).digest('hex');
   }
 
   private hashOutcome(outcome: Record<string, unknown>): string {
