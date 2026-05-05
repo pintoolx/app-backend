@@ -1,4 +1,10 @@
-import { Injectable, Logger, Inject, NotImplementedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Inject,
+  NotImplementedException,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { createHash } from 'crypto';
 import { StrategyRunsRepository, StrategyRunRow, ExecutionLayer } from './strategy-runs.repository';
@@ -30,8 +36,9 @@ import { StrategyEvaluationEvent } from './strategy-keeper.service';
  *   per       → startCycle() via PrivateExecutionCyclesService
  */
 @Injectable()
-export class StrategyRunsService {
+export class StrategyRunsService implements OnModuleDestroy {
   private readonly logger = new Logger(StrategyRunsService.name);
+  private readonly retryTimers = new Set<NodeJS.Timeout>();
 
   constructor(
     private readonly runsRepository: StrategyRunsRepository,
@@ -41,6 +48,13 @@ export class StrategyRunsService {
     private readonly privateExecutionCyclesService: PrivateExecutionCyclesService,
     private readonly metricsService: MetricsService,
   ) {}
+
+  onModuleDestroy(): void {
+    for (const timer of this.retryTimers) {
+      clearTimeout(timer);
+    }
+    this.retryTimers.clear();
+  }
 
   /**
    * Event handler: when StrategyKeeperService evaluates a deployment and
@@ -228,13 +242,7 @@ export class StrategyRunsService {
             retryOf: runId,
           });
 
-          setTimeout(() => {
-            this.executeRun(retryRun.id).catch((retryErr) => {
-              this.logger.error(
-                `Retry execution failed for run=${retryRun.id}: ${retryErr instanceof Error ? retryErr.message : retryErr}`,
-              );
-            });
-          }, 5000);
+          this.scheduleRetry(retryRun.id);
         } catch (retryCreateErr) {
           this.logger.warn(
             `Failed to create retry run for run=${runId}: ${retryCreateErr instanceof Error ? retryCreateErr.message : retryCreateErr}`,
@@ -244,6 +252,20 @@ export class StrategyRunsService {
 
       return failedRun;
     }
+  }
+
+  private scheduleRetry(runId: string): void {
+    const timer = setTimeout(() => {
+      this.retryTimers.delete(timer);
+      this.executeRun(runId).catch((retryErr) => {
+        this.logger.error(
+          `Retry execution failed for run=${runId}: ${retryErr instanceof Error ? retryErr.message : retryErr}`,
+        );
+      });
+    }, 5000);
+
+    this.retryTimers.add(timer);
+    timer.unref?.();
   }
 
   /**

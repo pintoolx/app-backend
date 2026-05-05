@@ -27,6 +27,7 @@ function mockUpdateRun(baseRun: StrategyRunRow) {
 }
 
 describe('StrategyRunsService', () => {
+  let moduleRef: TestingModule;
   let service: StrategyRunsService;
   let runsRepository: jest.Mocked<Partial<StrategyRunsRepository>>;
   let deploymentsRepository: jest.Mocked<Partial<StrategyDeploymentsRepository>>;
@@ -88,7 +89,7 @@ describe('StrategyRunsService', () => {
       recordAdapterCall: jest.fn(),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         StrategyRunsService,
         { provide: StrategyRunsRepository, useValue: runsRepository },
@@ -100,10 +101,11 @@ describe('StrategyRunsService', () => {
       ],
     }).compile();
 
-    service = module.get<StrategyRunsService>(StrategyRunsService);
+    service = moduleRef.get<StrategyRunsService>(StrategyRunsService);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await moduleRef.close();
     jest.clearAllMocks();
   });
 

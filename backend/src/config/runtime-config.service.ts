@@ -37,7 +37,7 @@ export class RuntimeConfigService implements OnApplicationBootstrap {
 
   private computeAdapterMatrix(): AdapterMatrixRow[] {
     const onchainProgramId = this.configService.get<string>('STRATEGY_RUNTIME_PROGRAM_ID');
-    const onchainSeed = this.configService.get<string>('STRATEGY_RUNTIME_KEEPER_SEED');
+    const onchainSeed = this.configService.get<string>('STRATEGY_RUNTIME_KEEPER_SECRET');
     const erRouter = this.configService.get<string>('MAGICBLOCK_ROUTER_URL');
     const perEndpoint = this.configService.get<string>('MAGICBLOCK_PER_ENDPOINT');
     const ppEndpoint = this.configService.get<string>('MAGICBLOCK_PP_ENDPOINT');
