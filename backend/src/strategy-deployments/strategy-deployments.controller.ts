@@ -137,6 +137,75 @@ export class StrategyDeploymentsController {
     return { success: true, data };
   }
 
+  @Post('deployments/:id/set-keeper')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Set or clear the on-chain keeper for this deployment' })
+  async setKeeper(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: { newKeeperWallet?: string | null },
+  ) {
+    const data = await this.deploymentsService.setKeeper(
+      id,
+      walletAddress,
+      dto.newKeeperWallet ?? null,
+    );
+    return { success: true, data };
+  }
+
+  @Post('deployments/:id/public-snapshot')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Publish a typed public snapshot through the Anchor program' })
+  async setPublicSnapshot(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body()
+    dto: {
+      expectedSnapshotRevision: number;
+      status: string;
+      pnlSummaryBps?: number | null;
+      riskBand?: string | null;
+      publicMetricsHash: string;
+    },
+  ) {
+    const data = await this.deploymentsService.setPublicSnapshot(id, walletAddress, dto);
+    return { success: true, data };
+  }
+
+  @Post('deployments/:id/close-vault-authority')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Close the deployment vault authority account' })
+  async closeVaultAuthority(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.deploymentsService.closeVaultAuthority(id, walletAddress);
+    return { success: true, data };
+  }
+
+  @Post('deployments/:id/close-public-snapshot')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Close the deployment public snapshot account' })
+  async closePublicSnapshot(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.deploymentsService.closePublicSnapshot(id, walletAddress);
+    return { success: true, data };
+  }
+
+  @Post('deployments/:id/er/delegate-strategy-state')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Delegate strategy state to an Ephemeral Rollups validator' })
+  async delegateStrategyStateToEr(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: { validatorWallet: string; commitFrequencyMs: number },
+  ) {
+    const data = await this.deploymentsService.delegateStrategyStateToEr(id, walletAddress, dto);
+    return { success: true, data };
+  }
+
   // -------- Phase 3.2 — Permission management --------
 
   @Post('deployments/:id/permissions')

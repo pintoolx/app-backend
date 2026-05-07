@@ -114,6 +114,7 @@ export class StrategyDeploymentsService {
     const version = await this.strategyVersionsRepository.getLatestPublished(strategyId);
 
     const compiled = strategy.compiled_ir;
+    this.assertNativeOnchainStrategy(compiled);
     const executionMode = dto.executionMode ?? this.resolveExecutionModeFromHints(compiled);
     const treasuryMode = dto.treasuryMode ?? this.resolveTreasuryModeFromHints(compiled);
 
@@ -310,6 +311,66 @@ export class StrategyDeploymentsService {
     // Refresh deployment row after on-chain collection
     const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
     return { ...this.toView(row), collectedLamports: result.collectedLamports };
+  }
+
+  async setKeeper(
+    deploymentId: string,
+    walletAddress: string,
+    newKeeperWallet: string | null,
+  ): Promise<{ signature: string | null }> {
+    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    return this.onchainAdapter.setKeeper({ deploymentId, newKeeperWallet });
+  }
+
+  async setPublicSnapshot(
+    deploymentId: string,
+    walletAddress: string,
+    params: {
+      expectedSnapshotRevision: number;
+      status: string;
+      pnlSummaryBps?: number | null;
+      riskBand?: string | null;
+      publicMetricsHash: string;
+    },
+  ) {
+    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    return this.onchainAdapter.setPublicSnapshot({
+      deploymentId,
+      expectedSnapshotRevision: params.expectedSnapshotRevision,
+      status: params.status,
+      pnlSummaryBps: params.pnlSummaryBps ?? null,
+      riskBand: params.riskBand ?? null,
+      publicMetricsHash: params.publicMetricsHash,
+    });
+  }
+
+  async closeVaultAuthority(
+    deploymentId: string,
+    walletAddress: string,
+  ): Promise<{ signature: string | null }> {
+    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    return this.onchainAdapter.closeVaultAuthority({ deploymentId });
+  }
+
+  async closePublicSnapshot(
+    deploymentId: string,
+    walletAddress: string,
+  ): Promise<{ signature: string | null }> {
+    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    return this.onchainAdapter.closePublicSnapshot({ deploymentId });
+  }
+
+  async delegateStrategyStateToEr(
+    deploymentId: string,
+    walletAddress: string,
+    params: { validatorWallet: string; commitFrequencyMs: number },
+  ): Promise<{ signature: string | null }> {
+    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
+    return this.onchainAdapter.delegateStrategyStateToEr({
+      deploymentId,
+      validatorWallet: params.validatorWallet,
+      commitFrequencyMs: params.commitFrequencyMs,
+    });
   }
 
   async closeDeployment(deploymentId: string, walletAddress: string): Promise<DeploymentView> {
@@ -653,6 +714,27 @@ export class StrategyDeploymentsService {
       return 'umbra';
     }
     return 'public';
+  }
+
+  private assertNativeOnchainStrategy(compiled: {
+    nodeClassifications?: Array<{
+      nodeId: string;
+      nodeName: string;
+      nodeType: string;
+      executionPlane: string;
+    }>;
+  }): void {
+    const unsupportedNodes = (compiled.nodeClassifications ?? []).filter(
+      (node) => node.executionPlane !== 'anchor_candidate',
+    );
+    if (unsupportedNodes.length > 0) {
+      const nodeList = unsupportedNodes
+        .map((node) => `${node.nodeName || node.nodeId} (${node.nodeType})`)
+        .join(', ');
+      throw new BadRequestException(
+        `Only native on-chain strategy nodes can be deployed right now. Unsupported nodes: ${nodeList}`,
+      );
+    }
   }
 
   private toView(row: StrategyDeploymentRow): DeploymentView {

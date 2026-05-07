@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { CreatorSubscriptionsModule } from '../creator-subscriptions/creator-subscriptions.module';
 import { StrategyCompilerModule } from '../strategy-compiler/strategy-compiler.module';
 import { StrategiesController } from './strategies.controller';
 import { StrategiesService } from './strategies.service';
@@ -9,7 +10,7 @@ import { StrategyPermissionsService } from './strategy-permissions.service';
 import { StrategyPermissionGuard } from './guards/strategy-permission.guard';
 
 @Module({
-  imports: [AuthModule, StrategyCompilerModule],
+  imports: [AuthModule, CreatorSubscriptionsModule, StrategyCompilerModule],
   controllers: [StrategiesController],
   providers: [
     StrategiesService,

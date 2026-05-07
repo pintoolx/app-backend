@@ -112,6 +112,27 @@ export class StrategiesRepository {
     return (data ?? []) as StrategyRow[];
   }
 
+  async listPublishedStrategiesForCreators(creatorWallets: string[]): Promise<StrategyRow[]> {
+    if (creatorWallets.length === 0) {
+      return [];
+    }
+
+    const { data, error } = await this.supabaseService.client
+      .from('strategies')
+      .select(STRATEGY_COLUMNS)
+      .in('creator_wallet_address', creatorWallets)
+      .eq('visibility_mode', 'public')
+      .eq('lifecycle_state', 'published')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      this.logger.error('Failed to list subscribed creator strategies', error);
+      throw new InternalServerErrorException('Failed to fetch subscribed creator strategies');
+    }
+
+    return (data ?? []) as StrategyRow[];
+  }
+
   async listStrategiesForCreator(walletAddress: string): Promise<StrategyRow[]> {
     const { data, error } = await this.supabaseService.client
       .from('strategies')

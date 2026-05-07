@@ -12,10 +12,12 @@ export class StrategiesController {
   constructor(private readonly strategiesService: StrategiesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List public strategies' })
-  @ApiResponse({ status: 200, description: 'Public strategy list returned successfully' })
-  async listPublicStrategies() {
-    const data = await this.strategiesService.listPublicStrategies();
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List published strategies available through active creator subscriptions' })
+  @ApiResponse({ status: 200, description: 'Subscribed strategy list returned successfully' })
+  async listPublicStrategies(@CurrentUser('walletAddress') walletAddress: string) {
+    const data = await this.strategiesService.listSubscribedPublishedStrategies(walletAddress);
     return { success: true, count: data.length, data };
   }
 
@@ -30,10 +32,15 @@ export class StrategiesController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a public strategy view' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get a strategy view if owned by the caller or unlocked by subscription' })
   @ApiResponse({ status: 200, description: 'Public strategy detail returned successfully' })
-  async getPublicStrategy(@Param('id') id: string) {
-    const data = await this.strategiesService.getPublicStrategy(id);
+  async getPublicStrategy(
+    @Param('id') id: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+  ) {
+    const data = await this.strategiesService.getStrategyForViewer(id, walletAddress);
     return { success: true, data };
   }
 

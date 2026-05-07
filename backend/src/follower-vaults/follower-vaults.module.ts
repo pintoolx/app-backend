@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { OnchainModule } from '../onchain/onchain.module';
 import { MagicBlockModule } from '../magicblock/magicblock.module';
 import { UmbraModule } from '../umbra/umbra.module';
+import { CreatorSubscriptionsModule } from '../creator-subscriptions/creator-subscriptions.module';
 import { StrategyDeploymentsModule } from '../strategy-deployments/strategy-deployments.module';
 import { StrategySubscriptionsRepository } from './subscriptions.repository';
 import { FollowerVaultsRepository } from './follower-vaults.repository';
@@ -36,6 +37,7 @@ import { NoopPrivateStrategyOutputProvider } from './noop-private-strategy-outpu
     OnchainModule,
     MagicBlockModule,
     UmbraModule,
+    CreatorSubscriptionsModule,
     forwardRef(() => StrategyDeploymentsModule),
   ],
   controllers: [

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Patch, Post, Param, UseGuards } from '@nestjs/co
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ReferralService } from './referral.service';
 import { AdminGenerateReferralCodesDto } from './dto/admin-generate-referral-codes.dto';
+import { AdminGenerateUnlimitedReferralCodesDto } from './dto/admin-generate-unlimited-referral-codes.dto';
 import { SetReferralQuotaDto } from './dto/set-referral-quota.dto';
 import { IncreaseReferralQuotaDto } from './dto/increase-referral-quota.dto';
 import { GenerateUserReferralCodesDto } from './dto/generate-user-referral-codes.dto';
@@ -28,6 +29,28 @@ export class ReferralController {
     @Body() dto: AdminGenerateReferralCodesDto,
   ) {
     const data = await this.referralService.adminGenerateCodes({
+      adminWalletAddress,
+      targetWalletAddress: dto.targetWalletAddress,
+      count: dto.count,
+      expiresAt: dto.expiresAt,
+      metadata: dto.metadata,
+    });
+
+    return { success: true, count: data.length, data };
+  }
+
+  @Post('admin/codes/unlimited')
+  @ApiOperation({
+    summary: 'Admin/internal: generate unlimited-use referral codes for development use',
+  })
+  @ApiResponse({ status: 201, description: 'Unlimited referral codes generated' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  @ApiResponse({ status: 403, description: 'Admin permission required' })
+  async adminGenerateUnlimitedCodes(
+    @CurrentUser('walletAddress') adminWalletAddress: string,
+    @Body() dto: AdminGenerateUnlimitedReferralCodesDto,
+  ) {
+    const data = await this.referralService.adminGenerateUnlimitedCodes({
       adminWalletAddress,
       targetWalletAddress: dto.targetWalletAddress,
       count: dto.count,

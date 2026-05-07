@@ -11,6 +11,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { Web3Module } from './web3/web3.module';
 import { AgentModule } from './agent/agent.module';
 import { ReferralModule } from './referral/referral.module';
+import { CreatorSubscriptionsModule } from './creator-subscriptions/creator-subscriptions.module';
 import { WorkflowAiModule } from './workflow-ai/workflow-ai.module';
 import { StrategiesModule } from './strategies/strategies.module';
 import { StrategyDeploymentsModule } from './strategy-deployments/strategy-deployments.module';
@@ -49,6 +50,7 @@ import { RootController } from './root.controller';
     Web3Module,
     AgentModule,
     ReferralModule,
+    CreatorSubscriptionsModule,
     WorkflowAiModule,
     StrategiesModule,
     OnchainModule,

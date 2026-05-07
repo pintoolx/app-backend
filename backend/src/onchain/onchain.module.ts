@@ -6,6 +6,7 @@ import { NoopOnchainAdapter } from './noop-onchain-adapter.service';
 import { AnchorOnchainAdapterService } from './anchor-onchain-adapter.service';
 import { AnchorClientService } from './anchor-client.service';
 import { KeeperKeypairService } from './keeper-keypair.service';
+import { OnchainProgramController } from './onchain-program.controller';
 
 /**
  * Registers the active OnchainAdapterPort implementation under the
@@ -18,6 +19,7 @@ import { KeeperKeypairService } from './keeper-keypair.service';
  */
 @Module({
   imports: [DatabaseModule],
+  controllers: [OnchainProgramController],
   providers: [
     {
       provide: NoopOnchainAdapter,
@@ -46,6 +48,6 @@ import { KeeperKeypairService } from './keeper-keypair.service';
       },
     },
   ],
-  exports: [ONCHAIN_ADAPTER, KeeperKeypairService],
+  exports: [ONCHAIN_ADAPTER, KeeperKeypairService, AnchorClientService],
 })
 export class OnchainModule {}

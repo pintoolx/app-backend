@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
@@ -42,6 +43,7 @@ import {
   type VisibilityGrantScope,
 } from './follower-visibility-grants.repository';
 import { FollowerVisibilityPolicyService } from './follower-visibility-policy.service';
+import { CreatorSubscriptionsService } from '../creator-subscriptions/creator-subscriptions.service';
 
 /** Phase-1: subscription PER auth token TTLs. */
 const SUBSCRIPTION_CHALLENGE_TTL_MS = 30 * 1000;
@@ -120,6 +122,8 @@ export class SubscriptionsService {
     @Inject(UMBRA_ADAPTER) private readonly umbraAdapter: UmbraAdapterPort,
     @Inject(MAGICBLOCK_PER_ADAPTER) private readonly perAdapter: MagicBlockPerAdapterPort,
     @Inject(ONCHAIN_ADAPTER) private readonly onchainAdapter: OnchainAdapterPort,
+    @Optional()
+    private readonly creatorSubscriptionsService?: CreatorSubscriptionsService,
   ) {}
 
   async createSubscription(
@@ -134,7 +138,16 @@ export class SubscriptionsService {
   ): Promise<FollowerSubscriptionView> {
     // Ensure the deployment exists; subscription does NOT require creator
     // ownership of the deployment — followers are by definition non-creators.
-    await this.deploymentsRepository.getById(deploymentId);
+    const deployment = await this.deploymentsRepository.getById(deploymentId);
+    if (deployment.creator_wallet_address !== followerWallet) {
+      if (!this.creatorSubscriptionsService) {
+        throw new BadRequestException('Creator subscriptions are not available');
+      }
+      await this.creatorSubscriptionsService.assertActiveSubscription(
+        deployment.creator_wallet_address,
+        followerWallet,
+      );
+    }
 
     const existing = await this.subscriptionsRepository.getByDeploymentAndFollower(
       deploymentId,

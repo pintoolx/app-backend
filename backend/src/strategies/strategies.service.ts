@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   StrategyCompilerService,
   type CompiledStrategyIR,
@@ -19,6 +19,7 @@ import {
   StrategyVersionsRepository,
   type StrategyVersionRow,
 } from './strategy-versions.repository';
+import { CreatorSubscriptionsService } from '../creator-subscriptions/creator-subscriptions.service';
 
 export interface StrategyPublicView {
   id: string;
@@ -48,6 +49,8 @@ export class StrategiesService {
     private readonly strategyCompilerService: StrategyCompilerService,
     private readonly strategiesRepository: StrategiesRepository,
     private readonly strategyVersionsRepository: StrategyVersionsRepository,
+    @Optional()
+    private readonly creatorSubscriptionsService?: CreatorSubscriptionsService,
   ) {}
 
   async createStrategy(
@@ -62,6 +65,7 @@ export class StrategiesService {
     }
 
     const compiled = this.strategyCompilerService.compileStrategyIR(definition);
+    this.assertNativeOnchainStrategy(compiled);
     const visibilityMode = dto.visibilityMode ?? 'private';
 
     const row = await this.strategiesRepository.insertStrategy({
@@ -82,6 +86,25 @@ export class StrategiesService {
     return rows.map((row) => this.toPublicView(row));
   }
 
+  async listSubscribedPublishedStrategies(walletAddress: string): Promise<StrategyPublicView[]> {
+    if (!this.creatorSubscriptionsService) {
+      throw new BadRequestException('Creator subscriptions are not available');
+    }
+    const subscriptions = await this.creatorSubscriptionsService.listMine(walletAddress);
+    const activeCreatorWallets = subscriptions
+      .filter(
+        (sub) =>
+          sub.status === 'active' &&
+          sub.currentPeriodEnd !== null &&
+          new Date(sub.currentPeriodEnd) > new Date(),
+      )
+      .map((sub) => sub.creatorWallet);
+    const rows = await this.strategiesRepository.listPublishedStrategiesForCreators(
+      activeCreatorWallets,
+    );
+    return rows.map((row) => this.toPublicView(row));
+  }
+
   async listStrategiesForOwner(walletAddress: string): Promise<StrategyPrivateView[]> {
     const rows = await this.strategiesRepository.listStrategiesForCreator(walletAddress);
     return rows.map((row) => {
@@ -95,6 +118,25 @@ export class StrategiesService {
     if (row.visibility_mode !== 'public' || row.lifecycle_state !== 'published') {
       throw new BadRequestException('Strategy is not published');
     }
+    return this.toPublicView(row);
+  }
+
+  async getStrategyForViewer(id: string, walletAddress: string): Promise<StrategyPublicView> {
+    const row = await this.strategiesRepository.getStrategyById(id);
+    if (row.creator_wallet_address === walletAddress) {
+      const compiled = this.requireCompiledIr(row);
+      return this.toPrivateView(row, compiled);
+    }
+    if (row.visibility_mode !== 'public' || row.lifecycle_state !== 'published') {
+      throw new BadRequestException('Strategy is not published');
+    }
+    if (!this.creatorSubscriptionsService) {
+      throw new BadRequestException('Creator subscriptions are not available');
+    }
+    await this.creatorSubscriptionsService.assertActiveSubscription(
+      row.creator_wallet_address,
+      walletAddress,
+    );
     return this.toPublicView(row);
   }
 
@@ -118,6 +160,7 @@ export class StrategiesService {
       const definition = dto.definition as WorkflowDefinition;
       this.validateStrategyDefinition(definition);
       recompiled = this.strategyCompilerService.compileStrategyIR(definition);
+      this.assertNativeOnchainStrategy(recompiled);
     }
 
     if (dto.telegramChatId) {
@@ -143,6 +186,7 @@ export class StrategiesService {
   async publishStrategy(id: string, walletAddress: string): Promise<StrategyPrivateView> {
     const existing = await this.strategiesRepository.getStrategyForCreator(id, walletAddress);
     const compiled = this.requireCompiledIr(existing);
+    this.assertNativeOnchainStrategy(compiled);
     const nextVersion = existing.current_version + 1;
 
     const versionRow = await this.strategyVersionsRepository.insertVersion({
@@ -197,6 +241,20 @@ export class StrategiesService {
     } catch (err) {
       throw new BadRequestException(
         err instanceof Error ? err.message : 'Invalid strategy definition',
+      );
+    }
+  }
+
+  private assertNativeOnchainStrategy(compiled: CompiledStrategyIR): void {
+    const unsupportedNodes = compiled.nodeClassifications.filter(
+      (node) => node.executionPlane !== 'anchor_candidate',
+    );
+    if (unsupportedNodes.length > 0) {
+      const nodeList = unsupportedNodes
+        .map((node) => `${node.nodeName || node.nodeId} (${node.nodeType})`)
+        .join(', ');
+      throw new BadRequestException(
+        `Only native on-chain strategy nodes are supported right now. Unsupported nodes: ${nodeList}`,
       );
     }
   }

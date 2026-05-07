@@ -16,7 +16,7 @@ type ReferralCodeRow = {
   created_for_wallet: string | null;
   source_type: 'admin' | 'user';
   status: 'active' | 'used' | 'revoked' | 'expired';
-  max_uses: number;
+  max_uses: number | null;
   used_count: number;
   used_by_wallet: string | null;
   used_at: string | null;
@@ -132,6 +132,34 @@ export class ReferralService {
       createdForWallet: targetWalletAddress,
       expiresAt,
       metadata,
+    });
+  }
+
+  async adminGenerateUnlimitedCodes(params: {
+    adminWalletAddress: string;
+    targetWalletAddress?: string;
+    count: number;
+    expiresAt?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<ReferralCodeRow[]> {
+    const { adminWalletAddress, targetWalletAddress, count, expiresAt, metadata } = params;
+
+    await this.assertAdmin(adminWalletAddress);
+    if (targetWalletAddress) {
+      await this.ensureUserExists(targetWalletAddress);
+    }
+
+    return this.generateAndPersistCodes({
+      count,
+      sourceType: 'admin',
+      createdByWallet: adminWalletAddress,
+      createdForWallet: targetWalletAddress,
+      expiresAt,
+      metadata: {
+        ...(metadata ?? {}),
+        internalUnlimited: true,
+      },
+      maxUses: null,
     });
   }
 
@@ -299,8 +327,17 @@ export class ReferralService {
     createdForWallet?: string;
     expiresAt?: string;
     metadata?: Record<string, unknown>;
+    maxUses?: number | null;
   }): Promise<ReferralCodeRow[]> {
-    const { count, sourceType, createdByWallet, createdForWallet, expiresAt, metadata } = params;
+    const {
+      count,
+      sourceType,
+      createdByWallet,
+      createdForWallet,
+      expiresAt,
+      metadata,
+      maxUses = 1,
+    } = params;
 
     for (let attempt = 0; attempt < MAX_GENERATE_INSERT_RETRIES; attempt += 1) {
       const codes = await this.codeGenerator.generate({ count });
@@ -310,7 +347,7 @@ export class ReferralService {
         created_for_wallet: createdForWallet ?? null,
         source_type: sourceType,
         status: 'active',
-        max_uses: 1,
+        max_uses: maxUses,
         used_count: 0,
         expires_at: expiresAt ?? null,
         metadata: metadata ?? {},
@@ -370,7 +407,7 @@ export class ReferralService {
       return `Referral code is ${data.status}`;
     }
 
-    if (data.used_count >= data.max_uses) {
+    if (data.max_uses !== null && data.used_count >= data.max_uses) {
       return 'Referral code has already been used';
     }
 

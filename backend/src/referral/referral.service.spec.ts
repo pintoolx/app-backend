@@ -134,6 +134,36 @@ describe('ReferralService', () => {
     expect(mocks.referralInsertSelect).not.toHaveBeenCalled();
   });
 
+  it('lets admins create unlimited-use internal referral codes', async () => {
+    const { client, mocks } = buildSupabaseMock();
+    const service = new ReferralService({ client } as any, generator as any);
+
+    generator.generate.mockResolvedValue(['REF-UNLIMITED']);
+    mocks.usersSingle.mockResolvedValue({ data: { app_role: 'admin' }, error: null });
+    mocks.referralInsertSelect.mockResolvedValue({
+      data: [
+        {
+          ...validRow,
+          code: 'REF-UNLIMITED',
+          created_for_wallet: null,
+          max_uses: null,
+          status: 'active',
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.adminGenerateUnlimitedCodes({
+      adminWalletAddress: 'admin-wallet',
+      count: 1,
+      metadata: { source: 'internal-dev' },
+    });
+
+    expect(result[0].max_uses).toBeNull();
+    expect(result[0].status).toBe('active');
+    expect(mocks.referralInsertSelect).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects user generation when quota reserve fails', async () => {
     const { client, mocks } = buildSupabaseMock();
     const service = new ReferralService({ client } as any, generator as any);
