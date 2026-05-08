@@ -8,7 +8,6 @@ import {
   type ErRouteResult,
   type MagicBlockErAdapterPort,
   type MagicBlockPerAdapterPort,
-  type MagicBlockPrivatePaymentsAdapterPort,
   type PerAuthChallenge,
   type PerAuthChallengeParams,
   type PerAuthVerifyParams,
@@ -21,11 +20,6 @@ import {
   type PerReadFollowerStateResult,
   type PerWriteFollowerStateParams,
   type PerWriteFollowerStateResult,
-  type PrivatePaymentsBalanceParams,
-  type PrivatePaymentsDepositParams,
-  type PrivatePaymentsTransferParams,
-  type PrivatePaymentsUnsignedTx,
-  type PrivatePaymentsWithdrawParams,
 } from './magicblock.port';
 
 const noopId = (prefix: string) => `${prefix}-noop-${randomBytes(6).toString('hex')}`;
@@ -116,56 +110,3 @@ export class MagicBlockPerNoopAdapter implements MagicBlockPerAdapterPort {
   }
 }
 
-@Injectable()
-export class MagicBlockPrivatePaymentsNoopAdapter implements MagicBlockPrivatePaymentsAdapterPort {
-  private readonly logger = new Logger('MagicBlockPrivatePaymentsNoopAdapter');
-
-  async deposit(params: PrivatePaymentsDepositParams): Promise<PrivatePaymentsUnsignedTx> {
-    this.logger.debug(
-      `[noop] pp.deposit deployment=${params.deploymentId} mint=${params.mint} amount=${params.amount}`,
-    );
-    return {
-      kind: 'deposit',
-      version: 'legacy',
-      transactionBase64: '',
-      sendTo: 'base',
-      recentBlockhash: '',
-      lastValidBlockHeight: 0,
-      instructionCount: 0,
-      requiredSigners: [],
-    };
-  }
-
-  async transfer(params: PrivatePaymentsTransferParams): Promise<PrivatePaymentsUnsignedTx> {
-    this.logger.debug(`[noop] pp.transfer deployment=${params.deploymentId}`);
-    return {
-      kind: 'transfer',
-      version: 'legacy',
-      transactionBase64: '',
-      sendTo: 'base',
-      recentBlockhash: '',
-      lastValidBlockHeight: 0,
-      instructionCount: 0,
-      requiredSigners: [],
-    };
-  }
-
-  async withdraw(params: PrivatePaymentsWithdrawParams): Promise<PrivatePaymentsUnsignedTx> {
-    this.logger.debug(`[noop] pp.withdraw deployment=${params.deploymentId}`);
-    return {
-      kind: 'withdraw',
-      version: 'legacy',
-      transactionBase64: '',
-      sendTo: 'base',
-      recentBlockhash: '',
-      lastValidBlockHeight: 0,
-      instructionCount: 0,
-      requiredSigners: [],
-    };
-  }
-
-  async getBalance(params: PrivatePaymentsBalanceParams) {
-    this.logger.debug(`[noop] pp.getBalance deployment=${params.deploymentId}`);
-    return { balance: '0', decimals: 0 };
-  }
-}

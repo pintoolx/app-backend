@@ -35,12 +35,6 @@ import {
   UmbraWithdrawDto,
 } from './dto/umbra.dto';
 import { PerChallengeQueryDto, PerReplaceMembersDto, PerVerifyDto } from './dto/per.dto';
-import {
-  PpBalanceQueryDto,
-  PpDepositDto,
-  PpTransferDto,
-  PpWithdrawDto,
-} from './dto/private-payments.dto';
 
 @ApiTags('Strategy Deployments')
 @ApiBearerAuth()
@@ -451,52 +445,4 @@ export class StrategyDeploymentsController {
     return { success: true, data };
   }
 
-  // -------- Week 5: Private Payments endpoints --------
-
-  @Post('deployments/:id/pp/deposit')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Build an unsigned Private Payments deposit transaction' })
-  async ppDeposit(
-    @Param('id') id: string,
-    @CurrentUser('walletAddress') walletAddress: string,
-    @Body() dto: PpDepositDto,
-  ) {
-    const data = await this.deploymentsService.privatePaymentsDeposit(id, walletAddress, dto);
-    return { success: true, data };
-  }
-
-  @Post('deployments/:id/pp/transfer')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Build an unsigned Private Payments transfer transaction' })
-  async ppTransfer(
-    @Param('id') id: string,
-    @CurrentUser('walletAddress') walletAddress: string,
-    @Body() dto: PpTransferDto,
-  ) {
-    const data = await this.deploymentsService.privatePaymentsTransfer(id, walletAddress, dto);
-    return { success: true, data };
-  }
-
-  @Post('deployments/:id/pp/withdraw')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Build an unsigned Private Payments withdraw transaction' })
-  async ppWithdraw(
-    @Param('id') id: string,
-    @CurrentUser('walletAddress') walletAddress: string,
-    @Body() dto: PpWithdrawDto,
-  ) {
-    const data = await this.deploymentsService.privatePaymentsWithdraw(id, walletAddress, dto);
-    return { success: true, data };
-  }
-
-  @Get('deployments/:id/pp/balance')
-  @ApiOperation({ summary: 'Read Private Payments encrypted balance' })
-  async ppBalance(
-    @Param('id') id: string,
-    @CurrentUser('walletAddress') walletAddress: string,
-    @Query() dto: PpBalanceQueryDto,
-  ) {
-    const data = await this.deploymentsService.privatePaymentsBalance(id, walletAddress, dto);
-    return { success: true, data };
-  }
 }

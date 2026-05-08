@@ -11,6 +11,13 @@ pub struct VaultAuthority {
     pub deployment: Pubkey,
     pub creator: Pubkey,
     /// 0=public_self_custody, 1=program_owned, 2=private_payments_relay
+    ///
+    /// ⚠️ Asymmetric encoding — this byte mapping is **not** the same as
+    /// [`super::FollowerVaultCustodyMode`] (which uses 0=program_owned,
+    /// 1=self_custody, 2=private_payments_relay). Off-chain decoders must
+    /// keep two separate codecs and never share one. See
+    /// `backend/src/onchain/anchor-onchain-adapter.service.ts` and
+    /// `2026-05-08-strategy-runtime-spec.md` for the documented split.
     pub custody_mode: u8,
     /// 0=active, 1=frozen
     pub status: u8,

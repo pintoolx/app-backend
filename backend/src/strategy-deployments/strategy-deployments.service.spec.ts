@@ -15,7 +15,6 @@ import { type WorkflowDefinition } from '../web3/workflow-types';
 import {
   type MagicBlockErAdapterPort,
   type MagicBlockPerAdapterPort,
-  type MagicBlockPrivatePaymentsAdapterPort,
 } from '../magicblock/magicblock.port';
 import { type PerGroupsRepository } from '../magicblock/per-groups.repository';
 import { type PerAuthTokensRepository } from '../magicblock/per-auth-tokens.repository';
@@ -73,7 +72,7 @@ const deploymentRow: StrategyDeploymentRow = {
   creator_wallet_address: 'wallet-1',
   account_id: 'acct-1',
   execution_mode: 'per',
-  treasury_mode: 'private_payments',
+  treasury_mode: 'umbra',
   lifecycle_status: 'deployed',
   state_revision: 0,
   private_state_account: null,
@@ -95,8 +94,6 @@ const deploymentRow: StrategyDeploymentRow = {
   umbra_register_callback_signature: null,
   umbra_master_seed_ref: null,
   per_endpoint_url: null,
-  pp_session_id: null,
-  pp_endpoint_url: null,
 };
 
 const versionRow: StrategyVersionRow = {
@@ -117,7 +114,6 @@ const buildService = (overrides?: {
   onchain?: OnchainAdapterPort;
   er?: MagicBlockErAdapterPort;
   per?: MagicBlockPerAdapterPort;
-  pp?: MagicBlockPrivatePaymentsAdapterPort;
   umbra?: UmbraAdapterPort;
   perGroupsRepo?: Partial<PerGroupsRepository>;
   perTokensRepo?: Partial<PerAuthTokensRepository>;
@@ -176,40 +172,6 @@ const buildService = (overrides?: {
       logs: [],
       privateStateRevision: null,
     }),
-  };
-
-  const pp: MagicBlockPrivatePaymentsAdapterPort = overrides?.pp ?? {
-    deposit: jest.fn().mockResolvedValue({
-      kind: 'deposit',
-      version: 'legacy',
-      transactionBase64: '',
-      sendTo: 'base',
-      recentBlockhash: '',
-      lastValidBlockHeight: 0,
-      instructionCount: 0,
-      requiredSigners: [],
-    } as unknown as ReturnType<MagicBlockPrivatePaymentsAdapterPort['deposit']>),
-    transfer: jest.fn().mockResolvedValue({
-      kind: 'transfer',
-      version: 'legacy',
-      transactionBase64: '',
-      sendTo: 'base',
-      recentBlockhash: '',
-      lastValidBlockHeight: 0,
-      instructionCount: 0,
-      requiredSigners: [],
-    } as unknown as ReturnType<MagicBlockPrivatePaymentsAdapterPort['transfer']>),
-    withdraw: jest.fn().mockResolvedValue({
-      kind: 'withdraw',
-      version: 'legacy',
-      transactionBase64: '',
-      sendTo: 'base',
-      recentBlockhash: '',
-      lastValidBlockHeight: 0,
-      instructionCount: 0,
-      requiredSigners: [],
-    } as unknown as ReturnType<MagicBlockPrivatePaymentsAdapterPort['withdraw']>),
-    getBalance: jest.fn().mockResolvedValue({ balance: '0', decimals: 0 }),
   };
 
   const perGroupsRepo = {
@@ -282,7 +244,6 @@ const buildService = (overrides?: {
     onchain,
     er,
     per,
-    pp,
     umbra,
     perGroupsRepo,
     perTokensRepo,
@@ -295,7 +256,6 @@ const buildService = (overrides?: {
     onchain,
     er,
     per,
-    pp,
     umbra,
     perGroupsRepo,
     perTokensRepo,
@@ -329,7 +289,7 @@ describe('StrategyDeploymentsService', () => {
         strategyVersionId: 'version-1',
         accountId: 'acct-1',
         executionMode: 'per', // from compiled hints
-        treasuryMode: 'private_payments',
+        treasuryMode: 'umbra',
         lifecycleStatus: 'deployed',
       }),
     );

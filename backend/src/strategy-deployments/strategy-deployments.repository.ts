@@ -10,7 +10,7 @@ import { SupabaseService } from '../database/supabase.service';
 export type DeploymentLifecycleStatus = 'draft' | 'deployed' | 'paused' | 'stopped' | 'closed';
 
 export type DeploymentExecutionMode = 'offchain' | 'er' | 'per';
-export type DeploymentTreasuryMode = 'public' | 'private_payments' | 'umbra';
+export type DeploymentTreasuryMode = 'public' | 'umbra';
 
 export type UmbraRegistrationStatus = 'pending' | 'confirmed' | 'failed';
 
@@ -44,10 +44,8 @@ export interface StrategyDeploymentRow {
   umbra_register_queue_signature: string | null;
   umbra_register_callback_signature: string | null;
   umbra_master_seed_ref: string | null;
-  // Week 5 PER + Private Payments tracking (nullable).
+  // Week 5 PER tracking (nullable).
   per_endpoint_url: string | null;
-  pp_session_id: string | null;
-  pp_endpoint_url: string | null;
 }
 
 export interface InsertDeploymentInput {
@@ -85,8 +83,6 @@ export interface UpdateDeploymentInput {
   umbraRegisterCallbackSignature?: string | null;
   umbraMasterSeedRef?: string | null;
   perEndpointUrl?: string | null;
-  ppSessionId?: string | null;
-  ppEndpointUrl?: string | null;
 }
 
 const DEPLOYMENT_COLUMNS = [
@@ -118,8 +114,6 @@ const DEPLOYMENT_COLUMNS = [
   'umbra_register_callback_signature',
   'umbra_master_seed_ref',
   'per_endpoint_url',
-  'pp_session_id',
-  'pp_endpoint_url',
 ].join(', ');
 
 @Injectable()
@@ -228,8 +222,6 @@ export class StrategyDeploymentsRepository {
     if (input.umbraMasterSeedRef !== undefined)
       updates.umbra_master_seed_ref = input.umbraMasterSeedRef;
     if (input.perEndpointUrl !== undefined) updates.per_endpoint_url = input.perEndpointUrl;
-    if (input.ppSessionId !== undefined) updates.pp_session_id = input.ppSessionId;
-    if (input.ppEndpointUrl !== undefined) updates.pp_endpoint_url = input.ppEndpointUrl;
 
     const { data, error } = await this.supabaseService.client
       .from('strategy_deployments')

@@ -65,7 +65,6 @@ export interface ExecutionRequirements {
   requiresAnchorCommit: boolean;
   requiresEr: boolean;
   requiresPer: boolean;
-  requiresPrivatePayments: boolean;
   requiresUmbra: boolean;
 }
 
@@ -130,7 +129,6 @@ export interface CompiledStrategyIR {
     hybridAdapterNodeIds: string[];
     recommendedExecutionLayer: 'offchain' | 'per';
     recommendedDelegationLayer: 'not_required' | 'er';
-    recommendedTreasuryPrivacy: 'not_required' | 'private_payments_api';
     optionalBalancePrivacy: 'not_required' | 'umbra';
   };
 }
@@ -316,7 +314,6 @@ export class StrategyCompilerService {
       requiresAnchorCommit,
       requiresEr,
       requiresPer: requiresVault,
-      requiresPrivatePayments: requiresVault,
       requiresUmbra: requiresVault,
     };
   }
@@ -351,9 +348,6 @@ export class StrategyCompilerService {
         hybridAdapterNodeIds,
         recommendedExecutionLayer: requirements.requiresEr ? 'per' : 'offchain',
         recommendedDelegationLayer: requirements.requiresEr ? 'er' : 'not_required',
-        recommendedTreasuryPrivacy: requirements.requiresVault
-          ? 'private_payments_api'
-          : 'not_required',
         optionalBalancePrivacy: requirements.requiresVault ? 'umbra' : 'not_required',
       },
     };

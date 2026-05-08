@@ -143,14 +143,6 @@ created  →  intent-queued  →  claim-queued  →  confirmed
 - `redeem`: same shape as `unsubscribe` but lifecycle remains `closed`
   until claim confirms.
 
-## Relationship to magicblock-private-payments
-
-`MagicBlockPrivatePaymentsAdapterPort` is the **public** SPL transfer surface
-(builds unsigned tx, wallet signs+broadcasts). It is NOT the same as Umbra's
-encrypted treasury. Phase 5 keeps both: `magicblock-private-payments` for
-public funding flows (`fundIntent`); Umbra claimable-UTXO for encrypted
-value movement.
-
 ## Acceptance criteria — status
 
 1. ✅ `umbra-real.adapter.ts::createEncryptedTransferIntent` calls

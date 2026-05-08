@@ -4,22 +4,17 @@ import { DatabaseModule } from '../database/database.module';
 import {
   MAGICBLOCK_ER_ADAPTER,
   MAGICBLOCK_PER_ADAPTER,
-  MAGICBLOCK_PRIVATE_PAYMENTS_ADAPTER,
   type MagicBlockErAdapterPort,
   type MagicBlockPerAdapterPort,
-  type MagicBlockPrivatePaymentsAdapterPort,
 } from './magicblock.port';
 import {
   MagicBlockErNoopAdapter,
   MagicBlockPerNoopAdapter,
-  MagicBlockPrivatePaymentsNoopAdapter,
 } from './magicblock-noop.service';
 import { MagicBlockClientService } from './magicblock-client.service';
 import { MagicBlockErRealAdapter } from './magicblock-er-real.adapter';
 import { MagicBlockPerClientService } from './magicblock-per-client.service';
 import { MagicBlockPerRealAdapter } from './magicblock-per-real.adapter';
-import { MagicBlockPrivatePaymentsClientService } from './magicblock-private-payments-client.service';
-import { MagicBlockPrivatePaymentsRealAdapter } from './magicblock-private-payments-real.adapter';
 import { PerGroupsRepository } from './per-groups.repository';
 import { PerAuthTokensRepository } from './per-auth-tokens.repository';
 
@@ -30,7 +25,6 @@ import { PerAuthTokensRepository } from './per-auth-tokens.repository';
  * Adapter selection is driven by env presence:
  *   - ER  : MAGICBLOCK_ROUTER_URL  set → real, else Noop (Week 4).
  *   - PER : MAGICBLOCK_PER_ENDPOINT set → real, else Noop (Week 5).
- *   - PP  : MAGICBLOCK_PP_ENDPOINT set → real, else Noop (Week 5).
  */
 @Module({
   imports: [DatabaseModule],
@@ -45,10 +39,6 @@ import { PerAuthTokensRepository } from './per-auth-tokens.repository';
     PerAuthTokensRepository,
     MagicBlockPerNoopAdapter,
     MagicBlockPerRealAdapter,
-    // Private Payments
-    MagicBlockPrivatePaymentsClientService,
-    MagicBlockPrivatePaymentsNoopAdapter,
-    MagicBlockPrivatePaymentsRealAdapter,
     {
       provide: MAGICBLOCK_ER_ADAPTER,
       inject: [ConfigService, MagicBlockErRealAdapter, MagicBlockErNoopAdapter],
@@ -85,33 +75,10 @@ import { PerAuthTokensRepository } from './per-auth-tokens.repository';
         return noop;
       },
     },
-    {
-      provide: MAGICBLOCK_PRIVATE_PAYMENTS_ADAPTER,
-      inject: [
-        ConfigService,
-        MagicBlockPrivatePaymentsRealAdapter,
-        MagicBlockPrivatePaymentsNoopAdapter,
-      ],
-      useFactory: (
-        config: ConfigService,
-        real: MagicBlockPrivatePaymentsRealAdapter,
-        noop: MagicBlockPrivatePaymentsNoopAdapter,
-      ): MagicBlockPrivatePaymentsAdapterPort => {
-        const logger = new Logger('MagicBlockModule');
-        const endpoint = config.get<string>('MAGICBLOCK_PP_ENDPOINT');
-        if (endpoint && endpoint.trim().length > 0) {
-          logger.log(`Using MagicBlockPrivatePaymentsRealAdapter via endpoint=${endpoint.trim()}`);
-          return real;
-        }
-        logger.log('MAGICBLOCK_PP_ENDPOINT not set; using MagicBlockPrivatePaymentsNoopAdapter');
-        return noop;
-      },
-    },
   ],
   exports: [
     MAGICBLOCK_ER_ADAPTER,
     MAGICBLOCK_PER_ADAPTER,
-    MAGICBLOCK_PRIVATE_PAYMENTS_ADAPTER,
     MagicBlockClientService,
     PerGroupsRepository,
     PerAuthTokensRepository,

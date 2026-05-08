@@ -13,7 +13,7 @@ export type FollowerVaultLifecycleStatus =
   | 'exiting'
   | 'closed';
 
-export type FollowerVaultCustodyMode = 'program_owned' | 'self_custody' | 'private_payments_relay';
+export type FollowerVaultCustodyMode = 'program_owned' | 'self_custody';
 
 export interface FollowerVaultRow {
   id: string;

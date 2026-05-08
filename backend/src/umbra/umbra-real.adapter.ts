@@ -224,6 +224,14 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
    * we return a `failed` result with an `unavailableReason`-style log so
    * the cycle / settlement layer can record the deferred state without
    * crashing the request.
+   *
+   * ⚠️ Phase-5 ramp prerequisites (DO NOT flip the flag without all):
+   *   1. `UMBRA_TRANSFER_ENABLED=true`
+   *   2. `web-zk-prover.provider.ts` runtime artefacts (wasm/binary) deployed
+   *   3. Umbra relayer endpoint configured
+   *   4. Devnet shield → transfer → scan → claim end-to-end verified
+   * See `2026-05-08-strategy-runtime-spec.md` § "Phase-5 Umbra transfer
+   * ramp prerequisites" for the canonical checklist.
    */
   async createEncryptedTransferIntent(
     params: UmbraCreateTransferIntentParams,
@@ -293,6 +301,11 @@ export class UmbraRealAdapter implements UmbraAdapterPort {
    * into batches (up to 4 UTXOs per ZK proof), so the returned status is
    * "applied" if every batch succeeds, "partial" → modelled as `failed`
    * for the platform-side enum since callers re-trigger as needed.
+   *
+   * ⚠️ Same Phase-5 ramp prerequisites as `createEncryptedTransferIntent`
+   * apply (UMBRA_TRANSFER_ENABLED + zkProver artefacts + relayer +
+   * devnet e2e). See spec doc § "Phase-5 Umbra transfer ramp
+   * prerequisites".
    */
   async claimEncryptedTransfer(
     params: UmbraClaimTransferParams,

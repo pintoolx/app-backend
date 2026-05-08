@@ -21,12 +21,12 @@ export class CreateDeploymentDto {
   @ApiPropertyOptional({
     description:
       'Override treasury privacy mode (defaults to compiled IR deployment hint when omitted).',
-    enum: ['public', 'private_payments', 'umbra'],
+    enum: ['public', 'umbra'],
   })
   @IsString()
-  @IsIn(['public', 'private_payments', 'umbra'])
+  @IsIn(['public', 'umbra'])
   @IsOptional()
-  treasuryMode?: 'public' | 'private_payments' | 'umbra';
+  treasuryMode?: 'public' | 'umbra';
 
   @ApiPropertyOptional({
     description: 'Optional metadata blob persisted on the deployment row.',

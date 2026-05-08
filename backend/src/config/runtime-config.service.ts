@@ -40,7 +40,6 @@ export class RuntimeConfigService implements OnApplicationBootstrap {
     const onchainSeed = this.configService.get<string>('STRATEGY_RUNTIME_KEEPER_SECRET');
     const erRouter = this.configService.get<string>('MAGICBLOCK_ROUTER_URL');
     const perEndpoint = this.configService.get<string>('MAGICBLOCK_PER_ENDPOINT');
-    const ppEndpoint = this.configService.get<string>('MAGICBLOCK_PP_ENDPOINT');
     const umbraEnabled = this.configService.get<string>('UMBRA_ENABLED') === 'true';
 
     return [
@@ -58,11 +57,6 @@ export class RuntimeConfigService implements OnApplicationBootstrap {
         adapter: 'per',
         mode: perEndpoint && perEndpoint.trim() ? 'real' : 'noop',
         endpoint: perEndpoint ?? undefined,
-      },
-      {
-        adapter: 'pp',
-        mode: ppEndpoint && ppEndpoint.trim() ? 'real' : 'noop',
-        endpoint: ppEndpoint ?? undefined,
       },
       {
         adapter: 'umbra',

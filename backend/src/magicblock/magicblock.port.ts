@@ -1,13 +1,12 @@
 /**
- * MagicBlock Adapter Ports — reserved space for ER, PER, and Private Payments.
+ * MagicBlock Adapter Ports — ER and PER.
  *
  * Week 2 ships only Noop implementations so the deployment / treasury
  * pipelines can boot without external SDK availability. Week 4 introduces a
- * real ER adapter, Week 5 introduces real PER and Private Payments adapters.
+ * real ER adapter, Week 5 introduces a real PER adapter.
  */
 export const MAGICBLOCK_ER_ADAPTER = Symbol('MagicBlockErAdapterPort');
 export const MAGICBLOCK_PER_ADAPTER = Symbol('MagicBlockPerAdapterPort');
-export const MAGICBLOCK_PRIVATE_PAYMENTS_ADAPTER = Symbol('MagicBlockPrivatePaymentsAdapterPort');
 
 // ---------- ER (Ephemeral Rollups) ----------
 
@@ -149,62 +148,3 @@ export interface MagicBlockPerAdapterPort {
   readFollowerPrivateState(params: PerReadFollowerStateParams): Promise<PerReadFollowerStateResult>;
 }
 
-// ---------- Private Payments API ----------
-
-export interface PrivatePaymentsDepositParams {
-  deploymentId: string;
-  fromWallet: string;
-  mint: string;
-  amount: string;
-}
-
-export interface PrivatePaymentsTransferParams {
-  deploymentId: string;
-  fromWallet: string;
-  toWallet: string;
-  mint: string;
-  amount: string;
-}
-
-export interface PrivatePaymentsWithdrawParams {
-  deploymentId: string;
-  toWallet: string;
-  mint: string;
-  amount: string;
-}
-
-export interface PrivatePaymentsBalanceParams {
-  deploymentId: string;
-  wallet: string;
-  mint: string;
-}
-
-/**
- * Private Payments API builds **unsigned** SPL token transactions.
- * The caller is responsible for signing and submitting them via
- * Magic Router or a Solana RPC.
- *
- * @see https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/api-reference/per/introduction
- */
-export interface PrivatePaymentsUnsignedTx {
-  kind: 'deposit' | 'transfer' | 'withdraw';
-  version: 'legacy';
-  transactionBase64: string;
-  sendTo: 'base' | 'ephemeral';
-  recentBlockhash: string;
-  lastValidBlockHeight: number;
-  instructionCount: number;
-  requiredSigners: string[];
-}
-
-export interface PrivatePaymentsBalanceResult {
-  balance: string;
-  decimals: number;
-}
-
-export interface MagicBlockPrivatePaymentsAdapterPort {
-  deposit(params: PrivatePaymentsDepositParams): Promise<PrivatePaymentsUnsignedTx>;
-  transfer(params: PrivatePaymentsTransferParams): Promise<PrivatePaymentsUnsignedTx>;
-  withdraw(params: PrivatePaymentsWithdrawParams): Promise<PrivatePaymentsUnsignedTx>;
-  getBalance(params: PrivatePaymentsBalanceParams): Promise<PrivatePaymentsBalanceResult>;
-}

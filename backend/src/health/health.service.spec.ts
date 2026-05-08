@@ -56,7 +56,6 @@ describe('HealthService.readiness', () => {
     expect(res.checks['db'].status).toBe('ok');
     expect(res.checks['magicblock-er'].status).toBe('skipped');
     expect(res.checks['magicblock-per'].status).toBe('skipped');
-    expect(res.checks['magicblock-pp'].status).toBe('skipped');
     expect(res.checks['umbra'].status).toBe('skipped');
   });
 

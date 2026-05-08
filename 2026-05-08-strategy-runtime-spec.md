@@ -268,6 +268,19 @@ PendingFunding (0) ─► Active (1) ─► Exiting (3) ─► Closed (4)
 The two custody-mode enums are **not** byte-equivalent. Off-chain code
 must not assume they map 1:1.
 
+The asymmetry is a **historical artefact, not a planned migration target.**
+Backend currently encodes only `FollowerVault.custody_mode` (single mapper
+in `backend/src/onchain/anchor-onchain-adapter.service.ts` —
+`CUSTODY_MODE_TO_CODE`); `VaultAuthority.custody_mode` is never decoded
+off-chain. If a future feature ever needs to read or write
+`VaultAuthority.custody_mode` from the backend, add a **second** dedicated
+codec next to `CUSTODY_MODE_TO_CODE`. Never extend the existing one.
+
+`code = 2 (private_payments_relay)` is on-chain dead code on both sides
+since the MagicBlock Private Payments backend integration was removed
+(2026-05-08). The variant + DB CHECK string are kept so re-introducing PP
+will not require a program redeploy or a DB migration.
+
 ---
 
 ## Instructions
@@ -492,3 +505,33 @@ Integration: Mollusk SVM dev-dep (`programs/Cargo.toml`); workspace
    keeper carve-out. If automated follower exits without the
    follower's hot key are ever required, a parallel `follower_keeper`
    field would need to be added.
+
+---
+
+## Phase-5 Umbra transfer ramp prerequisites
+
+The claimable-UTXO transfer surface (`createEncryptedTransferIntent` →
+`claimEncryptedTransfer`) is implemented in
+`backend/src/umbra/umbra-real.adapter.ts` and gated by
+`UMBRA_TRANSFER_ENABLED`. Default off. Before flipping the flag in any
+shared environment, all of the following must be true — flipping the flag
+without these in place will cause `createEncryptedTransferIntent` to
+throw at runtime, leaving partial off-chain state:
+
+1. **`UMBRA_TRANSFER_ENABLED=true`** in the target environment's config.
+2. **zkProver runtime artefacts deployed** —
+   `backend/src/umbra/web-zk-prover.provider.ts` is the production
+   provider backed by `@umbra-privacy/web-zk-prover`. It needs the
+   wasm/binary artefacts loaded into the runtime (the noop provider in
+   `noop-umbra-zk-prover.provider.ts` is the default until wired).
+3. **Umbra relayer endpoint configured** — exact env var to be confirmed
+   alongside the SDK 4.x relayer config; without a reachable relayer the
+   batch `claim` call has nowhere to publish.
+4. **Devnet end-to-end spike completed** — at minimum a single
+   shield → transfer → scan → claim cycle proven on devnet, and
+   `umbra-real.adapter.spec.ts` passing in real-provider mode.
+5. **Owner / target date** — TBD (not on the current roadmap).
+
+For day-to-day code review, treat any change that flips
+`UMBRA_TRANSFER_ENABLED` to `true` outside this checklist as a config
+regression.

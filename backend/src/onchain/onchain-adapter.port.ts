@@ -119,7 +119,7 @@ export type FollowerVaultLifecycleStatus =
   | 'exiting'
   | 'closed';
 
-export type FollowerCustodyMode = 'program_owned' | 'self_custody' | 'private_payments_relay';
+export type FollowerCustodyMode = 'program_owned' | 'self_custody';
 
 export interface InitializeFollowerSubscriptionParams {
   deploymentId: string;

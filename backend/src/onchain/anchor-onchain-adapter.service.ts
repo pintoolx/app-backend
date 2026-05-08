@@ -52,13 +52,23 @@ const FOLLOWER_LIFECYCLE_TO_CODE: Record<FollowerVaultLifecycleStatus, number> =
   closed: 4,
 };
 
-const CUSTODY_MODE_TO_CODE: Record<
-  'program_owned' | 'self_custody' | 'private_payments_relay',
-  number
-> = {
+/**
+ * Encodes follower-vault custody modes (`FollowerVaultCustodyMode`) into the
+ * single-byte `custody_mode` enum on `FollowerVault` accounts.
+ *
+ * ⚠️ DO NOT reuse this mapper for `VaultAuthority.custody_mode`. The Anchor
+ * program uses an *asymmetric* byte encoding for that other account
+ * (0=public_self_custody, 1=program_owned, 2=private_payments_relay), so
+ * sharing a single encoder would silently miswrite bytes. If a
+ * `VaultAuthority` codec is ever needed, add a second mapper next to this
+ * one — never extend this one.
+ *
+ * Backend currently only writes `FollowerVault.custody_mode`; the asymmetric
+ * `VaultAuthority` encoding is documented in `2026-05-08-strategy-runtime-spec.md`.
+ */
+const CUSTODY_MODE_TO_CODE: Record<'program_owned' | 'self_custody', number> = {
   program_owned: 0,
   self_custody: 1,
-  private_payments_relay: 2,
 };
 
 const LIFECYCLE_TO_CODE: Record<DeploymentLifecycleStatus, number> = {

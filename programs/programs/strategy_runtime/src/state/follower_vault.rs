@@ -40,6 +40,17 @@ impl FollowerVault {
 }
 
 /// Custody mode mirrors the off-chain `follower_vaults.custody_mode` enum.
+///
+/// ⚠️ Asymmetric encoding — this byte mapping is **not** the same as
+/// [`super::VaultAuthority`]'s `custody_mode` field, which encodes
+/// 0=public_self_custody, 1=program_owned, 2=private_payments_relay.
+/// Off-chain decoders must keep two separate codecs and never share one.
+/// See `backend/src/onchain/anchor-onchain-adapter.service.ts` and
+/// `2026-05-08-strategy-runtime-spec.md` for the documented split.
+///
+/// `PrivatePaymentsRelay = 2` is currently dead — the backend stopped
+/// writing it after the PP adapter was removed. Kept on-chain so re-adding
+/// PP doesn't require a program redeploy.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum FollowerVaultCustodyMode {

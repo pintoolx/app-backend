@@ -63,7 +63,6 @@ describe('StrategyCompilerService', () => {
       expect.objectContaining({
         recommendedExecutionLayer: 'per',
         recommendedDelegationLayer: 'er',
-        recommendedTreasuryPrivacy: 'private_payments_api',
         optionalBalancePrivacy: 'umbra',
       }),
     );
@@ -73,7 +72,6 @@ describe('StrategyCompilerService', () => {
         requiresAnchorCommit: true,
         requiresEr: true,
         requiresPer: true,
-        requiresPrivatePayments: true,
         requiresUmbra: true,
       }),
     );

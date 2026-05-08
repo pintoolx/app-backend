@@ -340,8 +340,6 @@ function mockDeployment(overrides: Partial<StrategyDeploymentRow> = {}): Strateg
     umbra_register_callback_signature: null,
     umbra_master_seed_ref: null,
     per_endpoint_url: null,
-    pp_session_id: null,
-    pp_endpoint_url: null,
     ...overrides,
   };
 }

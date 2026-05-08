@@ -10,10 +10,8 @@ import {
 import {
   MAGICBLOCK_ER_ADAPTER,
   MAGICBLOCK_PER_ADAPTER,
-  MAGICBLOCK_PRIVATE_PAYMENTS_ADAPTER,
   type MagicBlockErAdapterPort,
   type MagicBlockPerAdapterPort,
-  type MagicBlockPrivatePaymentsAdapterPort,
   type PerMemberRole,
 } from '../magicblock/magicblock.port';
 import { PerGroupsRepository } from '../magicblock/per-groups.repository';
@@ -52,8 +50,6 @@ export interface DeploymentView {
   umbraSignerPubkey: string | null;
   umbraRegistrationStatus: 'pending' | 'confirmed' | 'failed' | null;
   perEndpointUrl: string | null;
-  ppSessionId: string | null;
-  ppEndpointUrl: string | null;
 }
 
 /**
@@ -85,8 +81,6 @@ export class StrategyDeploymentsService {
     @Inject(ONCHAIN_ADAPTER) private readonly onchainAdapter: OnchainAdapterPort,
     @Inject(MAGICBLOCK_ER_ADAPTER) private readonly erAdapter: MagicBlockErAdapterPort,
     @Inject(MAGICBLOCK_PER_ADAPTER) private readonly perAdapter: MagicBlockPerAdapterPort,
-    @Inject(MAGICBLOCK_PRIVATE_PAYMENTS_ADAPTER)
-    private readonly ppAdapter: MagicBlockPrivatePaymentsAdapterPort,
     @Inject(UMBRA_ADAPTER) private readonly umbraAdapter: UmbraAdapterPort,
     private readonly perGroupsRepository: PerGroupsRepository,
     private readonly perAuthTokensRepository: PerAuthTokensRepository,
@@ -608,66 +602,6 @@ export class StrategyDeploymentsService {
     return this.perAdapter.getPrivateState({ deploymentId, authToken });
   }
 
-  // ---------------------------------------------------------------
-  // Week 5 — explicit Private Payments endpoints
-  // ---------------------------------------------------------------
-
-  async privatePaymentsDeposit(
-    deploymentId: string,
-    walletAddress: string,
-    params: { fromWallet?: string; mint: string; amount: string },
-  ) {
-    const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
-    return this.ppAdapter.deposit({
-      deploymentId,
-      fromWallet: params.fromWallet ?? row.creator_wallet_address,
-      mint: params.mint,
-      amount: params.amount,
-    });
-  }
-
-  async privatePaymentsTransfer(
-    deploymentId: string,
-    walletAddress: string,
-    params: { fromWallet?: string; toWallet: string; mint: string; amount: string },
-  ) {
-    const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
-    return this.ppAdapter.transfer({
-      deploymentId,
-      fromWallet: params.fromWallet ?? row.creator_wallet_address,
-      toWallet: params.toWallet,
-      mint: params.mint,
-      amount: params.amount,
-    });
-  }
-
-  async privatePaymentsWithdraw(
-    deploymentId: string,
-    walletAddress: string,
-    params: { toWallet: string; mint: string; amount: string },
-  ) {
-    await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
-    return this.ppAdapter.withdraw({
-      deploymentId,
-      toWallet: params.toWallet,
-      mint: params.mint,
-      amount: params.amount,
-    });
-  }
-
-  async privatePaymentsBalance(
-    deploymentId: string,
-    walletAddress: string,
-    params: { wallet?: string; mint: string },
-  ) {
-    const row = await this.deploymentsRepository.getForCreator(deploymentId, walletAddress);
-    return this.ppAdapter.getBalance({
-      deploymentId,
-      wallet: params.wallet ?? row.creator_wallet_address,
-      mint: params.mint,
-    });
-  }
-
   private async transitionLifecycle(
     deploymentId: string,
     walletAddress: string,
@@ -703,13 +637,9 @@ export class StrategyDeploymentsService {
 
   private resolveTreasuryModeFromHints(compiled: {
     deploymentHints: {
-      recommendedTreasuryPrivacy: 'not_required' | 'private_payments_api';
       optionalBalancePrivacy: 'not_required' | 'umbra';
     };
   }): DeploymentTreasuryMode {
-    if (compiled.deploymentHints.recommendedTreasuryPrivacy === 'private_payments_api') {
-      return 'private_payments';
-    }
     if (compiled.deploymentHints.optionalBalancePrivacy === 'umbra') {
       return 'umbra';
     }
@@ -763,8 +693,6 @@ export class StrategyDeploymentsService {
       umbraSignerPubkey: row.umbra_signer_pubkey,
       umbraRegistrationStatus: row.umbra_registration_status,
       perEndpointUrl: row.per_endpoint_url,
-      ppSessionId: row.pp_session_id,
-      ppEndpointUrl: row.pp_endpoint_url,
     };
   }
 }

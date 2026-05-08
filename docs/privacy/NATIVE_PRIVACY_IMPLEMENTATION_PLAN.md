@@ -56,7 +56,7 @@ The current repo already has useful building blocks, but it is not yet a privacy
 
 What is already true:
 
-- Strategy deployments already separate `execution_mode` (`offchain` / `er` / `per`) and `treasury_mode` (`public` / `private_payments` / `umbra`)
+- Strategy deployments already separate `execution_mode` (`offchain` / `er` / `per`) and `treasury_mode` (`public` / `umbra`)
 - The on-chain `StrategyState` stores only a commitment and revision, which is a good privacy-friendly shape
 - The on-chain `PublicSnapshot` is already modeled as a sanitized public surface
 - PER auth flow is partially implemented: create group, request challenge, verify signature, read private state

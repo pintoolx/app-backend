@@ -73,7 +73,6 @@ export interface AdminPrivacyOverview {
   adapters: {
     umbra: 'real' | 'noop';
     per: 'real' | 'noop';
-    pp: 'real' | 'noop';
     er: 'real' | 'noop';
   };
   perTokens: PerTokenSummary;
@@ -131,10 +130,6 @@ export interface DeploymentPrivacyView {
     endpointUrl: string | null;
     tokens: PerTokenRowRedacted[];
   };
-  pp: {
-    sessionId: string | null;
-    endpointUrl: string | null;
-  };
   umbra: {
     userAccount: string | null;
     x25519Pubkey: string | null;
@@ -186,7 +181,6 @@ export class AdminPrivacyService {
     const adapters: AdminPrivacyOverview['adapters'] = {
       umbra: matrix.find((m) => m.adapter === 'umbra')?.mode ?? 'noop',
       per: matrix.find((m) => m.adapter === 'per')?.mode ?? 'noop',
-      pp: matrix.find((m) => m.adapter === 'pp')?.mode ?? 'noop',
       er: matrix.find((m) => m.adapter === 'er')?.mode ?? 'noop',
     };
 
@@ -251,7 +245,7 @@ export class AdminPrivacyService {
     const { data: row, error } = await this.supabaseService.client
       .from('strategy_deployments')
       .select(
-        'id, lifecycle_status, execution_mode, treasury_mode, private_state_account, public_snapshot_account, er_session_id, er_router_url, er_committed_at, er_delegate_signature, er_undelegate_signature, per_session_id, per_endpoint_url, pp_session_id, pp_endpoint_url, umbra_user_account, umbra_x25519_pubkey, umbra_signer_pubkey, umbra_registration_status, umbra_register_queue_signature, umbra_register_callback_signature, umbra_master_seed_ref',
+        'id, lifecycle_status, execution_mode, treasury_mode, private_state_account, public_snapshot_account, er_session_id, er_router_url, er_committed_at, er_delegate_signature, er_undelegate_signature, per_session_id, per_endpoint_url, umbra_user_account, umbra_x25519_pubkey, umbra_signer_pubkey, umbra_registration_status, umbra_register_queue_signature, umbra_register_callback_signature, umbra_master_seed_ref',
       )
       .eq('id', deploymentId)
       .maybeSingle();
@@ -286,10 +280,6 @@ export class AdminPrivacyService {
         sessionId: (row.per_session_id as string | null) ?? null,
         endpointUrl: (row.per_endpoint_url as string | null) ?? null,
         tokens: perTokens,
-      },
-      pp: {
-        sessionId: (row.pp_session_id as string | null) ?? null,
-        endpointUrl: (row.pp_endpoint_url as string | null) ?? null,
       },
       umbra: {
         userAccount: (row.umbra_user_account as string | null) ?? null,

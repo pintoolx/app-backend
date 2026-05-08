@@ -5,7 +5,7 @@ const DEPLOYMENT_LIST_COLUMNS =
   'id, strategy_id, creator_wallet_address, account_id, execution_mode, treasury_mode, lifecycle_status, state_revision, created_at, updated_at';
 
 const DEPLOYMENT_DETAIL_COLUMNS =
-  'id, strategy_id, strategy_version_id, creator_wallet_address, account_id, execution_mode, treasury_mode, lifecycle_status, state_revision, private_state_account, public_snapshot_account, er_session_id, per_session_id, umbra_user_account, metadata, created_at, updated_at, er_router_url, er_committed_at, umbra_registration_status, per_endpoint_url, pp_endpoint_url';
+  'id, strategy_id, strategy_version_id, creator_wallet_address, account_id, execution_mode, treasury_mode, lifecycle_status, state_revision, private_state_account, public_snapshot_account, er_session_id, per_session_id, umbra_user_account, metadata, created_at, updated_at, er_router_url, er_committed_at, umbra_registration_status, per_endpoint_url';
 
 const RUN_COLUMNS =
   'id, deployment_id, execution_layer, status, started_at, completed_at, error_message';

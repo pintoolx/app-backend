@@ -38,12 +38,11 @@ export class HealthService {
   ) {}
 
   async readiness(): Promise<ReadinessReport> {
-    const [db, rpc, er, per, pp, umbra] = await Promise.all([
+    const [db, rpc, er, per, umbra] = await Promise.all([
       this.probeDatabase(),
       this.probeSolanaRpc(),
       this.probeMagicBlockRouter(),
       this.probePerEndpoint(),
-      this.probePpEndpoint(),
       this.probeUmbra(),
     ]);
 
@@ -52,7 +51,6 @@ export class HealthService {
       'solana-rpc': rpc,
       'magicblock-er': er,
       'magicblock-per': per,
-      'magicblock-pp': pp,
       umbra,
     };
 
@@ -114,13 +112,6 @@ export class HealthService {
     const endpoint = this.configService.get<string>('MAGICBLOCK_PER_ENDPOINT');
     if (!endpoint || !endpoint.trim())
       return { status: 'skipped', latencyMs: 0, note: 'MAGICBLOCK_PER_ENDPOINT unset' };
-    return this.probeHttp(`${endpoint.trim().replace(/\/$/, '')}/v1/health`);
-  }
-
-  private async probePpEndpoint(): Promise<ProbeResult> {
-    const endpoint = this.configService.get<string>('MAGICBLOCK_PP_ENDPOINT');
-    if (!endpoint || !endpoint.trim())
-      return { status: 'skipped', latencyMs: 0, note: 'MAGICBLOCK_PP_ENDPOINT unset' };
     return this.probeHttp(`${endpoint.trim().replace(/\/$/, '')}/v1/health`);
   }
 
