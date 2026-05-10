@@ -197,6 +197,22 @@ export interface BuildAdjustSubscriptionParamsInstructionParams {
   newConfigCommitmentHex: string;
 }
 
+export interface SubmitNodeInstructionParams {
+  /** Node type (e.g. "riskGuard") for logging / metrics. */
+  nodeType: string;
+  /** Anchor program ID the instruction targets. */
+  programId: string;
+  /** Account metas in handler-expected order. */
+  accounts: Array<{ pubkey: string; isSigner: boolean; isWritable: boolean }>;
+  /** Raw instruction data, base64 encoded (Anchor discriminator + serialised args). */
+  dataBase64: string;
+}
+
+export interface SubmitNodeInstructionResult {
+  /** Transaction signature when the adapter actually submitted, else null. */
+  signature: string | null;
+}
+
 export interface BuildWithdrawInstructionParams {
   subscriptionPda: string;
   followerVaultPda: string;
@@ -293,6 +309,13 @@ export interface OnchainAdapterPort {
     params: BuildAdjustSubscriptionParamsInstructionParams,
   ): Promise<FollowerOnchainInstructionResult>;
   buildWithdrawInstruction(params: BuildWithdrawInstructionParams): Promise<WithdrawInstruction>;
+  /**
+   * Sign with the keeper keypair and submit a per-node Anchor instruction
+   * (e.g. risk_guard_node.check_drawdown). Used by the keeper when a node
+   * is classified as `native_anchor_program` and has a registered
+   * `buildOnchainInstruction` handler.
+   */
+  submitNodeInstruction(params: SubmitNodeInstructionParams): Promise<SubmitNodeInstructionResult>;
 
   // Phase 4 — application-layer closure ------------------------------------
   collectFees(params: {

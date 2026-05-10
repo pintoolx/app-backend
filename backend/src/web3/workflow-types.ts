@@ -7,11 +7,47 @@ export interface NodeExecutionData {
 }
 
 /**
+ * Optional surface for nodes whose execution is delegated to an on-chain
+ * Anchor program. When the strategy compiler classifies a node as
+ * `native_anchor_program`, the keeper calls `buildOnchainInstruction(...)`
+ * on the registered node implementation and submits the returned
+ * instruction via `OnchainAdapterPort.submitNodeInstruction()` instead of
+ * running the off-chain `execute()` handler.
+ *
+ * Decoupled from `@solana/web3.js` to avoid leaking Solana types into the
+ * core node interface — the keeper handles serialisation.
+ */
+export interface OnchainInstructionAccountMeta {
+  pubkey: string;
+  isSigner: boolean;
+  isWritable: boolean;
+}
+
+export interface OnchainInstructionPayload {
+  programId: string;
+  /** Account metas in the same order the on-chain handler expects. */
+  accounts: OnchainInstructionAccountMeta[];
+  /** Raw instruction data (discriminator + serialised args), base64-encoded. */
+  dataBase64: string;
+}
+
+/**
  * 節點類型接口（類似 n8n 的 INodeType）
  */
 export interface INodeType {
   description: INodeDescription;
   execute(context: IExecuteContext): Promise<NodeExecutionData[][]>;
+
+  /**
+   * Optional. When present, the node is backed by an on-chain Anchor
+   * program — the keeper builds + submits the returned instruction instead
+   * of calling `execute()`. See `INodeType.execute` doc for the off-chain
+   * fallback path.
+   */
+  buildOnchainInstruction?(context: IExecuteContext): Promise<{
+    instruction: OnchainInstructionPayload;
+    explanation: string;
+  }>;
 }
 
 /**

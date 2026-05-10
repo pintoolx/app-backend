@@ -36,6 +36,18 @@ const TARGETS: SyncTarget[] = [
       'strategy_runtime.json',
     ),
   },
+  {
+    name: 'risk_guard_node',
+    source: path.join(REPO_ROOT, 'programs', 'target', 'idl', 'risk_guard_node.json'),
+    destination: path.join(
+      REPO_ROOT,
+      'backend',
+      'src',
+      'onchain',
+      'anchor',
+      'risk_guard_node.json',
+    ),
+  },
 ];
 
 const MODE = (process.argv[2] ?? 'sync').trim();

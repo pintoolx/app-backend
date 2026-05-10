@@ -7,9 +7,11 @@ skip-lint = false
 
 [programs.devnet]
 strategy_runtime = "FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF"
+risk_guard_node = "4JKazw3boeciANsXNDPk8eko2Q6RGBRNaDvUvShtodAQ"
 
 [programs.localnet]
 strategy_runtime = "FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF"
+risk_guard_node = "4JKazw3boeciANsXNDPk8eko2Q6RGBRNaDvUvShtodAQ"
 
 [registry]
 url = "https://api.apr.dev"

@@ -34,6 +34,8 @@ import {
   type SetKeeperParams,
   type SetLifecycleStatusParams,
   type SetPublicSnapshotParams,
+  type SubmitNodeInstructionParams,
+  type SubmitNodeInstructionResult,
   type VaultTokenBalance,
   type WithdrawInstruction,
 } from './onchain-adapter.port';
@@ -127,6 +129,43 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
 
   getProgramId(): string {
     return this.anchorClient.getProgramId().toBase58();
+  }
+
+  async submitNodeInstruction(
+    params: SubmitNodeInstructionParams,
+  ): Promise<SubmitNodeInstructionResult> {
+    try {
+      const provider = await this.anchorClient.getProvider();
+      const keeper = await this.keeperKeypairService.loadKeypair();
+
+      const ix = new TransactionInstruction({
+        programId: new PublicKey(params.programId),
+        keys: params.accounts.map((a) => ({
+          pubkey: new PublicKey(a.pubkey),
+          isSigner: a.isSigner,
+          isWritable: a.isWritable,
+        })),
+        data: Buffer.from(params.dataBase64, 'base64'),
+      });
+
+      const tx = new Transaction().add(ix);
+      tx.feePayer = keeper.publicKey;
+      const { blockhash } = await provider.connection.getLatestBlockhash('confirmed');
+      tx.recentBlockhash = blockhash;
+      tx.sign(keeper);
+
+      const sig = await provider.connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed',
+      });
+      await provider.connection.confirmTransaction(sig, 'confirmed');
+      this.logger.log(
+        `submitNodeInstruction node=${params.nodeType} program=${params.programId} sig=${sig}`,
+      );
+      return { signature: sig };
+    } catch (err) {
+      throw this.toInternalError(`submitNodeInstruction(${params.nodeType})`, err);
+    }
   }
 
   async initializeDeployment(

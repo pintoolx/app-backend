@@ -789,8 +789,9 @@ export class StrategiesService {
   }
 
   private assertNativeOnchainStrategy(compiled: CompiledStrategyIR): void {
+    const allowed = new Set(['anchor_candidate', 'native_anchor_program']);
     const unsupportedNodes = compiled.nodeClassifications.filter(
-      (node) => node.executionPlane !== 'anchor_candidate',
+      (node) => !allowed.has(node.executionPlane),
     );
     if (unsupportedNodes.length > 0) {
       const nodeList = unsupportedNodes

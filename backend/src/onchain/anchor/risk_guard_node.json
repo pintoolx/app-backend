@@ -1,0 +1,221 @@
+{
+  "address": "4JKazw3boeciANsXNDPk8eko2Q6RGBRNaDvUvShtodAQ",
+  "metadata": {
+    "name": "risk_guard_node",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "On-chain drawdown guard node for the strategy_runtime workflow ecosystem"
+  },
+  "instructions": [
+    {
+      "name": "check_drawdown",
+      "docs": [
+        "Submit a current drawdown reading. If it exceeds `max_allowed_bps`,",
+        "the guard freezes and all subsequent calls fail until `reset_guard`."
+      ],
+      "discriminator": [
+        80,
+        116,
+        81,
+        5,
+        102,
+        81,
+        95,
+        138
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Anyone can submit a drawdown reading — the guard is keyed by creator",
+            "and we trust whoever signs to be reporting on the right strategy."
+          ],
+          "signer": true
+        },
+        {
+          "name": "guard",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "current_drawdown_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "initialize_guard",
+      "docs": [
+        "Initialize a per-creator drawdown guard.",
+        "`max_allowed_bps` is the threshold beyond which the guard freezes."
+      ],
+      "discriminator": [
+        63,
+        189,
+        246,
+        157,
+        77,
+        125,
+        157,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "guard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  105,
+                  115,
+                  107,
+                  95,
+                  103,
+                  117,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "max_allowed_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "reset_guard",
+      "docs": [
+        "Creator-only — clear the frozen flag."
+      ],
+      "discriminator": [
+        41,
+        20,
+        105,
+        105,
+        139,
+        2,
+        183,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "signer": true,
+          "relations": [
+            "guard"
+          ]
+        },
+        {
+          "name": "guard",
+          "writable": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "GuardState",
+      "discriminator": [
+        23,
+        232,
+        95,
+        177,
+        15,
+        220,
+        133,
+        0
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "GuardFrozen",
+      "msg": "Guard is frozen — reset it before reuse"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidMaxBps",
+      "msg": "max_allowed_bps must be greater than 0 and at most 10000"
+    },
+    {
+      "code": 6002,
+      "name": "UnauthorizedCaller",
+      "msg": "Caller is not the creator of this guard"
+    }
+  ],
+  "types": [
+    {
+      "name": "GuardState",
+      "docs": [
+        "Per-creator drawdown guard. One PDA per (program, creator).",
+        "",
+        "`frozen` flips to true the first time `check_drawdown` observes a value",
+        "exceeding `max_allowed_bps`. While frozen, all subsequent",
+        "`check_drawdown` calls fail until `reset_guard` is invoked by the",
+        "`creator`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_allowed_bps",
+            "type": "u16"
+          },
+          {
+            "name": "last_drawdown_bps",
+            "type": "u16"
+          },
+          {
+            "name": "frozen",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved for future fields without re-deriving accounts."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                24
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

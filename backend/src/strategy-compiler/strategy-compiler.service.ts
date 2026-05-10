@@ -13,7 +13,14 @@ export type StrategyExecutionPlane =
   | 'offchain_observer'
   | 'anchor_candidate'
   | 'hybrid_adapter'
-  | 'offchain_runtime';
+  | 'offchain_runtime'
+  /**
+   * Node is backed by a sibling Anchor program (e.g. risk_guard_node). The
+   * keeper builds an instruction via `INodeType.buildOnchainInstruction` and
+   * submits it through `OnchainAdapterPort.submitNodeInstruction` instead of
+   * running the off-chain `execute()` handler.
+   */
+  | 'native_anchor_program';
 
 export type StrategyRiskLevel = 'low' | 'medium' | 'high';
 
@@ -135,6 +142,8 @@ export interface CompiledStrategyIR {
 
 const OFFCHAIN_OBSERVER_NODE_TYPES = new Set(['pythPriceFeed', 'heliusWebhook']);
 const ANCHOR_CANDIDATE_NODE_TYPES = new Set(['getBalance', 'transfer']);
+/** Nodes whose runtime lives in a dedicated sibling Anchor program. */
+const NATIVE_ANCHOR_NODE_TYPES = new Set(['riskGuard']);
 const HYBRID_ADAPTER_NODE_TYPES = new Set([
   'jupiterSwap',
   'orcaSwap',
@@ -448,6 +457,10 @@ export class StrategyCompilerService {
   }
 
   private resolveExecutionPlane(nodeType: string): StrategyExecutionPlane {
+    if (NATIVE_ANCHOR_NODE_TYPES.has(nodeType)) {
+      return 'native_anchor_program';
+    }
+
     if (OFFCHAIN_OBSERVER_NODE_TYPES.has(nodeType)) {
       return 'offchain_observer';
     }
@@ -469,6 +482,7 @@ export class StrategyCompilerService {
       heliusWebhook: 'Helius',
       jupiterSwap: 'Jupiter',
       orcaSwap: 'Orca',
+      riskGuard: 'RiskGuard',
       jupiterLimitOrder: 'Jupiter',
       stakeSOL: 'Jupiter',
       kamino: 'Kamino',

@@ -29,6 +29,8 @@ import {
   type SetKeeperParams,
   type SetLifecycleStatusParams,
   type SetPublicSnapshotParams,
+  type SubmitNodeInstructionParams,
+  type SubmitNodeInstructionResult,
   type WithdrawInstruction,
 } from './onchain-adapter.port';
 import {
@@ -61,6 +63,15 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
 
   getProgramId(): string {
     return this.resolveProgramId().toBase58();
+  }
+
+  async submitNodeInstruction(
+    params: SubmitNodeInstructionParams,
+  ): Promise<SubmitNodeInstructionResult> {
+    this.logger.debug(
+      `[noop] submitNodeInstruction node=${params.nodeType} program=${params.programId} accounts=${params.accounts.length}`,
+    );
+    return { signature: null };
   }
 
   async initializeDeployment(

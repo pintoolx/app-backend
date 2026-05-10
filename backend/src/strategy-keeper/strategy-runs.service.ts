@@ -322,6 +322,69 @@ export class StrategyRunsService implements OnModuleDestroy {
   }
 
   /**
+   * Execute every node in `deployment`'s compiled IR that is classified as
+   * `native_anchor_program` by submitting its on-chain instruction via the
+   * onchain adapter. Returns one entry per submitted node keyed by node id.
+   *
+   * This is a *helper method* — not yet wired into the executeRun() switch
+   * because adding a new execution_layer enum value requires a DB migration.
+   * Callers who already know they want native-anchor dispatch (e.g. ad-hoc
+   * cron, integration tests, or future execution_layer='native_anchor' once
+   * the migration lands) can invoke this directly.
+   */
+  async executeNativeAnchorNodes(
+    deployment: StrategyDeploymentRow,
+    nodeContext: Record<string, unknown> = {},
+  ): Promise<Record<string, { signature: string | null; explanation: string }>> {
+    const { getRegisteredNodes } = await import('../web3/nodes/node-registry');
+    const compiled = (deployment as { compiled_ir?: unknown }).compiled_ir as
+      | {
+          nodeClassifications?: Array<{ nodeId: string; nodeType: string; executionPlane: string }>;
+          privateDefinition?: {
+            definition?: { nodes?: Array<{ id: string; parameters?: Record<string, unknown> }> };
+          };
+        }
+      | undefined;
+    const classifications = compiled?.nodeClassifications ?? [];
+    const nodeParams = new Map<string, Record<string, unknown>>();
+    for (const n of compiled?.privateDefinition?.definition?.nodes ?? []) {
+      nodeParams.set(n.id, n.parameters ?? {});
+    }
+    const out: Record<string, { signature: string | null; explanation: string }> = {};
+    for (const c of classifications) {
+      if (c.executionPlane !== 'native_anchor_program') continue;
+      const factory = getRegisteredNodes().get(c.nodeType);
+      const impl = factory?.();
+      if (!impl?.buildOnchainInstruction) {
+        this.logger.warn(
+          `executeNativeAnchorNodes: node ${c.nodeId} (${c.nodeType}) classified as native_anchor_program but missing buildOnchainInstruction; skipped`,
+        );
+        continue;
+      }
+      const params = { ...nodeParams.get(c.nodeId), ...nodeContext };
+      const fakeCtx = {
+        getInputData: () => [],
+        getNodeParameter: (name: string, _idx: number, def?: unknown) =>
+          (params[name] as unknown) ?? def,
+        getWorkflowStaticData: () => ({}),
+        helpers: { returnJsonArray: (_: unknown[]) => [] },
+      } as unknown as Parameters<NonNullable<typeof impl.buildOnchainInstruction>>[0];
+      const built = await impl.buildOnchainInstruction(fakeCtx);
+      const result = await this.onchainAdapter.submitNodeInstruction({
+        nodeType: c.nodeType,
+        programId: built.instruction.programId,
+        accounts: built.instruction.accounts,
+        dataBase64: built.instruction.dataBase64,
+      });
+      out[c.nodeId] = {
+        signature: result.signature,
+        explanation: built.explanation,
+      };
+    }
+    return out;
+  }
+
+  /**
    * PER execution: start a private execution cycle via
    * PrivateExecutionCyclesService.
    *
@@ -405,10 +468,7 @@ export class StrategyRunsService implements OnModuleDestroy {
     return completedSnapshots + 1;
   }
 
-  private generateStateCommitment(
-    run: StrategyRunRow,
-    deployment: StrategyDeploymentRow,
-  ): string {
+  private generateStateCommitment(run: StrategyRunRow, deployment: StrategyDeploymentRow): string {
     const payload = `${run.id}:${deployment.id}:${deployment.state_revision}:${run.started_at}`;
     return '0x' + createHash('sha256').update(payload).digest('hex');
   }

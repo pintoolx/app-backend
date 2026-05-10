@@ -33,10 +33,12 @@ import { DriftNode } from './drift.node';
 import { SanctumNode } from './sanctum.node';
 import { HeliusWebhookNode } from './helius-webhook.node';
 import { OrcaNode } from './orca.node';
+import { RiskGuardNode } from './risk-guard.node';
 
 registerNode('pythPriceFeed', () => new PriceFeedNode());
 registerNode('jupiterSwap', () => new SwapNode());
 registerNode('orcaSwap', () => new OrcaNode());
+registerNode('riskGuard', () => new RiskGuardNode());
 registerNode('kamino', () => new KaminoNode());
 registerNode('transfer', () => new TransferNode());
 registerNode('getBalance', () => new BalanceNode());
