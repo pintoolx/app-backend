@@ -32,9 +32,11 @@ import { StakeNode } from './stake.node';
 import { DriftNode } from './drift.node';
 import { SanctumNode } from './sanctum.node';
 import { HeliusWebhookNode } from './helius-webhook.node';
+import { OrcaNode } from './orca.node';
 
 registerNode('pythPriceFeed', () => new PriceFeedNode());
 registerNode('jupiterSwap', () => new SwapNode());
+registerNode('orcaSwap', () => new OrcaNode());
 registerNode('kamino', () => new KaminoNode());
 registerNode('transfer', () => new TransferNode());
 registerNode('getBalance', () => new BalanceNode());

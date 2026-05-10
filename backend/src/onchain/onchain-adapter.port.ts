@@ -249,6 +249,13 @@ export interface FundIntentInstruction {
 }
 
 export interface OnchainAdapterPort {
+  /**
+   * The strategy_runtime program ID this adapter is bound to. Used by views
+   * (e.g. portfolio "Anchored" badge) that want to link from a vault to its
+   * program on a block explorer. Both Anchor and Noop adapters resolve the
+   * same value (env > IDL fallback) so the response is environment-stable.
+   */
+  getProgramId(): string;
   initializeDeployment(params: InitializeDeploymentParams): Promise<InitializeDeploymentResult>;
   setLifecycleStatus(params: SetLifecycleStatusParams): Promise<{ signature: string | null }>;
   commitState(params: CommitStateParams): Promise<OnchainCommitResult>;

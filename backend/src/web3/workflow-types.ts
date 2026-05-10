@@ -40,6 +40,13 @@ export interface INodeProperty {
   default: any;
   description: string;
   options?: Array<{ name: string; value: any }>;
+  /**
+   * Whether this parameter is creator-private. The strategy compiler
+   * UNIONs node-declared `sensitive: true` properties with the global
+   * SENSITIVE_PARAMETER_KEYS set when redacting the public view, so the
+   * frontend renders a 🔒 next to it on the public Strategy Detail page.
+   */
+  sensitive?: boolean;
 }
 
 /**

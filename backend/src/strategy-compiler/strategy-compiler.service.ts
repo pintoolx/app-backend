@@ -137,6 +137,7 @@ const OFFCHAIN_OBSERVER_NODE_TYPES = new Set(['pythPriceFeed', 'heliusWebhook'])
 const ANCHOR_CANDIDATE_NODE_TYPES = new Set(['getBalance', 'transfer']);
 const HYBRID_ADAPTER_NODE_TYPES = new Set([
   'jupiterSwap',
+  'orcaSwap',
   'jupiterLimitOrder',
   'kamino',
   'luloLend',
@@ -147,6 +148,7 @@ const HYBRID_ADAPTER_NODE_TYPES = new Set([
 const HIGH_RISK_NODE_TYPES = new Set(['driftPerp', 'jupiterLimitOrder']);
 const MEDIUM_RISK_NODE_TYPES = new Set([
   'jupiterSwap',
+  'orcaSwap',
   'kamino',
   'luloLend',
   'stakeSOL',
@@ -214,8 +216,9 @@ export class StrategyCompilerService {
     const classifications = this.classifyNodes(definition);
     const sanitizedNodes: SanitizedStrategyNode[] = definition.nodes.map((node) => {
       const classification = classifications.find((c) => c.nodeId === node.id);
+      const sensitiveKeys = this.buildSensitiveKeySet(node.type);
       const redactedParameterKeys = Object.keys(node.parameters ?? {}).filter((key) =>
-        SENSITIVE_PARAMETER_KEYS.has(key),
+        sensitiveKeys.has(key),
       );
 
       return {
@@ -244,10 +247,13 @@ export class StrategyCompilerService {
 
   extractPrivateDefinition(definition: WorkflowDefinition): PrivateStrategyDefinition {
     const sensitiveParameterKeys = Object.fromEntries(
-      definition.nodes.map((node) => [
-        node.id,
-        Object.keys(node.parameters ?? {}).filter((key) => SENSITIVE_PARAMETER_KEYS.has(key)),
-      ]),
+      definition.nodes.map((node) => {
+        const sensitiveKeys = this.buildSensitiveKeySet(node.type);
+        return [
+          node.id,
+          Object.keys(node.parameters ?? {}).filter((key) => sensitiveKeys.has(key)),
+        ];
+      }),
     );
 
     return {
@@ -256,6 +262,29 @@ export class StrategyCompilerService {
       sensitiveParameterKeys,
       privateDefinitionCommitment: this.hashStable(definition),
     };
+  }
+
+  /**
+   * Sensitive parameter keys for a given node type — UNION of:
+   *   - the global SENSITIVE_PARAMETER_KEYS hardcoded set, and
+   *   - any per-property `sensitive: true` flag declared on the node's
+   *     INodeDescription.properties (looked up via the node registry).
+   * Falls back gracefully when the node isn't registered (e.g. legacy
+   * compiled_ir referencing a node we removed) — uses just the hardcoded set.
+   */
+  private buildSensitiveKeySet(nodeType: string): Set<string> {
+    const result = new Set(SENSITIVE_PARAMETER_KEYS);
+    const factory = getRegisteredNodes().get(nodeType);
+    if (!factory) return result;
+    try {
+      const description = factory().description;
+      for (const prop of description.properties ?? []) {
+        if (prop.sensitive === true) result.add(prop.name);
+      }
+    } catch {
+      // node factory threw — keep the hardcoded set so we never under-redact
+    }
+    return result;
   }
 
   /**
@@ -439,6 +468,7 @@ export class StrategyCompilerService {
       pythPriceFeed: 'Pyth',
       heliusWebhook: 'Helius',
       jupiterSwap: 'Jupiter',
+      orcaSwap: 'Orca',
       jupiterLimitOrder: 'Jupiter',
       stakeSOL: 'Jupiter',
       kamino: 'Kamino',

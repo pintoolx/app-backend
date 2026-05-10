@@ -59,6 +59,10 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
 
   constructor(private readonly configService?: ConfigService) {}
 
+  getProgramId(): string {
+    return this.resolveProgramId().toBase58();
+  }
+
   async initializeDeployment(
     params: InitializeDeploymentParams,
   ): Promise<InitializeDeploymentResult> {

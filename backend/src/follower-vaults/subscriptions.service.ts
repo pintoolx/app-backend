@@ -102,6 +102,20 @@ export interface FollowerSubscriptionView {
   provisioningError: string | null;
   lifecycleDrift: boolean;
   /**
+   * Aggregated on-chain footprint for the portfolio "Anchored" badge —
+   * everything the frontend needs to link this subscription to its program
+   * + PDAs on a block explorer, plus a computed `provisioningComplete` /
+   * `driftDetected` derived from the existing fields above.
+   */
+  onchainFootprint: {
+    programId: string;
+    subscriptionPda: string | null;
+    followerVaultPda: string | null;
+    vaultAuthorityPda: string | null;
+    provisioningComplete: boolean;
+    driftDetected: boolean;
+  };
+  /**
    * Subscribe-modal one-shot helper. When the caller supplied
    * `depositAmount`+`depositMint`, the service eagerly builds a fund-intent
    * instruction so the wallet can sign subscribe + fund in one round.
@@ -1381,10 +1395,32 @@ export class SubscriptionsService {
       provisioningState: sub.provisioning_state,
       provisioningError: sub.provisioning_error,
       lifecycleDrift: sub.lifecycle_drift,
+      onchainFootprint: {
+        programId: this.safeProgramId(),
+        subscriptionPda: sub.subscription_pda,
+        followerVaultPda: sub.follower_vault_pda,
+        vaultAuthorityPda: sub.vault_authority_pda,
+        provisioningComplete: sub.provisioning_state === 'provisioning_complete',
+        driftDetected: sub.lifecycle_drift,
+      },
       fundIntentInstruction: null,
       createdAt: sub.created_at,
       updatedAt: sub.updated_at,
     };
+  }
+
+  /**
+   * Read program ID from the onchain adapter — never let an env-misconfig
+   * 500 the entire view. Returns empty string when unresolvable so the
+   * frontend can fall back to "anchor info unavailable".
+   */
+  private safeProgramId(): string {
+    try {
+      return this.onchainAdapter.getProgramId();
+    } catch (err) {
+      this.logger.debug(`safeProgramId: ${err instanceof Error ? err.message : err}`);
+      return '';
+    }
   }
 }
 

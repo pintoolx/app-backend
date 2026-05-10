@@ -156,6 +156,7 @@ export class DriftNode implements INodeType {
         type: 'string' as const,
         default: '1',
         description: 'Leverage multiplier (1-20x)',
+        sensitive: true,
       },
       {
         displayName: 'Order Type',
@@ -174,6 +175,7 @@ export class DriftNode implements INodeType {
         type: 'string' as const,
         default: '',
         description: 'Limit price (only for limit orders)',
+        sensitive: true,
       },
     ],
   };

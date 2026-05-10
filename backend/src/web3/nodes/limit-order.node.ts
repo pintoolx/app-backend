@@ -116,6 +116,7 @@ export class LimitOrderNode implements INodeType {
         type: 'string' as const,
         default: '',
         description: 'Amount of input token to sell (human readable, minimum ~5 USD)',
+        sensitive: true,
       },
       {
         displayName: 'Target Price',

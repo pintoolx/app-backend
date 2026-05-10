@@ -42,6 +42,7 @@ import {
   StrategyPurchasesRepository,
   type StrategyPurchaseRow,
 } from './strategy-purchases.repository';
+import { buildPnlPreview } from './pnl-preview';
 import { CreatorSubscriptionsService } from '../creator-subscriptions/creator-subscriptions.service';
 
 export interface StrategyPublicView {
@@ -231,7 +232,44 @@ export class StrategiesService {
     // Existence check — surfaces a clean 404 when the strategy is unknown.
     const strategy = await this.strategiesRepository.getStrategyById(strategyId);
     const points = await this.strategiesRepository.listStrategyPnlTimeseries(strategy.id, days);
-    const latest = points.length > 0 ? points[points.length - 1] : null;
+
+    // Pre-publish / un-deployed fallback: synthesize a deterministic preview
+    // curve from the strategy's risk profile + protocol mix so the Inspector
+    // 30d PnL widget has something to draw. Always tagged isPreview: true so
+    // the frontend never confuses it with real yield.
+    if (points.length === 0) {
+      const compiled = strategy.compiled_ir as CompiledStrategyIR | null;
+      if (!compiled) {
+        return {
+          strategyId: strategy.id,
+          windowDays: days,
+          latestPnlSummaryBps: null,
+          latestRiskBand: null,
+          pointCount: 0,
+          points: [],
+          isPreview: false,
+        };
+      }
+      const preview = buildPnlPreview(strategy.id, compiled, days);
+      return {
+        strategyId: strategy.id,
+        windowDays: days,
+        latestPnlSummaryBps: preview.points[preview.points.length - 1]?.pnlSummaryBps ?? null,
+        latestRiskBand: compiled.publicMetadata.riskProfile.level,
+        pointCount: preview.points.length,
+        points: preview.points.map((p) => ({
+          publishedAt: p.t,
+          snapshotRevision: 0,
+          pnlSummaryBps: p.pnlSummaryBps,
+          riskBand: null,
+          deploymentId: null,
+        })),
+        isPreview: true as const,
+        expectedApyBps: preview.expectedApyBps,
+      };
+    }
+
+    const latest = points[points.length - 1];
     return {
       strategyId: strategy.id,
       windowDays: days,
@@ -239,6 +277,7 @@ export class StrategiesService {
       latestRiskBand: latest?.riskBand ?? null,
       pointCount: points.length,
       points,
+      isPreview: false as const,
     };
   }
 

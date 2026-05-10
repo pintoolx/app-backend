@@ -125,6 +125,10 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
     private readonly keeperKeypairService: KeeperKeypairService,
   ) {}
 
+  getProgramId(): string {
+    return this.anchorClient.getProgramId().toBase58();
+  }
+
   async initializeDeployment(
     params: InitializeDeploymentParams,
   ): Promise<InitializeDeploymentResult> {

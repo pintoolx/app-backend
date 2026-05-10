@@ -125,6 +125,7 @@ export class KaminoNode implements INodeType {
         default: 'all',
         description:
           'Share amount to withdraw. Use "all" to withdraw all shares, "half" for half, or specify a number (for withdraw operation)',
+        sensitive: true,
       },
     ],
   };
