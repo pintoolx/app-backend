@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import {
   type BuildFundIntentInstructionParams,
+  type BuildWithdrawInstructionParams,
   type CloseDeploymentParams,
   type CloseFollowerVaultParams,
   type ClosePublicSnapshotParams,
@@ -12,7 +14,10 @@ import {
   type DeriveFollowerPdasParams,
   type FollowerOnchainInstructionResult,
   type FollowerPdaSet,
+  type BuildAdjustSubscriptionParamsInstructionParams,
   type FundIntentInstruction,
+  type ReadVaultTokenBalanceParams,
+  type VaultTokenBalance,
   type InitializeDeploymentParams,
   type InitializeDeploymentResult,
   type InitializeFollowerSubscriptionParams,
@@ -24,9 +29,11 @@ import {
   type SetKeeperParams,
   type SetLifecycleStatusParams,
   type SetPublicSnapshotParams,
+  type WithdrawInstruction,
 } from './onchain-adapter.port';
 import {
   deriveDeploymentPda,
+  deriveFollowerVaultAta,
   deriveFollowerVaultAuthorityPda,
   deriveFollowerVaultPda,
   deriveSubscriptionPda,
@@ -241,12 +248,84 @@ export class NoopOnchainAdapter implements OnchainAdapterPort {
       lamports,
     });
     const instructionBase64 = this.encodeInstruction(ix);
+    let vaultTokenAccount: string | null = null;
+    if (params.mint !== 'So11111111111111111111111111111111111111112') {
+      try {
+        vaultTokenAccount = deriveFollowerVaultAta(
+          this.toPubkey(params.mint, 'mint'),
+          toPub,
+        ).toBase58();
+      } catch {
+        // best-effort
+      }
+    }
     return {
       instructionBase64,
       recentBlockhash: null,
       vaultAuthorityPda: params.vaultAuthorityPda,
       mint: params.mint,
       amount: params.amount,
+      vaultTokenAccount,
+    };
+  }
+
+  async buildAdjustSubscriptionParamsInstruction(
+    _params: BuildAdjustSubscriptionParamsInstructionParams,
+  ): Promise<FollowerOnchainInstructionResult> {
+    // Noop adapter doesn't build a real instruction — return empty payload so
+    // tests / dev environments can call the endpoint without an Anchor program.
+    return {
+      signature: null,
+      unsignedInstructionBase64: null,
+      recentBlockhash: null,
+    };
+  }
+
+  async buildWithdrawInstruction(
+    params: BuildWithdrawInstructionParams,
+  ): Promise<WithdrawInstruction> {
+    const followerKey = this.toPubkey(params.followerWallet, 'followerWallet');
+    const vaultAuthorityKey = this.toPubkey(params.vaultAuthorityPda, 'vaultAuthorityPda');
+    const mintKey = this.toPubkey(params.mint, 'mint');
+
+    const vaultTokenAccount = deriveFollowerVaultAta(mintKey, vaultAuthorityKey);
+    const followerTokenAccount = getAssociatedTokenAddressSync(
+      mintKey,
+      followerKey,
+      false,
+      TOKEN_PROGRAM_ID,
+    );
+
+    // Stub instruction — Noop adapter has no Anchor program loaded so we
+    // can't build the real withdraw_from_vault discriminator. Encode a
+    // placeholder payload so dev/tests can call the endpoint.
+    const placeholder: TransactionInstruction = SystemProgram.transfer({
+      fromPubkey: vaultAuthorityKey,
+      toPubkey: followerKey,
+      lamports: BigInt(params.amount),
+    });
+
+    return {
+      instructionBase64: this.encodeInstruction(placeholder),
+      recentBlockhash: null,
+      vaultTokenAccount: vaultTokenAccount.toBase58(),
+      followerTokenAccount: followerTokenAccount.toBase58(),
+      amount: params.amount,
+    };
+  }
+
+  async readVaultTokenBalance(params: ReadVaultTokenBalanceParams): Promise<VaultTokenBalance> {
+    const vaultAuthority = this.toPubkey(params.vaultAuthorityPda, 'vaultAuthorityPda');
+    const mint = this.toPubkey(params.mint, 'mint');
+    const ata = deriveFollowerVaultAta(mint, vaultAuthority);
+    return {
+      vaultAuthorityPda: params.vaultAuthorityPda,
+      vaultTokenAccount: ata.toBase58(),
+      mint: params.mint,
+      rawAmount: '0',
+      uiAmount: 0,
+      decimals: 0,
+      exists: false,
     };
   }
 

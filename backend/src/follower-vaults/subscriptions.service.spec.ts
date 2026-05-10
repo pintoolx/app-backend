@@ -5,6 +5,7 @@ import {
   type StrategySubscriptionsRepository,
 } from './subscriptions.repository';
 import { type FollowerVaultRow, type FollowerVaultsRepository } from './follower-vaults.repository';
+import { type FollowerExecutionReceiptsRepository } from './follower-execution-receipts.repository';
 import {
   type FollowerVaultUmbraIdentityRow,
   type FollowerVaultUmbraIdentitiesRepository,
@@ -41,6 +42,9 @@ const subRow: StrategySubscriptionRow = {
   max_capital: '1000',
   allocation_mode: 'proportional',
   max_drawdown_bps: 1000,
+  risk_preset: null,
+  auto_rebalance_enabled: false,
+  initial_deposit_amount: null,
   per_member_ref: null,
   umbra_identity_ref: null,
   provisioning_state: 'db_inserted',
@@ -323,9 +327,14 @@ const buildService = (overrides?: {
     closeDeployment: jest.fn(),
   };
 
+  const receiptsRepo = {
+    listLatestForSubscription: jest.fn().mockResolvedValue([]),
+  } as unknown as jest.Mocked<FollowerExecutionReceiptsRepository>;
+
   const service = new SubscriptionsService(
     subRepo,
     vaultRepo,
+    receiptsRepo,
     identityRepo,
     grantsRepo,
     deploymentsRepo,

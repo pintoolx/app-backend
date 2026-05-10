@@ -1,3 +1,4 @@
+import { type EventEmitter2 } from '@nestjs/event-emitter';
 import { PrivateExecutionCyclesService } from './private-execution-cycles.service';
 import { FollowerVaultAllocationsService } from './follower-vault-allocations.service';
 import {
@@ -31,6 +32,9 @@ const sub = (id: string, follower: string, capital: string): StrategySubscriptio
   max_capital: capital,
   allocation_mode: 'proportional',
   max_drawdown_bps: null,
+  risk_preset: null,
+  auto_rebalance_enabled: false,
+  initial_deposit_amount: null,
   per_member_ref: null,
   umbra_identity_ref: null,
   provisioning_state: 'provisioning_complete',
@@ -163,6 +167,7 @@ describe('PrivateExecutionCyclesService', () => {
       vaultsRepo,
       deploymentsRepo,
       new FollowerVaultAllocationsService(),
+      { emit: jest.fn() } as unknown as EventEmitter2,
       perAdapter,
       noopStrategyOutputProvider,
     );
@@ -257,6 +262,7 @@ describe('PrivateExecutionCyclesService', () => {
         }),
       } as unknown as StrategyDeploymentsRepository,
       new FollowerVaultAllocationsService(),
+      { emit: jest.fn() } as unknown as EventEmitter2,
       idemPerAdapter,
       noopStrategyOutputProvider,
     );

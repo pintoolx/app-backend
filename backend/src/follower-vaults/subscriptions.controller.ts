@@ -8,9 +8,13 @@ import {
   Post,
   Query,
   Req,
+  Sse,
   UseGuards,
+  type MessageEvent,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Request } from 'express';
+import { filter, fromEvent, map, type Observable } from 'rxjs';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -35,6 +39,7 @@ export class SubscriptionsController {
   constructor(
     private readonly subscriptionsService: SubscriptionsService,
     private readonly fundIntentSubmissionService: FundIntentSubmissionService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Post()
@@ -55,6 +60,10 @@ export class SubscriptionsController {
         maxCapital: dto.maxCapital,
         allocationMode: dto.allocationMode,
         maxDrawdownBps: dto.maxDrawdownBps,
+        riskPreset: dto.riskPreset,
+        autoRebalance: dto.autoRebalance,
+        depositAmount: dto.depositAmount,
+        depositMint: dto.depositMint,
       },
     );
     return { success: true, data };
@@ -70,6 +79,26 @@ export class SubscriptionsController {
   ) {
     const data = await this.subscriptionsService.listForDeployment(deploymentId, walletAddress);
     return { success: true, count: data.length, data };
+  }
+
+  @Get('quote')
+  @ApiOperation({
+    summary:
+      'Subscribe-modal pre-flight quote: returns deposit amount, fee breakdown, derived risk guardrail and pre-derived vault PDAs. Does not mutate any state.',
+  })
+  async getSubscribeQuote(
+    @Param('deploymentId') deploymentId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Query('amount') amount: string,
+    @Query('mint') mint: string,
+    @Query('riskPreset') riskPreset?: 'conservative' | 'moderate' | 'aggressive',
+  ) {
+    const data = await this.subscriptionsService.quoteSubscription(deploymentId, walletAddress, {
+      amount,
+      mint,
+      riskPreset,
+    });
+    return { success: true, data };
   }
 
   @Get(':subscriptionId')
@@ -249,6 +278,132 @@ export class SubscriptionsController {
       subscriptionId,
       walletAddress,
       { mint },
+    );
+    return { success: true, data };
+  }
+
+  @Get(':subscriptionId/withdraw-preview')
+  @ApiOperation({
+    summary:
+      'Dry-run for a partial withdraw. Returns expected remaining balance and a `willCloseVault` flag for the modal. Does not mutate any state.',
+  })
+  async withdrawPreview(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Query('mint') mint: string,
+    @Query('amount') amount: string,
+  ) {
+    const data = await this.subscriptionsService.previewWithdraw(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      { mint, amount },
+    );
+    return { success: true, data };
+  }
+
+  @Post(':subscriptionId/withdraw-intent')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Build an unsigned `withdraw_from_vault` instruction for the follower to sign. Allowed in active|paused|exiting; draining the vault while exiting auto-closes it on-chain.',
+  })
+  async withdrawIntent(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: { mint: string; amount: string },
+  ) {
+    const data = await this.subscriptionsService.buildWithdrawIntent(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      dto,
+    );
+    return { success: true, data };
+  }
+
+  @Get(':subscriptionId/balance')
+  @ApiOperation({
+    summary:
+      'Read the on-chain SPL balance held in the follower vault token account for `mint`. Public counterpart to /private-balance — the vault token account is fed by `fund_follower_vault` and drained by `withdraw_from_vault`.',
+  })
+  async vaultBalance(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Query('mint') mint: string,
+  ) {
+    const data = await this.subscriptionsService.getVaultBalance(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      { mint },
+    );
+    return { success: true, data };
+  }
+
+  @Sse(':subscriptionId/events')
+  @ApiOperation({
+    summary:
+      'SSE stream of execution-cycle events for this subscription. Each `applied` receipt emits one message; clients render notifications and tick the yield ticker live.',
+  })
+  events(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+  ): Observable<MessageEvent> {
+    return fromEvent(this.eventEmitter, 'private-execution-cycle.receipt').pipe(
+      map((payload) => payload as Record<string, unknown>),
+      filter(
+        (evt) =>
+          (evt.deploymentId as string | undefined) === deploymentId &&
+          (evt.subscriptionId as string | undefined) === subscriptionId,
+      ),
+      map((evt) => ({ type: 'cycle.applied', data: evt }) as MessageEvent),
+    );
+  }
+
+  @Get(':subscriptionId/pnl')
+  @ApiOperation({
+    summary:
+      'Per-subscription yield + APR + timeseries. Aggregates `applied` follower_execution_receipts. Returns zeros for early-life subscriptions.',
+  })
+  async pnl(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.subscriptionsService.getSubscriptionPnl(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      { limit: limit ? parseInt(limit, 10) : undefined },
+    );
+    return { success: true, data };
+  }
+
+  @Post(':subscriptionId/params')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Build an unsigned `adjust_subscription_params` transaction for the follower wallet to sign. expectedRevision must equal current on-chain params_revision; configCommitmentHex is a 64-char hex hash over the off-chain config blob.',
+  })
+  async adjustParams(
+    @Param('deploymentId') deploymentId: string,
+    @Param('subscriptionId') subscriptionId: string,
+    @CurrentUser('walletAddress') walletAddress: string,
+    @Body() dto: { expectedRevision: string; configCommitmentHex: string },
+  ) {
+    const data = await this.subscriptionsService.buildAdjustParams(
+      deploymentId,
+      subscriptionId,
+      walletAddress,
+      {
+        expectedRevision: dto.expectedRevision,
+        configCommitmentHex: dto.configCommitmentHex,
+      },
     );
     return { success: true, data };
   }

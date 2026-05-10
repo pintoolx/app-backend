@@ -6,6 +6,7 @@ import { StrategiesController } from './strategies.controller';
 import { StrategiesService } from './strategies.service';
 import { StrategiesRepository } from './strategies.repository';
 import { StrategyVersionsRepository } from './strategy-versions.repository';
+import { StrategyPurchasesRepository } from './strategy-purchases.repository';
 import { StrategyPermissionsService } from './strategy-permissions.service';
 import { StrategyPermissionGuard } from './guards/strategy-permission.guard';
 
@@ -16,6 +17,7 @@ import { StrategyPermissionGuard } from './guards/strategy-permission.guard';
     StrategiesService,
     StrategiesRepository,
     StrategyVersionsRepository,
+    StrategyPurchasesRepository,
     StrategyPermissionsService,
     StrategyPermissionGuard,
   ],
@@ -23,6 +25,7 @@ import { StrategyPermissionGuard } from './guards/strategy-permission.guard';
     StrategiesService,
     StrategiesRepository,
     StrategyVersionsRepository,
+    StrategyPurchasesRepository,
     StrategyPermissionsService,
     StrategyPermissionGuard,
   ],

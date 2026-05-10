@@ -1,5 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 
 const NUMERIC_STRING_RE = /^[0-9]+$/;
 
@@ -49,6 +59,40 @@ export class CreateSubscriptionDto {
   @Max(10000)
   @IsOptional()
   maxDrawdownBps?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Risk preset chosen via the Subscribe modal. Maps to a maxDrawdownBps default unless `maxDrawdownBps` is also set explicitly.',
+    enum: ['conservative', 'moderate', 'aggressive'],
+  })
+  @IsString()
+  @IsIn(['conservative', 'moderate', 'aggressive'])
+  @IsOptional()
+  riskPreset?: 'conservative' | 'moderate' | 'aggressive';
+
+  @ApiPropertyOptional({
+    description: 'Subscribe modal auto-rebalance toggle. Keeper-enforced off-chain.',
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  autoRebalance?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Raw deposit amount in smallest unit. When set together with `depositMint`, the response bundles a fund-intent instruction so the wallet can sign subscribe + fund in one round.',
+    example: '1000000',
+  })
+  @Matches(NUMERIC_STRING_RE, { message: 'depositAmount must be a non-negative integer string' })
+  @IsOptional()
+  depositAmount?: string;
+
+  @ApiPropertyOptional({
+    description: 'SPL mint to deposit. Required when `depositAmount` is set.',
+  })
+  @IsString()
+  @IsOptional()
+  depositMint?: string;
 }
 
 export class ShieldFundsDto {

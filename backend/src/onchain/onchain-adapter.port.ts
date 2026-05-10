@@ -184,6 +184,51 @@ export interface BuildFundIntentInstructionParams {
   fromWallet: string;
 }
 
+export interface ReadVaultTokenBalanceParams {
+  vaultAuthorityPda: string;
+  mint: string;
+}
+
+export interface BuildAdjustSubscriptionParamsInstructionParams {
+  subscriptionPda: string;
+  followerWallet: string;
+  expectedRevision: string;
+  /** 32-byte hex commitment over the off-chain subscriber-level config blob. */
+  newConfigCommitmentHex: string;
+}
+
+export interface BuildWithdrawInstructionParams {
+  subscriptionPda: string;
+  followerVaultPda: string;
+  vaultAuthorityPda: string;
+  followerWallet: string;
+  mint: string;
+  /** Raw amount in smallest-unit (string → u64). */
+  amount: string;
+}
+
+export interface WithdrawInstruction {
+  /** Base64-encoded serialized TransactionInstruction for the follower to sign. */
+  instructionBase64: string;
+  recentBlockhash: string | null;
+  vaultTokenAccount: string;
+  /** Follower's ATA for the mint — destination of the withdrawal. */
+  followerTokenAccount: string;
+  amount: string;
+}
+
+export interface VaultTokenBalance {
+  vaultAuthorityPda: string;
+  vaultTokenAccount: string | null;
+  mint: string;
+  /** Raw amount in smallest-unit (stringified u64) — `"0"` if account doesn't exist. */
+  rawAmount: string;
+  uiAmount: number;
+  decimals: number;
+  /** True if the ATA exists on-chain right now. */
+  exists: boolean;
+}
+
 export interface FundIntentInstruction {
   /** Base64-encoded serialized TransactionInstruction. */
   instructionBase64: string;
@@ -193,6 +238,14 @@ export interface FundIntentInstruction {
   vaultAuthorityPda: string;
   mint: string;
   amount: string;
+  /**
+   * Associated token account owned by `vaultAuthorityPda` for `mint`. This
+   * is the destination the on-chain `fund_follower_vault` instruction
+   * deposits into and the source `withdraw_from_vault` pulls from.
+   * `null` if mint is the SOL pseudo-mint (transfers go to the PDA's
+   * lamport balance directly).
+   */
+  vaultTokenAccount: string | null;
 }
 
 export interface OnchainAdapterPort {
@@ -228,6 +281,11 @@ export interface OnchainAdapterPort {
   buildFundIntentInstruction(
     params: BuildFundIntentInstructionParams,
   ): Promise<FundIntentInstruction>;
+  readVaultTokenBalance(params: ReadVaultTokenBalanceParams): Promise<VaultTokenBalance>;
+  buildAdjustSubscriptionParamsInstruction(
+    params: BuildAdjustSubscriptionParamsInstructionParams,
+  ): Promise<FollowerOnchainInstructionResult>;
+  buildWithdrawInstruction(params: BuildWithdrawInstructionParams): Promise<WithdrawInstruction>;
 
   // Phase 4 — application-layer closure ------------------------------------
   collectFees(params: {

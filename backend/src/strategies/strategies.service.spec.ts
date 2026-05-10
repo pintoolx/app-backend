@@ -39,9 +39,24 @@ const baseRow: StrategyRow = {
   public_metadata: compiled.publicMetadata,
   compiled_ir: compiled,
   private_definition_ref: null,
+  purchase_price_amount: null,
+  purchase_payment_mint: null,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-02T00:00:00.000Z',
 };
+
+const buildPurchasesRepoMock = () =>
+  ({
+    insert: jest.fn(),
+    getByStrategyAndBuyer: jest.fn().mockResolvedValue(null),
+    listByBuyer: jest.fn().mockResolvedValue([]),
+    listOwnedStrategyIds: jest.fn().mockResolvedValue(new Set()),
+    txSignatureExists: jest.fn().mockResolvedValue(false),
+  }) as unknown as import('./strategy-purchases.repository').StrategyPurchasesRepository;
+
+const stubConfig = {
+  get: jest.fn().mockReturnValue(undefined),
+} as unknown as import('@nestjs/config').ConfigService;
 
 const buildVersionsRepoMock = () =>
   ({
@@ -65,7 +80,13 @@ describe('StrategiesService', () => {
       getStrategyById: jest.fn().mockResolvedValue(baseRow),
     } as unknown as StrategiesRepository;
 
-    const service = new StrategiesService(compiler, repository, buildVersionsRepoMock());
+    const service = new StrategiesService(
+      compiler,
+      repository,
+      buildVersionsRepoMock(),
+      buildPurchasesRepoMock(),
+      stubConfig,
+    );
     const result = await service.getPublicStrategy(baseRow.id);
     const resultJson = JSON.stringify(result);
 
@@ -85,7 +106,13 @@ describe('StrategiesService', () => {
       getStrategyForCreator: jest.fn().mockResolvedValue(baseRow),
     } as unknown as StrategiesRepository;
 
-    const service = new StrategiesService(compiler, repository, buildVersionsRepoMock());
+    const service = new StrategiesService(
+      compiler,
+      repository,
+      buildVersionsRepoMock(),
+      buildPurchasesRepoMock(),
+      stubConfig,
+    );
     const result = await service.getStrategyForOwner(baseRow.id, baseRow.creator_wallet_address);
 
     expect(result.privateDefinition).toBeDefined();
@@ -100,7 +127,13 @@ describe('StrategiesService', () => {
       getStrategyForCreator: jest.fn().mockResolvedValue({ ...baseRow, compiled_ir: null }),
     } as unknown as StrategiesRepository;
 
-    const service = new StrategiesService(compiler, repository, buildVersionsRepoMock());
+    const service = new StrategiesService(
+      compiler,
+      repository,
+      buildVersionsRepoMock(),
+      buildPurchasesRepoMock(),
+      stubConfig,
+    );
     await expect(
       service.publishStrategy(baseRow.id, baseRow.creator_wallet_address),
     ).rejects.toThrow('Strategy compiled IR is missing');
@@ -114,7 +147,13 @@ describe('StrategiesService', () => {
     } as unknown as StrategiesRepository;
 
     const versionsRepo = buildVersionsRepoMock();
-    const service = new StrategiesService(compiler, repository, versionsRepo);
+    const service = new StrategiesService(
+      compiler,
+      repository,
+      versionsRepo,
+      buildPurchasesRepoMock(),
+      stubConfig,
+    );
 
     const result = await service.publishStrategy(baseRow.id, baseRow.creator_wallet_address);
 

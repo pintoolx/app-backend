@@ -20,6 +20,8 @@ export type SubscriptionProvisioningState =
   | 'provisioning_failed'
   | 'legacy_placeholder';
 
+export type RiskPreset = 'conservative' | 'moderate' | 'aggressive';
+
 export interface StrategySubscriptionRow {
   id: string;
   deployment_id: string;
@@ -32,6 +34,9 @@ export interface StrategySubscriptionRow {
   max_capital: string | null;
   allocation_mode: AllocationMode;
   max_drawdown_bps: number | null;
+  risk_preset: RiskPreset | null;
+  auto_rebalance_enabled: boolean;
+  initial_deposit_amount: string | null;
   per_member_ref: string | null;
   umbra_identity_ref: string | null;
   provisioning_state: SubscriptionProvisioningState;
@@ -55,6 +60,9 @@ export interface InsertSubscriptionInput {
   maxCapital?: string | null;
   allocationMode?: AllocationMode;
   maxDrawdownBps?: number | null;
+  riskPreset?: RiskPreset | null;
+  autoRebalanceEnabled?: boolean;
+  initialDepositAmount?: string | null;
   perMemberRef?: string | null;
   provisioningState?: SubscriptionProvisioningState;
   subscriptionPdaBump?: number | null;
@@ -93,6 +101,9 @@ const COLUMNS = [
   'max_capital',
   'allocation_mode',
   'max_drawdown_bps',
+  'risk_preset',
+  'auto_rebalance_enabled',
+  'initial_deposit_amount',
   'per_member_ref',
   'umbra_identity_ref',
   'provisioning_state',
@@ -122,6 +133,9 @@ export class StrategySubscriptionsRepository {
       max_capital: input.maxCapital ?? null,
       allocation_mode: input.allocationMode ?? 'proportional',
       max_drawdown_bps: input.maxDrawdownBps ?? null,
+      risk_preset: input.riskPreset ?? null,
+      auto_rebalance_enabled: input.autoRebalanceEnabled ?? false,
+      initial_deposit_amount: input.initialDepositAmount ?? null,
       per_member_ref: input.perMemberRef ?? null,
     };
     if (input.provisioningState !== undefined) {

@@ -33,6 +33,10 @@ import {
 } from './subscriptions.repository';
 import { FollowerVaultsRepository, type FollowerVaultRow } from './follower-vaults.repository';
 import {
+  FollowerExecutionReceiptsRepository,
+  type FollowerExecutionReceiptRow,
+} from './follower-execution-receipts.repository';
+import {
   FollowerVaultUmbraIdentitiesRepository,
   type FollowerVaultUmbraIdentityRow,
 } from './follower-vault-umbra-identities.repository';
@@ -44,6 +48,7 @@ import {
 } from './follower-visibility-grants.repository';
 import { FollowerVisibilityPolicyService } from './follower-visibility-policy.service';
 import { CreatorSubscriptionsService } from '../creator-subscriptions/creator-subscriptions.service';
+import { RISK_PRESETS, type RiskPreset } from './risk-presets';
 
 /** Phase-1: subscription PER auth token TTLs. */
 const SUBSCRIPTION_CHALLENGE_TTL_MS = 30 * 1000;
@@ -75,6 +80,9 @@ export interface FollowerSubscriptionView {
   allocationMode: string;
   maxCapital: string | null;
   maxDrawdownBps: number | null;
+  riskPreset: RiskPreset | null;
+  autoRebalance: boolean;
+  initialDepositAmount: string | null;
   subscriptionPda: string | null;
   followerVaultPda: string | null;
   vaultAuthorityPda: string | null;
@@ -93,6 +101,18 @@ export interface FollowerSubscriptionView {
   provisioningState: SubscriptionProvisioningState;
   provisioningError: string | null;
   lifecycleDrift: boolean;
+  /**
+   * Subscribe-modal one-shot helper. When the caller supplied
+   * `depositAmount`+`depositMint`, the service eagerly builds a fund-intent
+   * instruction so the wallet can sign subscribe + fund in one round.
+   */
+  fundIntentInstruction: {
+    instructionBase64: string;
+    recentBlockhash: string | null;
+    vaultTokenAccount: string | null;
+    mint: string;
+    amount: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +132,7 @@ export class SubscriptionsService {
   constructor(
     private readonly subscriptionsRepository: StrategySubscriptionsRepository,
     private readonly followerVaultsRepository: FollowerVaultsRepository,
+    private readonly receiptsRepository: FollowerExecutionReceiptsRepository,
     private readonly umbraIdentitiesRepository: FollowerVaultUmbraIdentitiesRepository,
     private readonly grantsRepository: FollowerVisibilityGrantsRepository,
     private readonly deploymentsRepository: StrategyDeploymentsRepository,
@@ -134,8 +155,19 @@ export class SubscriptionsService {
       maxCapital?: string;
       allocationMode?: 'proportional' | 'fixed' | 'mirror';
       maxDrawdownBps?: number;
+      riskPreset?: RiskPreset;
+      autoRebalance?: boolean;
+      depositAmount?: string;
+      depositMint?: string;
     },
   ): Promise<FollowerSubscriptionView> {
+    if (params.depositAmount && !params.depositMint) {
+      throw new BadRequestException('depositMint is required when depositAmount is set');
+    }
+    // Risk preset → maxDrawdownBps default. Explicit maxDrawdownBps wins.
+    const resolvedMaxDrawdownBps =
+      params.maxDrawdownBps ??
+      (params.riskPreset ? RISK_PRESETS[params.riskPreset].maxDrawdownBps : null);
     // Ensure the deployment exists; subscription does NOT require creator
     // ownership of the deployment — followers are by definition non-creators.
     const deployment = await this.deploymentsRepository.getById(deploymentId);
@@ -174,7 +206,10 @@ export class SubscriptionsService {
       visibilityPreset: params.visibilityPreset,
       maxCapital: params.maxCapital ?? null,
       allocationMode: params.allocationMode,
-      maxDrawdownBps: params.maxDrawdownBps ?? null,
+      maxDrawdownBps: resolvedMaxDrawdownBps,
+      riskPreset: params.riskPreset ?? null,
+      autoRebalanceEnabled: params.autoRebalance ?? false,
+      initialDepositAmount: params.depositAmount ?? null,
       provisioningState: 'db_inserted',
       subscriptionPdaBump: pdas.subscriptionPdaBump,
       followerVaultPdaBump: pdas.followerVaultPdaBump,
@@ -189,7 +224,42 @@ export class SubscriptionsService {
       authorityPda: pdas.vaultAuthorityPda,
     });
 
-    return this.runProvisioningStateMachine(subscription, followerVault, pdas, followerWallet);
+    const view = await this.runProvisioningStateMachine(
+      subscription,
+      followerVault,
+      pdas,
+      followerWallet,
+    );
+
+    // Subscribe-modal convenience: if the caller passed depositAmount/depositMint,
+    // bundle a fund-intent instruction in the same response so the wallet can
+    // sign one tx instead of round-tripping for /fund-intent. Best-effort —
+    // failures get logged but do not abort the subscribe call.
+    if (params.depositAmount && params.depositMint && view.vaultAuthorityPda) {
+      try {
+        const built = await this.onchainAdapter.buildFundIntentInstruction({
+          vaultAuthorityPda: view.vaultAuthorityPda,
+          mint: params.depositMint,
+          amount: params.depositAmount,
+          fromWallet: followerWallet,
+        });
+        view.fundIntentInstruction = {
+          instructionBase64: built.instructionBase64,
+          recentBlockhash: built.recentBlockhash,
+          vaultTokenAccount: built.vaultTokenAccount,
+          mint: params.depositMint,
+          amount: params.depositAmount,
+        };
+      } catch (err) {
+        this.logger.warn(
+          `createSubscription: failed to bundle fund-intent for sub=${view.id}: ${
+            err instanceof Error ? err.message : err
+          }`,
+        );
+      }
+    }
+
+    return view;
   }
 
   /**
@@ -378,6 +448,7 @@ export class SubscriptionsService {
       instructionBase64: string;
       recentBlockhash: string | null;
     } | null = null;
+    let vaultTokenAccount: string | null = null;
     try {
       const built = await this.onchainAdapter.buildFundIntentInstruction({
         vaultAuthorityPda: sub.vault_authority_pda,
@@ -389,6 +460,7 @@ export class SubscriptionsService {
         instructionBase64: built.instructionBase64,
         recentBlockhash: built.recentBlockhash,
       };
+      vaultTokenAccount = built.vaultTokenAccount;
     } catch (err) {
       this.logger.warn(
         `fundIntent: failed to build instruction for sub=${sub.id}: ${
@@ -400,6 +472,7 @@ export class SubscriptionsService {
       subscriptionId: sub.id,
       followerVaultPda: sub.follower_vault_pda,
       vaultAuthorityPda: sub.vault_authority_pda,
+      vaultTokenAccount,
       mint: params.mint,
       amount: params.amount,
       action: 'transfer-to-follower-vault',
@@ -451,6 +524,342 @@ export class SubscriptionsService {
       queueSignature: result.queueSignature,
       callbackSignature: result.callbackSignature,
       status: result.status,
+    };
+  }
+
+  /**
+   * Per-subscription yield + APR + timeseries. Built from the
+   * `follower_execution_receipts` table — each `applied` receipt is one
+   * point on the curve. Yield is taken from `payload.yield_usdc` when the
+   * cycle's strategy output included it; falls back to a delta of
+   * `allocation_amount` if not. APR is annualised from the most recent
+   * 7-day window. Empty/early-life subscriptions return zeros + an empty
+   * series so the UI doesn't have to special-case "no data yet".
+   */
+  async getSubscriptionPnl(
+    deploymentId: string,
+    subscriptionId: string,
+    walletAddress: string,
+    opts: { limit?: number } = {},
+  ) {
+    const sub = await this.assertOwnership(deploymentId, subscriptionId, walletAddress);
+    const limit = Math.max(10, Math.min(opts.limit ?? 100, 500));
+    const rows = await this.receiptsRepository.listLatestForSubscription(sub.id, limit);
+    const applied = rows
+      .filter((r) => r.status === 'applied')
+      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+
+    const points = applied.map((r) => {
+      const payload = (r.payload ?? {}) as Record<string, unknown>;
+      const yieldUsdcRaw = payload.yield_usdc ?? payload.yieldUsdc;
+      const yieldUsdc =
+        typeof yieldUsdcRaw === 'number'
+          ? yieldUsdcRaw
+          : typeof yieldUsdcRaw === 'string'
+            ? Number(yieldUsdcRaw)
+            : null;
+      const allocation = r.allocation_amount ? Number(r.allocation_amount) : null;
+      return {
+        t: r.created_at,
+        cycleId: r.cycle_id,
+        allocation,
+        yieldUsdc,
+        privateStateRevision: r.private_state_revision,
+      };
+    });
+
+    const totalYield = points.reduce<number>(
+      (acc, p) => acc + (typeof p.yieldUsdc === 'number' ? p.yieldUsdc : 0),
+      0,
+    );
+
+    // Simple APR estimate: annualise the last-7d total yield against the
+    // average allocation in that window. Returns null when we don't have
+    // enough recent data to project.
+    let apr: number | null = null;
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recent = points.filter((p) => Date.parse(p.t) >= sevenDaysAgo);
+    if (recent.length >= 2) {
+      const recentYield = recent.reduce<number>(
+        (acc, p) => acc + (typeof p.yieldUsdc === 'number' ? p.yieldUsdc : 0),
+        0,
+      );
+      const avgAllocation =
+        recent.reduce<number>((acc, p) => acc + (p.allocation ?? 0), 0) / recent.length;
+      if (avgAllocation > 0) {
+        apr = (recentYield / avgAllocation) * (365 / 7);
+      }
+    }
+
+    return {
+      subscriptionId: sub.id,
+      followerVaultPda: sub.follower_vault_pda,
+      totalYield,
+      apr,
+      cycleCount: applied.length,
+      points,
+    };
+  }
+
+  /**
+   * Build an unsigned `adjust_subscription_params` instruction for the
+   * subscriber to sign with their wallet. Returns the instruction encoded as
+   * base64 plus a recent blockhash hint. The on-chain handler bumps
+   * `params_revision` and writes `config_commitment`.
+   */
+  async buildAdjustParams(
+    deploymentId: string,
+    subscriptionId: string,
+    walletAddress: string,
+    params: { expectedRevision: string; configCommitmentHex: string },
+  ) {
+    const sub = await this.assertOwnership(deploymentId, subscriptionId, walletAddress);
+    if (!sub.subscription_pda) {
+      throw new BadRequestException('Subscription has no on-chain PDA — provisioning incomplete');
+    }
+    if (sub.status !== 'active' && sub.status !== 'paused') {
+      throw new BadRequestException(
+        `Subscription must be active or paused to adjust params (current: ${sub.status})`,
+      );
+    }
+    const built = await this.onchainAdapter.buildAdjustSubscriptionParamsInstruction({
+      subscriptionPda: sub.subscription_pda,
+      followerWallet: walletAddress,
+      expectedRevision: params.expectedRevision,
+      newConfigCommitmentHex: params.configCommitmentHex,
+    });
+    return {
+      subscriptionId: sub.id,
+      subscriptionPda: sub.subscription_pda,
+      expectedRevision: params.expectedRevision,
+      configCommitmentHex: params.configCommitmentHex,
+      signature: built.signature,
+      unsignedInstructionBase64: built.unsignedInstructionBase64,
+      recentBlockhash: built.recentBlockhash,
+      humanReadable:
+        'Sign and submit the unsigned instruction to apply new subscription params on-chain. params_revision will increment by 1.',
+    };
+  }
+
+  /**
+   * Subscribe-modal pre-flight: compute the fee + deposit summary the modal
+   * shows before the follower signs. Does not write any DB rows. Risk preset
+   * is echoed back along with its derived maxDrawdownBps so the modal can
+   * surface the guardrail.
+   */
+  async quoteSubscription(
+    deploymentId: string,
+    walletAddress: string,
+    params: { amount: string; mint: string; riskPreset?: RiskPreset },
+  ) {
+    let amount: bigint;
+    try {
+      amount = BigInt(params.amount);
+    } catch {
+      throw new BadRequestException('amount must be a non-negative integer string');
+    }
+    if (amount <= 0n) {
+      throw new BadRequestException('amount must be greater than zero');
+    }
+
+    // Pre-derive the vault authority PDA so the modal can show the address
+    // the user is about to fund. Same derivation as createSubscription so the
+    // preview matches.
+    const pdas = await this.onchainAdapter.deriveFollowerPdas({
+      deploymentId,
+      followerWallet: walletAddress,
+    });
+
+    // Phase-1 fee schedule: no platform/creator runtime fees on subscribe yet.
+    // Frontend renders the table; values stay at 0 until product decides
+    // otherwise. Network fee estimate is rough.
+    const platformFeeBps = 0;
+    const creatorFeeBps = 0;
+    const platformFee = (amount * BigInt(platformFeeBps)) / 10000n;
+    const creatorFee = (amount * BigInt(creatorFeeBps)) / 10000n;
+    const netDeposit = amount - platformFee - creatorFee;
+
+    const maxDrawdownBps = params.riskPreset
+      ? RISK_PRESETS[params.riskPreset].maxDrawdownBps
+      : null;
+
+    return {
+      depositAmount: amount.toString(),
+      mint: params.mint,
+      netDepositAfterFees: netDeposit.toString(),
+      fees: {
+        platformFeeBps,
+        platformFeeAmount: platformFee.toString(),
+        creatorFeeBps,
+        creatorFeeAmount: creatorFee.toString(),
+        estimatedNetworkFeeLamports: 5000,
+      },
+      vaultAuthorityPdaPreview: pdas.vaultAuthorityPda,
+      followerVaultPdaPreview: pdas.followerVaultPda,
+      subscriptionPdaPreview: pdas.subscriptionPda,
+      riskPreset: params.riskPreset ?? null,
+      maxDrawdownBps,
+    };
+  }
+
+  /**
+   * Dry-run preview for a partial withdraw. Reads the live vault balance and
+   * checks the requested amount fits, but does not mutate any state. Used by
+   * the portfolio "withdraw" modal so the user can see remaining balance and
+   * "this will close my vault" warnings before signing.
+   */
+  async previewWithdraw(
+    deploymentId: string,
+    subscriptionId: string,
+    walletAddress: string,
+    params: { mint: string; amount: string },
+  ) {
+    const sub = await this.assertOwnership(deploymentId, subscriptionId, walletAddress);
+    if (!sub.vault_authority_pda) {
+      throw new BadRequestException(
+        'Subscription has no vault_authority PDA — provisioning incomplete',
+      );
+    }
+    if (!['active', 'paused', 'exiting'].includes(sub.status)) {
+      throw new BadRequestException(
+        `Cannot withdraw in status ${sub.status} (must be active, paused, or exiting)`,
+      );
+    }
+    let requested: bigint;
+    try {
+      requested = BigInt(params.amount);
+    } catch {
+      throw new BadRequestException('amount must be a non-negative integer string');
+    }
+    if (requested <= 0n) {
+      throw new BadRequestException('amount must be greater than zero');
+    }
+    const balance = await this.onchainAdapter.readVaultTokenBalance({
+      vaultAuthorityPda: sub.vault_authority_pda,
+      mint: params.mint,
+    });
+    const available = BigInt(balance.rawAmount);
+    if (requested > available) {
+      throw new BadRequestException(
+        `Requested amount ${requested.toString()} exceeds vault balance ${available.toString()}`,
+      );
+    }
+    const remaining = available - requested;
+    const willCloseVault = remaining === 0n && sub.status === 'exiting';
+    return {
+      subscriptionId: sub.id,
+      followerVaultPda: sub.follower_vault_pda,
+      mint: params.mint,
+      requestedAmount: requested.toString(),
+      availableAmount: available.toString(),
+      remainingAmount: remaining.toString(),
+      decimals: balance.decimals,
+      willCloseVault,
+      // Rough order-of-magnitude estimate; real fee depends on signers + cu.
+      estimatedNetworkFeeLamports: 5000,
+    };
+  }
+
+  /**
+   * Build an unsigned `withdraw_from_vault` instruction for the follower to
+   * sign. Caller is the follower; the vault_authority PDA (held by the
+   * program) co-signs via CPI on-chain so no off-chain authority key is
+   * needed. Allowed in active/paused/exiting; draining the vault while in
+   * exiting transitions it to closed on-chain (no DB write here — keeper
+   * picks up via setFollowerVaultStatus mirroring).
+   */
+  async buildWithdrawIntent(
+    deploymentId: string,
+    subscriptionId: string,
+    walletAddress: string,
+    params: { mint: string; amount: string },
+  ) {
+    const sub = await this.assertOwnership(deploymentId, subscriptionId, walletAddress);
+    if (!sub.subscription_pda || !sub.follower_vault_pda || !sub.vault_authority_pda) {
+      throw new BadRequestException(
+        'Subscription is missing on-chain PDAs — provisioning incomplete; call /resume-provisioning first',
+      );
+    }
+    if (!['active', 'paused', 'exiting'].includes(sub.status)) {
+      throw new BadRequestException(
+        `Cannot withdraw in status ${sub.status} (must be active, paused, or exiting)`,
+      );
+    }
+    let requested: bigint;
+    try {
+      requested = BigInt(params.amount);
+    } catch {
+      throw new BadRequestException('amount must be a non-negative integer string');
+    }
+    if (requested <= 0n) {
+      throw new BadRequestException('amount must be greater than zero');
+    }
+
+    // Validate against live balance so the wallet doesn't sign a tx that's
+    // guaranteed to fail with InvalidInstructionData on-chain.
+    const balance = await this.onchainAdapter.readVaultTokenBalance({
+      vaultAuthorityPda: sub.vault_authority_pda,
+      mint: params.mint,
+    });
+    if (requested > BigInt(balance.rawAmount)) {
+      throw new BadRequestException(
+        `Requested amount ${requested.toString()} exceeds vault balance ${balance.rawAmount}`,
+      );
+    }
+
+    const built = await this.onchainAdapter.buildWithdrawInstruction({
+      subscriptionPda: sub.subscription_pda,
+      followerVaultPda: sub.follower_vault_pda,
+      vaultAuthorityPda: sub.vault_authority_pda,
+      followerWallet: walletAddress,
+      mint: params.mint,
+      amount: params.amount,
+    });
+
+    return {
+      subscriptionId: sub.id,
+      followerVaultPda: sub.follower_vault_pda,
+      vaultAuthorityPda: sub.vault_authority_pda,
+      vaultTokenAccount: built.vaultTokenAccount,
+      followerTokenAccount: built.followerTokenAccount,
+      mint: params.mint,
+      amount: params.amount,
+      action: 'withdraw-from-follower-vault',
+      humanReadable:
+        'Sign and submit the unsigned instruction to withdraw funds from your vault to your wallet.',
+      instruction: {
+        instructionBase64: built.instructionBase64,
+        recentBlockhash: built.recentBlockhash,
+      },
+    };
+  }
+
+  /**
+   * Public on-chain balance reader for the follower vault's SPL token
+   * account. Mirrors what `fund_follower_vault` deposits into and
+   * `withdraw_from_vault` pulls from. Distinct from `getPrivateBalance`,
+   * which decrypts the shielded Umbra balance.
+   */
+  async getVaultBalance(
+    deploymentId: string,
+    subscriptionId: string,
+    walletAddress: string,
+    params: { mint: string },
+  ) {
+    const sub = await this.assertOwnership(deploymentId, subscriptionId, walletAddress);
+    if (!sub.vault_authority_pda) {
+      throw new BadRequestException(
+        'Subscription has no vault_authority PDA — provisioning incomplete',
+      );
+    }
+    const balance = await this.onchainAdapter.readVaultTokenBalance({
+      vaultAuthorityPda: sub.vault_authority_pda,
+      mint: params.mint,
+    });
+    return {
+      subscriptionId: sub.id,
+      followerVaultPda: sub.follower_vault_pda,
+      ...balance,
     };
   }
 
@@ -954,6 +1363,9 @@ export class SubscriptionsService {
       allocationMode: sub.allocation_mode,
       maxCapital: sub.max_capital,
       maxDrawdownBps: sub.max_drawdown_bps,
+      riskPreset: sub.risk_preset,
+      autoRebalance: sub.auto_rebalance_enabled,
+      initialDepositAmount: sub.initial_deposit_amount,
       subscriptionPda: sub.subscription_pda,
       followerVaultPda: sub.follower_vault_pda,
       vaultAuthorityPda: sub.vault_authority_pda,
@@ -969,6 +1381,7 @@ export class SubscriptionsService {
       provisioningState: sub.provisioning_state,
       provisioningError: sub.provisioning_error,
       lifecycleDrift: sub.lifecycle_drift,
+      fundIntentInstruction: null,
       createdAt: sub.created_at,
       updatedAt: sub.updated_at,
     };

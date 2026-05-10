@@ -1,11 +1,13 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { BN } from '@coral-xyz/anchor';
 import { PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { AnchorClientService } from './anchor-client.service';
 import { KeeperKeypairService } from './keeper-keypair.service';
 import {
   type BuildCommitStateTransactionResult,
   type BuildFundIntentInstructionParams,
+  type BuildWithdrawInstructionParams,
   type CloseDeploymentParams,
   type CloseFollowerVaultParams,
   type ClosePublicSnapshotParams,
@@ -18,6 +20,7 @@ import {
   type FollowerOnchainInstructionResult,
   type FollowerPdaSet,
   type FollowerVaultLifecycleStatus,
+  type BuildAdjustSubscriptionParamsInstructionParams,
   type FundIntentInstruction,
   type InitializeDeploymentParams,
   type InitializeDeploymentResult,
@@ -26,13 +29,17 @@ import {
   type InitializeFollowerVaultParams,
   type OnchainAdapterPort,
   type OnchainCommitResult,
+  type ReadVaultTokenBalanceParams,
   type SetFollowerVaultStatusParams,
   type SetKeeperParams,
   type SetLifecycleStatusParams,
   type SetPublicSnapshotParams,
+  type VaultTokenBalance,
+  type WithdrawInstruction,
 } from './onchain-adapter.port';
 import {
   deriveDeploymentPda,
+  deriveFollowerVaultAta,
   deriveFollowerVaultAuthorityPda,
   deriveFollowerVaultPda,
   derivePublicSnapshotPda,
@@ -43,6 +50,9 @@ import {
   hexTo32ByteArray,
   uuidToBytes,
 } from './anchor/pda';
+
+/** Wrapped SOL pseudo-mint — used as a "no SPL token account, lamports only" sentinel. */
+const NATIVE_SOL_MINT = 'So11111111111111111111111111111111111111112';
 
 const FOLLOWER_LIFECYCLE_TO_CODE: Record<FollowerVaultLifecycleStatus, number> = {
   pending_funding: 0,
@@ -607,12 +617,150 @@ export class AnchorOnchainAdapterService implements OnchainAdapterPort {
         `buildFundIntentInstruction: blockhash fetch failed (${err instanceof Error ? err.message : err})`,
       );
     }
+    let vaultTokenAccount: string | null = null;
+    if (params.mint !== NATIVE_SOL_MINT) {
+      try {
+        vaultTokenAccount = deriveFollowerVaultAta(
+          new PublicKey(params.mint),
+          new PublicKey(params.vaultAuthorityPda),
+        ).toBase58();
+      } catch (err) {
+        this.logger.debug(
+          `buildFundIntentInstruction: ATA derivation failed (${err instanceof Error ? err.message : err})`,
+        );
+      }
+    }
     return {
       instructionBase64: this.encodeInstructionPayload(ix),
       recentBlockhash,
       vaultAuthorityPda: params.vaultAuthorityPda,
       mint: params.mint,
       amount: params.amount,
+      vaultTokenAccount,
+    };
+  }
+
+  async buildAdjustSubscriptionParamsInstruction(
+    params: BuildAdjustSubscriptionParamsInstructionParams,
+  ): Promise<FollowerOnchainInstructionResult> {
+    try {
+      const program = await this.anchorClient.getProgram();
+      const followerKey = new PublicKey(params.followerWallet);
+      const subscriptionKey = new PublicKey(params.subscriptionPda);
+      const expectedRevisionBn = new BN(params.expectedRevision);
+      const commitment = hexTo32ByteArray(params.newConfigCommitmentHex);
+      const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
+      const ix = await methods
+        .adjustSubscriptionParams(expectedRevisionBn, commitment)
+        .accountsPartial({
+          follower: followerKey,
+          subscription: subscriptionKey,
+        })
+        .instruction();
+      return await this.encodeUnsigned(ix as TransactionInstruction);
+    } catch (err) {
+      throw this.toInternalError('buildAdjustSubscriptionParamsInstruction', err);
+    }
+  }
+
+  async buildWithdrawInstruction(
+    params: BuildWithdrawInstructionParams,
+  ): Promise<WithdrawInstruction> {
+    try {
+      const program = await this.anchorClient.getProgram();
+      const followerKey = new PublicKey(params.followerWallet);
+      const subscriptionKey = new PublicKey(params.subscriptionPda);
+      const followerVaultKey = new PublicKey(params.followerVaultPda);
+      const vaultAuthorityKey = new PublicKey(params.vaultAuthorityPda);
+      const mintKey = new PublicKey(params.mint);
+
+      const vaultTokenAccount = deriveFollowerVaultAta(mintKey, vaultAuthorityKey);
+      const followerTokenAccount = getAssociatedTokenAddressSync(
+        mintKey,
+        followerKey,
+        /* allowOwnerOffCurve */ false,
+        TOKEN_PROGRAM_ID,
+      );
+
+      const amountBn = new BN(params.amount);
+      const methods = program.methods as unknown as Record<string, (...args: unknown[]) => any>;
+      const ix = await methods
+        .withdrawFromVault(amountBn)
+        .accountsPartial({
+          follower: followerKey,
+          subscription: subscriptionKey,
+          followerVault: followerVaultKey,
+          vaultAuthority: vaultAuthorityKey,
+          mint: mintKey,
+          vaultTokenAccount,
+          followerTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .instruction();
+
+      let recentBlockhash: string | null = null;
+      try {
+        const provider = await this.anchorClient.getProvider();
+        const latest = await provider.connection.getLatestBlockhash('confirmed');
+        recentBlockhash = latest.blockhash;
+      } catch (err) {
+        this.logger.debug(
+          `buildWithdrawInstruction: blockhash fetch failed (${err instanceof Error ? err.message : err})`,
+        );
+      }
+
+      return {
+        instructionBase64: this.encodeInstructionPayload(ix as TransactionInstruction),
+        recentBlockhash,
+        vaultTokenAccount: vaultTokenAccount.toBase58(),
+        followerTokenAccount: followerTokenAccount.toBase58(),
+        amount: params.amount,
+      };
+    } catch (err) {
+      throw this.toInternalError('buildWithdrawInstruction', err);
+    }
+  }
+
+  async readVaultTokenBalance(params: ReadVaultTokenBalanceParams): Promise<VaultTokenBalance> {
+    const vaultAuthority = new PublicKey(params.vaultAuthorityPda);
+    const mint = new PublicKey(params.mint);
+    const ata = deriveFollowerVaultAta(mint, vaultAuthority);
+    const provider = await this.anchorClient.getProvider();
+    let rawAmount = '0';
+    let uiAmount = 0;
+    let decimals = 0;
+    let exists = false;
+    try {
+      const info = await provider.connection.getTokenAccountBalance(ata, 'confirmed');
+      rawAmount = info.value.amount;
+      uiAmount = info.value.uiAmount ?? 0;
+      decimals = info.value.decimals;
+      exists = true;
+    } catch (err) {
+      // Account may not exist yet — that's a valid empty balance, not an error.
+      this.logger.debug(
+        `readVaultTokenBalance: ATA ${ata.toBase58()} not yet funded (${
+          err instanceof Error ? err.message : err
+        })`,
+      );
+      // Best-effort decimals lookup so the UI can still format zero balances.
+      try {
+        const mintInfo = await provider.connection.getParsedAccountInfo(mint, 'confirmed');
+        const parsed = (mintInfo.value?.data as { parsed?: { info?: { decimals?: number } } })
+          ?.parsed?.info?.decimals;
+        if (typeof parsed === 'number') decimals = parsed;
+      } catch {
+        // fall through with decimals = 0
+      }
+    }
+    return {
+      vaultAuthorityPda: params.vaultAuthorityPda,
+      vaultTokenAccount: ata.toBase58(),
+      mint: params.mint,
+      rawAmount,
+      uiAmount,
+      decimals,
+      exists,
     };
   }
 

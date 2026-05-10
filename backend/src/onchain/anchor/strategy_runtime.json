@@ -8,6 +8,48 @@
   },
   "instructions": [
     {
+      "name": "adjust_subscription_params",
+      "docs": [
+        "Phase 2 — subscriber updates their per-subscription configuration",
+        "commitment. `expected_revision` must equal current `params_revision`."
+      ],
+      "discriminator": [
+        141,
+        82,
+        12,
+        46,
+        193,
+        159,
+        174,
+        201
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "signer": true
+        },
+        {
+          "name": "subscription",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_revision",
+          "type": "u64"
+        },
+        {
+          "name": "new_config_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "close_deployment",
       "docs": [
         "Phase 1 — close a stopped deployment, returning rent to the creator.",
@@ -625,6 +667,223 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "fund_follower_vault",
+      "docs": [
+        "Phase 2 — subscriber deposits SPL tokens into the follower-vault token",
+        "account. First successful deposit transitions PendingFunding -> Active."
+      ],
+      "discriminator": [
+        9,
+        116,
+        87,
+        119,
+        205,
+        28,
+        153,
+        242
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "subscription",
+          "writable": true
+        },
+        {
+          "name": "follower_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  108,
+                  108,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "subscription"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  108,
+                  108,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "follower_vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "follower_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault_token_account",
+          "docs": [
+            "ATA owned by `vault_authority`. Created on first deposit."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault_authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "initialize_deployment",
@@ -1406,6 +1665,127 @@
           }
         }
       ]
+    },
+    {
+      "name": "withdraw_from_vault",
+      "docs": [
+        "Phase 2 — subscriber withdraws SPL tokens from the follower-vault",
+        "token account. Allowed in Active|Paused|Exiting; draining while",
+        "Exiting transitions to Closed."
+      ],
+      "discriminator": [
+        180,
+        34,
+        37,
+        46,
+        156,
+        0,
+        211,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "follower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "subscription",
+          "writable": true
+        },
+        {
+          "name": "follower_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  108,
+                  108,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "subscription"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  108,
+                  108,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "follower_vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault_token_account",
+          "writable": true
+        },
+        {
+          "name": "follower_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1961,11 +2341,33 @@
             "type": "u8"
           },
           {
+            "name": "config_commitment",
+            "docs": [
+              "Hash over the off-chain subscriber-level configuration (position size,",
+              "risk band, etc.). Updated via `adjust_subscription_params`. All-zero",
+              "= unset."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "params_revision",
+            "docs": [
+              "Monotonic counter for `config_commitment` updates. Used as",
+              "`expected_revision` for replay protection on adjust."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "_reserved",
             "type": {
               "array": [
                 "u8",
-                64
+                24
               ]
             }
           }
@@ -2082,7 +2484,14 @@
           {
             "name": "custody_mode",
             "docs": [
-              "0=public_self_custody, 1=program_owned, 2=private_payments_relay"
+              "0=public_self_custody, 1=program_owned, 2=private_payments_relay",
+              "",
+              "⚠️ Asymmetric encoding — this byte mapping is **not** the same as",
+              "[`super::FollowerVaultCustodyMode`] (which uses 0=program_owned,",
+              "1=self_custody, 2=private_payments_relay). Off-chain decoders must",
+              "keep two separate codecs and never share one. See",
+              "`backend/src/onchain/anchor-onchain-adapter.service.ts` and",
+              "`2026-05-08-strategy-runtime-spec.md` for the documented split."
             ],
             "type": "u8"
           },
