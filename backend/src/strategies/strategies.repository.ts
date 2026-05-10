@@ -26,9 +26,8 @@ export interface StrategyRow {
   public_metadata: StrategyPublicMetadata | Record<string, unknown>;
   compiled_ir: CompiledStrategyIR | null;
   private_definition_ref: string | null;
-  /** Optional one-time buyout price in smallest unit. NULL = not for sale. */
+  /** Optional one-time buyout price in lamports. NULL = not for sale. */
   purchase_price_amount: string | null;
-  purchase_payment_mint: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,11 +63,10 @@ export interface UpdateStrategyInput {
   privateDefinitionRef?: string | null;
   currentVersion?: number;
   purchasePriceAmount?: string | null;
-  purchasePaymentMint?: string | null;
 }
 
 const STRATEGY_COLUMNS =
-  'id, creator_wallet_address, source_workflow_id, name, description, visibility_mode, lifecycle_state, current_version, public_metadata, compiled_ir, private_definition_ref, purchase_price_amount, purchase_payment_mint, created_at, updated_at';
+  'id, creator_wallet_address, source_workflow_id, name, description, visibility_mode, lifecycle_state, current_version, public_metadata, compiled_ir, private_definition_ref, purchase_price_amount, created_at, updated_at';
 
 @Injectable()
 export class StrategiesRepository {
@@ -255,8 +253,6 @@ export class StrategiesRepository {
     if (input.currentVersion !== undefined) updates.current_version = input.currentVersion;
     if (input.purchasePriceAmount !== undefined)
       updates.purchase_price_amount = input.purchasePriceAmount;
-    if (input.purchasePaymentMint !== undefined)
-      updates.purchase_payment_mint = input.purchasePaymentMint;
 
     const { data, error } = await this.supabaseService.client
       .from('strategies')

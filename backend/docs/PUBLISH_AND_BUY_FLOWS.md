@@ -10,11 +10,13 @@
 | Flow | 場景 | On-chain 步驟 | 誰簽 |
 |---|---|---|---|
 | **A. Creator publish + deploy** | Creator 把 strategy 上 marketplace + 真正開戶上鏈 | `initialize_deployment` 等 4 個 PDA | **後端 keeper** |
-| **B. Creator-level 月費訂閱** | Subscriber 付月費解鎖該 creator **全部** strategies | USDC `transferChecked` | **Subscriber wallet** |
-| **C. Per-strategy 一次性買斷** | Subscriber 買單一 strategy（永久解鎖那一支）| USDC `transferChecked` | **Buyer wallet** |
-| **D. 跟單入金訂閱** | Subscriber 真的丟錢進 vault 跟著 strategy 操作 | 多步混合：開戶 + 入金 + shield | **Keeper + Follower wallet 混合** |
+| **B. Creator-level 月費訂閱** | Subscriber 付月費解鎖該 creator **全部** strategies | 原生 SOL `SystemProgram.transfer`（lamports） | **Subscriber wallet** |
+| **C. Per-strategy 一次性買斷** | Subscriber 買單一 strategy（永久解鎖那一支）| 原生 SOL `SystemProgram.transfer`（lamports） | **Buyer wallet** |
+| **D. 跟單入金訂閱** | Subscriber 真的丟錢進 vault 跟著 strategy 操作 | 多步混合：開戶 + 入金（任意 SPL）+ shield | **Keeper + Follower wallet 混合** |
 
-> 沒有任何 endpoint 會「強迫前端錢包簽 strategy_runtime program 指令」——所有 strategy_runtime 上鏈動作都是後端 keeper 代簽。前端錢包**只簽 USDC SPL transfer**（B/C/D-fund）。
+> 沒有任何 endpoint 會「強迫前端錢包簽 strategy_runtime program 指令」——所有 strategy_runtime 上鏈動作都是後端 keeper 代簽。前端錢包：B/C 簽**原生 SOL transfer**；D fund 簽**SPL transfer 進 vault**。
+>
+> **重要**：所有金額欄位（`monthlyPriceAmount`、`priceAmount`、`amount`）都是 **lamports**（1 SOL = 1_000_000_000）。前端顯示時記得除 1e9。
 
 ---
 
@@ -75,14 +77,14 @@ Content-Type: application/json
 
 ## 2. Flow B — Creator-level 月費訂閱
 
-> 一次訂閱解鎖該 creator **所有** published strategies。月費 USDC，30 天到期需重訂。
+> 一次訂閱解鎖該 creator **所有** published strategies。月費**原生 SOL**，30 天到期需重訂。
 
 ### Pre-req（creator 端先設好）
 ```http
 PATCH /creator-subscriptions/plan
 Authorization: Bearer <creator_jwt>
 
-{ "monthlyPriceAmount": "10000000",    // 10 USDC (6 decimals)
+{ "monthlyPriceAmount": "100000000",   // 0.1 SOL (lamports)
   "payoutWallet": "<creator_payout_wallet>",
   "metadata": {} }
 ```
@@ -90,7 +92,7 @@ Authorization: Bearer <creator_jwt>
 ### Sequence
 ```
 [subscriber] ─▶ POST /creator-subscriptions/creators/:wallet/intent     (DB + 組 unsigned tx)
-            ─▶ wallet.signAndSendTransaction(tx)                         (✅ 錢包簽 USDC transfer)
+            ─▶ wallet.signAndSendTransaction(tx)                         (✅ 錢包簽原生 SOL transfer)
             ─▶ POST /creator-subscriptions/creators/:wallet/confirm-payment  (後端 RPC verify)
 ```
 
@@ -104,23 +106,19 @@ Authorization: Bearer <subscriber_jwt>
 {
   "success": true,
   "data": {
-    "subscription": { "id": "...", "status": "payment_required", ... },
+    "subscription": { "id": "...", "status": "payment_required", "planPriceAmount": "100000000", ... },
     "paymentIntent": {
+      "subscriptionId": "...",
       "creatorWallet": "...",
       "subscriberWallet": "...",
-      "paymentMint": "<USDC_MINT>",
-      "amount": "10000000",
+      "amount": "100000000",
       "payoutWallet": "...",
       "billingPeriodDays": 30,
       "onchainPayment": {
-        "transactionBase64": "<base64-encoded unsigned Tx>",
+        "transactionBase64": "<base64-encoded unsigned SystemProgram.transfer Tx>",
         "recentBlockhash": "...",
         "lastValidBlockHeight": 12345,
-        "feePayer": "<subscriber_wallet>",
-        "sourceTokenAccount": "<subscriber_USDC_ATA>",
-        "destinationTokenAccount": "<creator_payout_USDC_ATA>",
-        "requiredSigners": ["<subscriber_wallet>"],
-        "instructionCount": 2
+        "feePayer": "<subscriber_wallet>"
       }
     }
   }
@@ -151,7 +149,7 @@ Authorization: Bearer <subscriber_jwt>
 
 ## 3. Flow C — Per-strategy 一次性買斷
 
-> 跟 Flow B 同一個 USDC transfer pattern，但解鎖**單一 strategy**（永久，不到期）。
+> 跟 Flow B 同一個 SOL transfer pattern，但解鎖**單一 strategy**（永久，不到期）。
 > 與月費**併存**——有任一即可看 private definition。
 
 ### Pre-req（creator 端標價）
@@ -159,16 +157,15 @@ Authorization: Bearer <subscriber_jwt>
 PATCH /strategies/:id/purchase-price
 Authorization: Bearer <creator_jwt>
 
-{ "priceAmount": "50000000",          // 50 USDC
-  "paymentMint": "<USDC_MINT>" }
-// 傳 { "priceAmount": null, "paymentMint": null } 下架
+{ "priceAmount": "500000000" }        // 0.5 SOL (lamports)
+// 傳 { "priceAmount": null } 下架
 ```
 
 ### Sequence
 ```
 [buyer] ─▶ GET /strategies/:id/purchase-quote     (純 DB，公開可拿)
        ─▶ POST /strategies/:id/purchase-intent    (DB + 組 unsigned tx)
-       ─▶ wallet.signAndSendTransaction(tx)        (✅ 錢包簽 USDC transfer)
+       ─▶ wallet.signAndSendTransaction(tx)        (✅ 錢包簽原生 SOL transfer)
        ─▶ POST /strategies/:id/purchase-confirm   (後端 RPC verify + 寫入)
 ```
 
@@ -181,8 +178,7 @@ GET /strategies/:id/purchase-quote?wallet=<buyer_wallet>
 {
   "data": {
     "strategyId": "...",
-    "priceAmount": "50000000",
-    "paymentMint": "<USDC_MINT>",
+    "priceAmount": "500000000",
     "payoutWallet": "<creator_payout_wallet>",
     "alreadyOwned": false
   }
@@ -199,16 +195,13 @@ Authorization: Bearer <buyer_jwt>
 {
   "data": {
     "strategyId": "...",
-    "priceAmount": "50000000",
-    "paymentMint": "<USDC_MINT>",
+    "priceAmount": "500000000",
     "payoutWallet": "<payout>",
     "onchainPayment": {
-      "transactionBase64": "<base64>",
+      "transactionBase64": "<base64-encoded unsigned SystemProgram.transfer Tx>",
       "recentBlockhash": "...",
       "lastValidBlockHeight": 12345,
-      "feePayer": "<buyer_wallet>",
-      "sourceTokenAccount": "<buyer_USDC_ATA>",
-      "destinationTokenAccount": "<payout_USDC_ATA>"
+      "feePayer": "<buyer_wallet>"
     }
   }
 }

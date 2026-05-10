@@ -12,7 +12,6 @@ export type CreatorSubscriptionStatus = 'payment_required' | 'active' | 'cancell
 export interface CreatorSubscriptionPlanRow {
   creator_wallet: string;
   monthly_price_amount: string;
-  payment_mint: string;
   payout_wallet: string;
   is_active: boolean;
   /** Operator-curated trust badge — true = verified creator. */
@@ -29,7 +28,6 @@ export interface CreatorSubscriptionRow {
   creator_wallet: string;
   subscriber_wallet: string;
   status: CreatorSubscriptionStatus;
-  payment_mint: string;
   plan_price_amount: string;
   current_period_start: string | null;
   current_period_end: string | null;
@@ -45,7 +43,6 @@ export interface CreatorSubscriptionPaymentRow {
   creator_wallet: string;
   subscriber_wallet: string;
   tx_signature: string;
-  payment_mint: string;
   amount: string;
   status: 'confirmed' | 'rejected';
   period_start: string;
@@ -55,11 +52,11 @@ export interface CreatorSubscriptionPaymentRow {
 }
 
 const PLAN_COLUMNS =
-  'creator_wallet, monthly_price_amount, payment_mint, payout_wallet, is_active, verified, display_name, metadata, created_at, updated_at';
+  'creator_wallet, monthly_price_amount, payout_wallet, is_active, verified, display_name, metadata, created_at, updated_at';
 const SUBSCRIPTION_COLUMNS =
-  'id, creator_wallet, subscriber_wallet, status, payment_mint, plan_price_amount, current_period_start, current_period_end, cancel_at_period_end, metadata, created_at, updated_at';
+  'id, creator_wallet, subscriber_wallet, status, plan_price_amount, current_period_start, current_period_end, cancel_at_period_end, metadata, created_at, updated_at';
 const PAYMENT_COLUMNS =
-  'id, subscription_id, creator_wallet, subscriber_wallet, tx_signature, payment_mint, amount, status, period_start, period_end, verification_payload, created_at';
+  'id, subscription_id, creator_wallet, subscriber_wallet, tx_signature, amount, status, period_start, period_end, verification_payload, created_at';
 
 @Injectable()
 export class CreatorSubscriptionsRepository {
@@ -70,7 +67,6 @@ export class CreatorSubscriptionsRepository {
   async upsertPlan(input: {
     creatorWallet: string;
     monthlyPriceAmount: string;
-    paymentMint: string;
     payoutWallet: string;
     metadata: Record<string, unknown>;
   }): Promise<CreatorSubscriptionPlanRow> {
@@ -80,7 +76,6 @@ export class CreatorSubscriptionsRepository {
         {
           creator_wallet: input.creatorWallet,
           monthly_price_amount: input.monthlyPriceAmount,
-          payment_mint: input.paymentMint,
           payout_wallet: input.payoutWallet,
           is_active: true,
           metadata: input.metadata,
@@ -117,7 +112,6 @@ export class CreatorSubscriptionsRepository {
   async upsertPaymentRequiredSubscription(input: {
     creatorWallet: string;
     subscriberWallet: string;
-    paymentMint: string;
     planPriceAmount: string;
   }): Promise<CreatorSubscriptionRow> {
     const { data, error } = await this.supabaseService.client
@@ -127,7 +121,6 @@ export class CreatorSubscriptionsRepository {
           creator_wallet: input.creatorWallet,
           subscriber_wallet: input.subscriberWallet,
           status: 'payment_required',
-          payment_mint: input.paymentMint,
           plan_price_amount: input.planPriceAmount,
           cancel_at_period_end: false,
           updated_at: new Date().toISOString(),
@@ -289,7 +282,6 @@ export class CreatorSubscriptionsRepository {
     creatorWallet: string;
     subscriberWallet: string;
     txSignature: string;
-    paymentMint: string;
     amount: string;
     periodStart: string;
     periodEnd: string;
@@ -302,7 +294,6 @@ export class CreatorSubscriptionsRepository {
         creator_wallet: input.creatorWallet,
         subscriber_wallet: input.subscriberWallet,
         tx_signature: input.txSignature,
-        payment_mint: input.paymentMint,
         amount: input.amount,
         status: 'confirmed',
         period_start: input.periodStart,

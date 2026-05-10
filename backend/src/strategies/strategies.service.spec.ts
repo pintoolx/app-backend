@@ -40,7 +40,6 @@ const baseRow: StrategyRow = {
   compiled_ir: compiled,
   private_definition_ref: null,
   purchase_price_amount: null,
-  purchase_payment_mint: null,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-02T00:00:00.000Z',
 };

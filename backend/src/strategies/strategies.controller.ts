@@ -172,12 +172,12 @@ export class StrategiesController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Owner sets / unsets the one-time buyout price for the strategy. Pass both fields as null to take it off-sale.',
+      'Owner sets / unsets the one-time buyout price for the strategy (lamports, native SOL). Pass priceAmount as null to take it off-sale.',
   })
   async setPurchasePrice(
     @Param('id') id: string,
     @CurrentUser('walletAddress') walletAddress: string,
-    @Body() dto: { priceAmount: string | null; paymentMint: string | null },
+    @Body() dto: { priceAmount: string | null },
   ) {
     const data = await this.strategiesService.setPurchasePrice(id, walletAddress, dto);
     return { success: true, data };
@@ -186,7 +186,7 @@ export class StrategiesController {
   @Get(':id/purchase-quote')
   @ApiOperation({
     summary:
-      'Public buyout quote — price, payment mint, and creator payout wallet. No JWT required; if no Authorization header is present `alreadyOwned` is always false.',
+      'Public buyout quote — price (lamports, native SOL) and creator payout wallet. No JWT required; if no Authorization header is present `alreadyOwned` is always false.',
   })
   async getPurchaseQuote(@Param('id') id: string, @Query('wallet') wallet?: string) {
     const data = await this.strategiesService.getPurchaseQuote(id, wallet ?? null);

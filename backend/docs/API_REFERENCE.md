@@ -85,7 +85,7 @@
 | PATCH | `/strategies/:id` | JWT | 更新 strategy（owner-only） |
 | POST | `/strategies/:id/compile` | JWT | 重新 compile public + private IR |
 | POST | `/strategies/:id/publish` | JWT | 發佈到 marketplace |
-| PATCH | `/strategies/:id/purchase-price` | JWT | 上架/下架單買價（owner-only），body `{ priceAmount, paymentMint }`，傳 null 下架 |
+| PATCH | `/strategies/:id/purchase-price` | JWT | 上架/下架單買價（owner-only），body `{ priceAmount }`（lamports，原生 SOL），傳 null 下架 |
 | GET | `/strategies/:id/purchase-quote` | none | 買斷報價（公開） |
 | POST | `/strategies/:id/purchase-intent` | JWT | 組未簽 SPL transfer 給 buyer 簽 |
 | POST | `/strategies/:id/purchase-confirm` | JWT | 提交 `txSignature`，後端驗 mint+amount+payout 後寫入 |

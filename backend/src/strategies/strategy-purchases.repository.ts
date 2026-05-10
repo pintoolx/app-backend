@@ -6,7 +6,6 @@ export interface StrategyPurchaseRow {
   strategy_id: string;
   buyer_wallet: string;
   price_amount: string;
-  payment_mint: string;
   payment_tx_signature: string;
   payout_wallet: string;
   created_at: string;
@@ -16,13 +15,12 @@ export interface InsertStrategyPurchaseInput {
   strategyId: string;
   buyerWallet: string;
   priceAmount: string;
-  paymentMint: string;
   paymentTxSignature: string;
   payoutWallet: string;
 }
 
 const COLUMNS =
-  'id, strategy_id, buyer_wallet, price_amount, payment_mint, payment_tx_signature, payout_wallet, created_at';
+  'id, strategy_id, buyer_wallet, price_amount, payment_tx_signature, payout_wallet, created_at';
 
 @Injectable()
 export class StrategyPurchasesRepository {
@@ -37,7 +35,6 @@ export class StrategyPurchasesRepository {
         strategy_id: input.strategyId,
         buyer_wallet: input.buyerWallet,
         price_amount: input.priceAmount,
-        payment_mint: input.paymentMint,
         payment_tx_signature: input.paymentTxSignature,
         payout_wallet: input.payoutWallet,
       })

@@ -9,15 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import {
   Connection,
   PublicKey,
+  SystemProgram,
   Transaction,
   type ParsedInstruction,
   type ParsedTransactionWithMeta,
 } from '@solana/web3.js';
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  createTransferCheckedInstruction,
-  getAssociatedTokenAddressSync,
-} from '@solana/spl-token';
 import {
   StrategyCompilerService,
   type CompiledStrategyIR,
@@ -71,18 +67,18 @@ export interface MarketplaceStrategyView extends StrategyPublicView {
   creatorSubscriberCount: number;
   creatorVerified: boolean;
   creatorDisplayName: string | null;
+  /** Lamports for the creator's monthly subscription (native SOL). */
   creatorMonthlyPriceAmount: string | null;
-  creatorPaymentMint: string | null;
-  /** Per-strategy one-time buyout fields. `forSaleOneTime` derived from price ≠ NULL. */
+  /** Per-strategy one-time buyout fields. `forSaleOneTime` derived from price ≠ NULL.
+   *  Native SOL — `purchasePriceAmount` is in lamports. */
   forSaleOneTime: boolean;
   purchasePriceAmount: string | null;
-  purchasePaymentMint: string | null;
 }
 
 export interface StrategyPurchaseQuoteView {
   strategyId: string;
+  /** Lamports — 1 SOL = 1_000_000_000. Null = strategy not for one-time sale. */
   priceAmount: string | null;
-  paymentMint: string | null;
   payoutWallet: string | null;
   alreadyOwned: boolean;
 }
@@ -91,8 +87,8 @@ export interface StrategyPurchaseView {
   id: string;
   strategyId: string;
   buyerWallet: string;
+  /** Lamports paid at purchase time. */
   priceAmount: string;
-  paymentMint: string;
   payoutWallet: string;
   paymentTxSignature: string;
   createdAt: string;
@@ -179,7 +175,6 @@ export class StrategiesService {
             verified: boolean;
             display_name: string | null;
             monthly_price_amount: string;
-            payment_mint: string;
           }
         | undefined;
       return {
@@ -188,10 +183,8 @@ export class StrategiesService {
         creatorVerified: plan?.verified ?? false,
         creatorDisplayName: plan?.display_name ?? null,
         creatorMonthlyPriceAmount: plan?.monthly_price_amount ?? null,
-        creatorPaymentMint: plan?.payment_mint ?? null,
         forSaleOneTime: row.purchase_price_amount !== null,
         purchasePriceAmount: row.purchase_price_amount,
-        purchasePaymentMint: row.purchase_payment_mint,
       };
     });
     if (sort === 'trending') {
@@ -405,19 +398,14 @@ export class StrategiesService {
   // ---------------- Strategy buyout (one-time per-strategy purchase) ----------
 
   /**
-   * Owner sets or unsets a one-time buyout price. Pass `priceAmount: null`
-   * (with paymentMint also null) to take the strategy off-sale.
+   * Owner sets or unsets a one-time buyout price (in lamports).
+   * Pass `priceAmount: null` to take the strategy off-sale.
    */
   async setPurchasePrice(
     id: string,
     walletAddress: string,
-    params: { priceAmount: string | null; paymentMint: string | null },
+    params: { priceAmount: string | null },
   ): Promise<StrategyPublicView> {
-    if ((params.priceAmount === null) !== (params.paymentMint === null)) {
-      throw new BadRequestException(
-        'Both priceAmount and paymentMint must be provided together (or both null to unset)',
-      );
-    }
     if (params.priceAmount !== null) {
       try {
         if (BigInt(params.priceAmount) <= 0n) {
@@ -432,26 +420,24 @@ export class StrategiesService {
     await this.strategiesRepository.getStrategyForCreator(id, walletAddress);
     const updated = await this.strategiesRepository.updateStrategy(id, walletAddress, {
       purchasePriceAmount: params.priceAmount,
-      purchasePaymentMint: params.paymentMint,
     });
     return this.toPublicView(updated);
   }
 
   /**
-   * Public quote for the buyout modal. Returns the listed price + the
-   * creator's payout wallet (sourced from the creator subscription plan), and
-   * a hint whether the caller already owns the strategy.
+   * Public quote for the buyout modal. Returns the listed price (lamports) +
+   * the creator's payout wallet, and a hint whether the caller already owns
+   * the strategy.
    */
   async getPurchaseQuote(
     id: string,
     walletAddress: string | null,
   ): Promise<StrategyPurchaseQuoteView> {
     const row = await this.strategiesRepository.getStrategyById(id);
-    if (row.purchase_price_amount === null || row.purchase_payment_mint === null) {
+    if (row.purchase_price_amount === null) {
       return {
         strategyId: row.id,
         priceAmount: null,
-        paymentMint: null,
         payoutWallet: null,
         alreadyOwned: false,
       };
@@ -468,16 +454,15 @@ export class StrategiesService {
     return {
       strategyId: row.id,
       priceAmount: row.purchase_price_amount,
-      paymentMint: row.purchase_payment_mint,
       payoutWallet,
       alreadyOwned,
     };
   }
 
   /**
-   * Build an unsigned SPL transfer transaction the buyer signs to purchase
-   * the strategy. Uses the same idempotent-ATA pattern as creator subscription
-   * payments.
+   * Build an unsigned native-SOL transfer transaction the buyer signs to
+   * purchase the strategy. Single `SystemProgram.transfer` instruction; no
+   * SPL / ATA setup needed.
    */
   async buildPurchaseIntent(
     id: string,
@@ -485,19 +470,16 @@ export class StrategiesService {
   ): Promise<{
     strategyId: string;
     priceAmount: string;
-    paymentMint: string;
     payoutWallet: string;
     onchainPayment: {
       transactionBase64: string;
       recentBlockhash: string;
       lastValidBlockHeight: number;
       feePayer: string;
-      sourceTokenAccount: string;
-      destinationTokenAccount: string;
     };
   }> {
     const row = await this.strategiesRepository.getStrategyById(id);
-    if (row.purchase_price_amount === null || row.purchase_payment_mint === null) {
+    if (row.purchase_price_amount === null) {
       throw new BadRequestException('Strategy is not for sale');
     }
     if (row.creator_wallet_address === walletAddress) {
@@ -520,32 +502,19 @@ export class StrategiesService {
     const connection = new Connection(this.getRpcUrl(), 'confirmed');
     const buyer = new PublicKey(walletAddress);
     const payout = new PublicKey(payoutWallet);
-    const mint = new PublicKey(row.purchase_payment_mint);
-    const decimals = this.getPaymentMintDecimals();
-    const sourceTokenAccount = getAssociatedTokenAddressSync(mint, buyer);
-    const destinationTokenAccount = getAssociatedTokenAddressSync(mint, payout);
+    const lamports = BigInt(row.purchase_price_amount);
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
 
     const tx = new Transaction({ feePayer: buyer, recentBlockhash: blockhash }).add(
-      createAssociatedTokenAccountIdempotentInstruction(
-        buyer,
-        destinationTokenAccount,
-        payout,
-        mint,
-      ),
-      createTransferCheckedInstruction(
-        sourceTokenAccount,
-        mint,
-        destinationTokenAccount,
-        buyer,
-        BigInt(row.purchase_price_amount),
-        decimals,
-      ),
+      SystemProgram.transfer({
+        fromPubkey: buyer,
+        toPubkey: payout,
+        lamports,
+      }),
     );
     return {
       strategyId: row.id,
       priceAmount: row.purchase_price_amount,
-      paymentMint: row.purchase_payment_mint,
       payoutWallet,
       onchainPayment: {
         transactionBase64: tx
@@ -554,14 +523,12 @@ export class StrategiesService {
         recentBlockhash: blockhash,
         lastValidBlockHeight,
         feePayer: buyer.toBase58(),
-        sourceTokenAccount: sourceTokenAccount.toBase58(),
-        destinationTokenAccount: destinationTokenAccount.toBase58(),
       },
     };
   }
 
   /**
-   * Verify the on-chain SPL transfer matches the listed price/mint/payout
+   * Verify the on-chain native-SOL transfer matches the listed price/payout
    * and record the purchase. Idempotent via the UNIQUE
    * `strategy_purchases.payment_tx_signature` constraint — re-confirming with
    * the same signature returns 400 instead of double-charging access.
@@ -575,7 +542,7 @@ export class StrategiesService {
       throw new BadRequestException('txSignature is required');
     }
     const row = await this.strategiesRepository.getStrategyById(id);
-    if (row.purchase_price_amount === null || row.purchase_payment_mint === null) {
+    if (row.purchase_price_amount === null) {
       throw new BadRequestException('Strategy is not for sale');
     }
     const existing = await this.strategyPurchasesRepository.getByStrategyAndBuyer(
@@ -600,7 +567,6 @@ export class StrategiesService {
       txSignature,
       buyerWallet: walletAddress,
       payoutWallet,
-      paymentMint: row.purchase_payment_mint,
       amount: row.purchase_price_amount,
     });
 
@@ -608,7 +574,6 @@ export class StrategiesService {
       strategyId: row.id,
       buyerWallet: walletAddress,
       priceAmount: row.purchase_price_amount,
-      paymentMint: row.purchase_payment_mint,
       paymentTxSignature: txSignature,
       payoutWallet,
     });
@@ -630,17 +595,14 @@ export class StrategiesService {
   }
 
   /**
-   * Verify the on-chain SPL transfer mint/amount/destination match the
-   * expected buyout. Mirrors the verification used by
-   * CreatorSubscriptionsService — kept inline here because the buyout flow
-   * uses a different lookup key (strategy_purchases) and we want a tight
-   * audit log scoped to the purchase.
+   * Verify the on-chain native-SOL transfer matches the expected buyout.
+   * Looks for a `system::transfer` instruction with `lamports == amount` and
+   * `source` / `destination` matching buyer / payout wallets.
    */
   private async verifyPaymentTransaction(params: {
     txSignature: string;
     buyerWallet: string;
     payoutWallet: string;
-    paymentMint: string;
     amount: string;
   }): Promise<void> {
     const connection = new Connection(this.getRpcUrl(), 'confirmed');
@@ -654,77 +616,34 @@ export class StrategiesService {
     if (tx.meta?.err) {
       throw new BadRequestException('Payment transaction failed on-chain');
     }
-    const matched = this.findMatchingTokenTransfer(tx, params);
+    const matched = this.findMatchingSolTransfer(tx, params);
     if (!matched) {
       throw new BadRequestException(
-        'Payment transaction does not contain the required SPL transfer for this purchase',
+        'Payment transaction does not contain the required native SOL transfer for this purchase',
       );
-    }
-    const destinationOwner = await this.resolveTokenAccountOwner(
-      connection,
-      tx,
-      matched.destination,
-    );
-    if (destinationOwner !== params.payoutWallet) {
-      throw new BadRequestException('Payment recipient does not match creator payout wallet');
     }
   }
 
-  private findMatchingTokenTransfer(
+  private findMatchingSolTransfer(
     tx: ParsedTransactionWithMeta,
-    params: { buyerWallet: string; paymentMint: string; amount: string },
-  ): { authority: string; destination: string } | null {
+    params: { buyerWallet: string; payoutWallet: string; amount: string },
+  ): { source: string; destination: string } | null {
     const topLevel = tx.transaction.message.instructions;
     const inner = (tx.meta?.innerInstructions ?? []).flatMap((g) => g.instructions);
     for (const ix of [...topLevel, ...inner]) {
       if (!('parsed' in ix)) continue;
       const parsedIx = ix as ParsedInstruction;
-      if (parsedIx.program !== 'spl-token') continue;
+      if (parsedIx.program !== 'system') continue;
+      if (parsedIx.parsed?.type !== 'transfer') continue;
       const info = parsedIx.parsed?.info as Record<string, any> | undefined;
-      const type = parsedIx.parsed?.type;
-      const amount = info?.tokenAmount?.amount ?? info?.amount;
-      const authority = info?.authority ?? info?.multisigAuthority;
+      const lamports = info?.lamports;
       if (
-        (type === 'transfer' || type === 'transferChecked') &&
-        info?.mint === params.paymentMint &&
-        amount === params.amount &&
-        authority === params.buyerWallet &&
-        typeof info?.destination === 'string'
+        info?.source === params.buyerWallet &&
+        info?.destination === params.payoutWallet &&
+        String(lamports) === params.amount
       ) {
-        return { authority, destination: info.destination };
+        return { source: info.source, destination: info.destination };
       }
-    }
-    return null;
-  }
-
-  private async resolveTokenAccountOwner(
-    connection: Connection,
-    tx: ParsedTransactionWithMeta,
-    tokenAccount: string,
-  ): Promise<string | null> {
-    const idx = tx.transaction.message.accountKeys.findIndex(
-      (k) => k.pubkey.toBase58() === tokenAccount,
-    );
-    const balanceOwner = [
-      ...(tx.meta?.postTokenBalances ?? []),
-      ...(tx.meta?.preTokenBalances ?? []),
-    ].find((b) => b.accountIndex === idx && b.owner)?.owner;
-    if (balanceOwner) return balanceOwner;
-    try {
-      const account = await connection.getParsedAccountInfo(
-        new PublicKey(tokenAccount),
-        'confirmed',
-      );
-      const value = account.value?.data;
-      if (value && typeof value === 'object' && 'parsed' in value) {
-        return (value.parsed as any)?.info?.owner ?? null;
-      }
-    } catch (err) {
-      this.logger.warn(
-        `confirmPurchase: failed to resolve token account owner for ${tokenAccount}: ${
-          err instanceof Error ? err.message : err
-        }`,
-      );
     }
     return null;
   }
@@ -737,22 +656,12 @@ export class StrategiesService {
     return rpcUrl;
   }
 
-  private getPaymentMintDecimals(): number {
-    const raw = this.configService.get<string>('CREATOR_SUBSCRIPTION_USDC_DECIMALS') ?? '6';
-    const decimals = Number(raw);
-    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) {
-      throw new InternalServerErrorException('Invalid CREATOR_SUBSCRIPTION_USDC_DECIMALS env var');
-    }
-    return decimals;
-  }
-
   private toPurchaseView(row: StrategyPurchaseRow): StrategyPurchaseView {
     return {
       id: row.id,
       strategyId: row.strategy_id,
       buyerWallet: row.buyer_wallet,
       priceAmount: row.price_amount,
-      paymentMint: row.payment_mint,
       payoutWallet: row.payout_wallet,
       paymentTxSignature: row.payment_tx_signature,
       createdAt: row.created_at,
