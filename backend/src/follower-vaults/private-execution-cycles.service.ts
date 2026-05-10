@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { StrategyDeploymentsRepository } from '../strategy-deployments/strategy-deployments.repository';
 import {
   MAGICBLOCK_PER_ADAPTER,
@@ -53,6 +54,7 @@ export class PrivateExecutionCyclesService {
     private readonly followerVaultsRepository: FollowerVaultsRepository,
     private readonly deploymentsRepository: StrategyDeploymentsRepository,
     private readonly allocationsService: FollowerVaultAllocationsService,
+    private readonly eventEmitter: EventEmitter2,
     @Inject(MAGICBLOCK_PER_ADAPTER) private readonly perAdapter: MagicBlockPerAdapterPort,
     @Inject(PRIVATE_STRATEGY_OUTPUT_PROVIDER)
     private readonly strategyOutputProvider: PrivateStrategyOutputProvider,
@@ -235,6 +237,30 @@ export class PrivateExecutionCyclesService {
           strategyVersion,
           mode: strategyOutput ? 'strategy-output' : 'notional-fallback',
         },
+      });
+      // Fan out per-subscription events so SSE listeners can push live
+      // notifications without polling. Each receipt is one event keyed by
+      // subscription id; consumers filter on whatever scope they care about.
+      for (const receipt of receipts) {
+        this.eventEmitter.emit('private-execution-cycle.receipt', {
+          deploymentId,
+          subscriptionId: receipt.subscription_id,
+          cycleId: completed.id,
+          cycleStatus: completed.status,
+          receiptStatus: receipt.status,
+          allocationAmount: receipt.allocation_amount,
+          privateStateRevision: receipt.private_state_revision,
+          completedAt: completed.completed_at,
+          startedAt: completed.started_at,
+        });
+      }
+      this.eventEmitter.emit('private-execution-cycle.completed', {
+        deploymentId,
+        cycleId: completed.id,
+        cycleStatus: completed.status,
+        receiptCount: receipts.length,
+        appliedCount,
+        completedAt: completed.completed_at,
       });
       return { cycle: completed, receipts };
     } catch (err) {

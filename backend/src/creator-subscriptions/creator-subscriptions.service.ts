@@ -117,7 +117,10 @@ export class CreatorSubscriptionsService {
   async createIntent(
     creatorWallet: string,
     subscriberWallet: string,
-  ): Promise<{ subscription: CreatorSubscriptionView; paymentIntent: CreatorSubscriptionPaymentIntent }> {
+  ): Promise<{
+    subscription: CreatorSubscriptionView;
+    paymentIntent: CreatorSubscriptionPaymentIntent;
+  }> {
     if (creatorWallet === subscriberWallet) {
       throw new BadRequestException('Creators do not need to subscribe to themselves');
     }
@@ -196,6 +199,26 @@ export class CreatorSubscriptionsService {
     return rows.map((row) => this.toSubscriptionView(row));
   }
 
+  /** Bulk plan lookup for marketplace + creator-profile read paths. */
+  async listPlansByWallets(
+    creatorWallets: string[],
+  ): Promise<Map<string, CreatorSubscriptionPlanRow>> {
+    return this.repository.listPlansByWallets(creatorWallets);
+  }
+
+  /** Active-subscriber count per creator. */
+  async countActiveSubscribersByCreator(creatorWallets: string[]): Promise<Map<string, number>> {
+    return this.repository.countActiveSubscribersByCreator(creatorWallets);
+  }
+
+  /** Operator-only — toggle the verified trust badge on a creator's plan. */
+  async setVerifiedFlag(
+    creatorWallet: string,
+    verified: boolean,
+  ): Promise<CreatorSubscriptionPlanRow> {
+    return this.repository.setVerifiedFlag(creatorWallet, verified);
+  }
+
   async cancel(creatorWallet: string, subscriberWallet: string): Promise<CreatorSubscriptionView> {
     return this.toSubscriptionView(
       await this.repository.cancelSubscription(creatorWallet, subscriberWallet),
@@ -238,7 +261,9 @@ export class CreatorSubscriptionsService {
 
     const matchedTransfer = this.findMatchingTokenTransfer(tx, params);
     if (!matchedTransfer) {
-      throw new BadRequestException('Payment transaction does not contain the required USDC transfer');
+      throw new BadRequestException(
+        'Payment transaction does not contain the required USDC transfer',
+      );
     }
 
     const destinationOwner = await this.resolveTokenAccountOwner(
@@ -297,15 +322,19 @@ export class CreatorSubscriptionsService {
     const index = tx.transaction.message.accountKeys.findIndex(
       (key) => key.pubkey.toBase58() === tokenAccount,
     );
-    const balanceOwner = [...(tx.meta?.postTokenBalances ?? []), ...(tx.meta?.preTokenBalances ?? [])].find(
-      (balance) => balance.accountIndex === index && balance.owner,
-    )?.owner;
+    const balanceOwner = [
+      ...(tx.meta?.postTokenBalances ?? []),
+      ...(tx.meta?.preTokenBalances ?? []),
+    ].find((balance) => balance.accountIndex === index && balance.owner)?.owner;
     if (balanceOwner) {
       return balanceOwner;
     }
 
     try {
-      const account = await connection.getParsedAccountInfo(new PublicKey(tokenAccount), 'confirmed');
+      const account = await connection.getParsedAccountInfo(
+        new PublicKey(tokenAccount),
+        'confirmed',
+      );
       const value = account.value?.data;
       if (value && typeof value === 'object' && 'parsed' in value) {
         return (value.parsed as any)?.info?.owner ?? null;
@@ -425,7 +454,9 @@ export class CreatorSubscriptionsService {
   }
 
   private uniqueSignerPubkeys(keys: AccountMeta[]): string[] {
-    return Array.from(new Set(keys.filter((key) => key.isSigner).map((key) => key.pubkey.toBase58())));
+    return Array.from(
+      new Set(keys.filter((key) => key.isSigner).map((key) => key.pubkey.toBase58())),
+    );
   }
 
   private toPlanView(row: CreatorSubscriptionPlanRow): CreatorSubscriptionPlanView {

@@ -1,4 +1,9 @@
 import { PublicKey } from '@solana/web3.js';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
 
 export const STRATEGY_VERSION_SEED = Buffer.from('strategy_version');
 export const STRATEGY_DEPLOYMENT_SEED = Buffer.from('strategy_deployment');
@@ -128,4 +133,20 @@ export function hexTo32ByteArray(hex: string): number[] {
     throw new Error(`Expected 32-byte hex string, got: ${hex}`);
   }
   return Array.from(Buffer.from(trimmed, 'hex'));
+}
+
+/**
+ * Derive the ATA owned by a follower-vault authority PDA. This is the SPL
+ * token account that the on-chain `fund_follower_vault` /
+ * `withdraw_from_vault` instructions read/write. `allowOwnerOffCurve` is set
+ * because the authority is a PDA, not a regular wallet.
+ */
+export function deriveFollowerVaultAta(mint: PublicKey, vaultAuthorityPda: PublicKey): PublicKey {
+  return getAssociatedTokenAddressSync(
+    mint,
+    vaultAuthorityPda,
+    /* allowOwnerOffCurve */ true,
+    TOKEN_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  );
 }

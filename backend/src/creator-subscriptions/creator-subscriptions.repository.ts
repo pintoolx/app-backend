@@ -15,6 +15,10 @@ export interface CreatorSubscriptionPlanRow {
   payment_mint: string;
   payout_wallet: string;
   is_active: boolean;
+  /** Operator-curated trust badge — true = verified creator. */
+  verified: boolean;
+  /** Optional display name; null means UI should fall back to wallet shortform. */
+  display_name: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -51,7 +55,7 @@ export interface CreatorSubscriptionPaymentRow {
 }
 
 const PLAN_COLUMNS =
-  'creator_wallet, monthly_price_amount, payment_mint, payout_wallet, is_active, metadata, created_at, updated_at';
+  'creator_wallet, monthly_price_amount, payment_mint, payout_wallet, is_active, verified, display_name, metadata, created_at, updated_at';
 const SUBSCRIPTION_COLUMNS =
   'id, creator_wallet, subscriber_wallet, status, payment_mint, plan_price_amount, current_period_start, current_period_end, cancel_at_period_end, metadata, created_at, updated_at';
 const PAYMENT_COLUMNS =
@@ -178,6 +182,76 @@ export class CreatorSubscriptionsRepository {
     }
 
     return (data as CreatorSubscriptionRow | null) ?? null;
+  }
+
+  /**
+   * Bulk-fetch creator plans for a set of wallets. Returns a map keyed by
+   * creator_wallet so callers can hydrate marketplace listings in one trip.
+   * Missing creators are simply absent from the map.
+   */
+  async listPlansByWallets(
+    creatorWallets: string[],
+  ): Promise<Map<string, CreatorSubscriptionPlanRow>> {
+    if (creatorWallets.length === 0) return new Map();
+    const { data, error } = await this.supabaseService.client
+      .from('creator_subscription_plans')
+      .select(PLAN_COLUMNS)
+      .in('creator_wallet', creatorWallets);
+    if (error) {
+      this.logger.error('Failed to bulk-fetch creator plans', error);
+      throw new InternalServerErrorException('Failed to fetch creator plans');
+    }
+    const map = new Map<string, CreatorSubscriptionPlanRow>();
+    for (const row of (data ?? []) as CreatorSubscriptionPlanRow[]) {
+      map.set(row.creator_wallet, row);
+    }
+    return map;
+  }
+
+  /**
+   * Active-subscriber count per creator, for the supplied set. Filters on
+   * status='active' AND current_period_end in the future. Returns a map
+   * keyed by creator_wallet; creators with zero subscribers are mapped to 0.
+   */
+  async countActiveSubscribersByCreator(creatorWallets: string[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>(creatorWallets.map((w) => [w, 0]));
+    if (creatorWallets.length === 0) return counts;
+    const nowIso = new Date().toISOString();
+    const { data, error } = await this.supabaseService.client
+      .from('creator_subscriptions')
+      .select('creator_wallet')
+      .in('creator_wallet', creatorWallets)
+      .eq('status', 'active')
+      .gt('current_period_end', nowIso);
+    if (error) {
+      this.logger.error('Failed to count active creator subscribers', error);
+      throw new InternalServerErrorException('Failed to count subscribers');
+    }
+    for (const row of (data ?? []) as { creator_wallet: string }[]) {
+      counts.set(row.creator_wallet, (counts.get(row.creator_wallet) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /**
+   * Operator-only: toggle the verified trust badge on a creator's plan row.
+   * Returns the updated plan; throws NotFound if the creator has no plan.
+   */
+  async setVerifiedFlag(
+    creatorWallet: string,
+    verified: boolean,
+  ): Promise<CreatorSubscriptionPlanRow> {
+    const { data, error } = await this.supabaseService.client
+      .from('creator_subscription_plans')
+      .update({ verified, updated_at: new Date().toISOString() })
+      .eq('creator_wallet', creatorWallet)
+      .select(PLAN_COLUMNS)
+      .single();
+    if (error || !data) {
+      this.logger.error('Failed to update creator verified flag', error);
+      throw new NotFoundException(`No creator subscription plan found for wallet ${creatorWallet}`);
+    }
+    return data as CreatorSubscriptionPlanRow;
   }
 
   async listForSubscriber(subscriberWallet: string): Promise<CreatorSubscriptionRow[]> {
