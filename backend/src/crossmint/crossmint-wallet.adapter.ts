@@ -6,6 +6,7 @@ import {
   TransactionSignature,
 } from '@solana/web3.js';
 import { SolanaWallet } from '@crossmint/wallets-sdk';
+import bs58 from 'bs58';
 
 /**
  * Crossmint Wallet Adapter
@@ -33,7 +34,7 @@ export class CrossmintWalletAdapter {
    * 簽名單一交易（不發送）
    */
   async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
-    const serializedTransaction = Buffer.from(transaction.serialize()).toString('base64');
+    const serializedTransaction = bs58.encode(transaction.serialize());
 
     await this.crossmintWallet.sendTransaction({
       serializedTransaction,
@@ -66,7 +67,7 @@ export class CrossmintWalletAdapter {
     transaction: T,
     _options?: SendOptions,
   ): Promise<{ signature: TransactionSignature }> {
-    const serializedTransaction = Buffer.from(transaction.serialize()).toString('base64');
+    const serializedTransaction = bs58.encode(transaction.serialize());
 
     const result = await this.crossmintWallet.sendTransaction({
       serializedTransaction,
