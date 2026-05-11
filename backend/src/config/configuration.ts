@@ -1,3 +1,11 @@
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} env var is required but not set`);
+  }
+  return value;
+}
+
 export default () => ({
   port: parseInt(process.env.PORT, 10) || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -20,8 +28,8 @@ export default () => ({
   },
 
   solana: {
-    rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
-    wsUrl: process.env.SOLANA_WS_URL || 'wss://api.mainnet-beta.solana.com',
+    rpcUrl: requireEnv('SOLANA_RPC_URL'),
+    wsUrl: requireEnv('SOLANA_WS_URL'),
   },
 
   pyth: {

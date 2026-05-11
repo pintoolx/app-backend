@@ -304,9 +304,9 @@ export class CreatorSubscriptionsService {
   }
 
   private getRpcUrl(): string {
-    const rpcUrl = this.configService.get<string>('SOLANA_RPC_URL');
+    const rpcUrl = this.configService.get<string>('solana.rpcUrl');
     if (!rpcUrl) {
-      throw new InternalServerErrorException('SOLANA_RPC_URL env var not configured');
+      throw new InternalServerErrorException('solana.rpcUrl is not configured');
     }
     return rpcUrl;
   }

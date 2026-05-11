@@ -87,7 +87,7 @@ export class CrossmintService implements OnModuleInit {
     locator: string;
     address: string;
   }> {
-    const owner = `userId:${userId}:solana:mpc:${accountIndex}`;
+    const owner = `userId:${userId}:solana:mpc:alias:${accountIndex}`;
 
     this.logger.log(`Creating Crossmint wallet for user: ${userId}, index: ${accountIndex}`);
 
@@ -119,7 +119,7 @@ export class CrossmintService implements OnModuleInit {
   async getWalletForAccount(accountId: string): Promise<CrossmintWalletAdapter> {
     const { data: account, error } = await this.supabaseService.client
       .from('accounts')
-      .select('crossmint_wallet_locator, crossmint_wallet_address')
+      .select('crossmint_wallet_address')
       .eq('id', accountId)
       .single();
 
@@ -127,7 +127,7 @@ export class CrossmintService implements OnModuleInit {
       throw new NotFoundException(`Account not found: ${accountId}`);
     }
 
-    const locator = account.crossmint_wallet_locator || account.crossmint_wallet_address;
+    const locator = account.crossmint_wallet_address;
 
     if (!locator) {
       throw new BadRequestException(`Account ${accountId} has no Crossmint wallet configured`);

@@ -113,10 +113,10 @@ describe('CrossmintService', () => {
       expect(mockCreateWallet).toHaveBeenCalledWith({
         chain: 'solana',
         signer: { type: 'server', secret: expect.stringContaining('xmsk1_') },
-        owner: 'userId:user-1:solana:mpc:0',
+        owner: 'userId:user-1:solana:mpc:alias:0',
       });
       expect(result).toEqual({
-        locator: 'userId:user-1:solana:mpc:0',
+        locator: 'userId:user-1:solana:mpc:alias:0',
         address: 'SoLAddr123',
       });
     });
@@ -128,7 +128,7 @@ describe('CrossmintService', () => {
 
       expect(mockCreateWallet).toHaveBeenCalledWith(
         expect.objectContaining({
-          owner: 'userId:user-2:solana:mpc:42',
+          owner: 'userId:user-2:solana:mpc:alias:42',
         }),
       );
     });
@@ -146,10 +146,9 @@ describe('CrossmintService', () => {
     // Use a valid base58-encoded 32-byte Solana public key for tests
     const VALID_SOL_ADDR = '11111111111111111111111111111111';
 
-    it('returns CrossmintWalletAdapter for valid account', async () => {
+    it('looks up wallet by address (works for legacy rows with malformed locator)', async () => {
       supabaseClient.accountsTable.single.mockResolvedValue({
         data: {
-          crossmint_wallet_locator: 'userId:user-1:solana:mpc:0',
           crossmint_wallet_address: VALID_SOL_ADDR,
         },
         error: null,
@@ -159,31 +158,12 @@ describe('CrossmintService', () => {
 
       const adapter = await service.getWalletForAccount('account-uuid');
 
-      expect(mockGetWallet).toHaveBeenCalledWith('userId:user-1:solana:mpc:0', {
+      expect(mockGetWallet).toHaveBeenCalledWith(VALID_SOL_ADDR, {
         chain: 'solana',
         signer: { type: 'server', secret: expect.stringContaining('xmsk1_') },
       });
       expect(adapter.address).toBe(VALID_SOL_ADDR);
       expect(adapter.publicKey).toBeDefined();
-    });
-
-    it('falls back to wallet address when locator is missing', async () => {
-      supabaseClient.accountsTable.single.mockResolvedValue({
-        data: {
-          crossmint_wallet_locator: null,
-          crossmint_wallet_address: VALID_SOL_ADDR,
-        },
-        error: null,
-      });
-
-      mockGetWallet.mockResolvedValue({ address: VALID_SOL_ADDR });
-
-      await service.getWalletForAccount('account-uuid');
-
-      expect(mockGetWallet).toHaveBeenCalledWith(VALID_SOL_ADDR, {
-        chain: 'solana',
-        signer: { type: 'server', secret: expect.stringContaining('xmsk1_') },
-      });
     });
 
     it('throws NotFoundException when account does not exist', async () => {
@@ -198,7 +178,6 @@ describe('CrossmintService', () => {
     it('throws BadRequestException when account has no wallet', async () => {
       supabaseClient.accountsTable.single.mockResolvedValue({
         data: {
-          crossmint_wallet_locator: null,
           crossmint_wallet_address: null,
         },
         error: null,
@@ -210,7 +189,6 @@ describe('CrossmintService', () => {
     it('throws InternalServerErrorException on SDK getWallet failure', async () => {
       supabaseClient.accountsTable.single.mockResolvedValue({
         data: {
-          crossmint_wallet_locator: 'userId:u:solana:mpc:0',
           crossmint_wallet_address: 'SoLAddr',
         },
         error: null,
@@ -232,7 +210,7 @@ describe('CrossmintService', () => {
         data: {
           id: 'new-account-id',
           name: 'My Account',
-          crossmint_wallet_locator: 'userId:owner:solana:mpc:123',
+          crossmint_wallet_locator: 'userId:owner:solana:mpc:alias:123',
           crossmint_wallet_address: 'NewAddr',
         },
         error: null,
