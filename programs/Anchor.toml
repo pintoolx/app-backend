@@ -8,10 +8,12 @@ skip-lint = false
 [programs.devnet]
 strategy_runtime = "FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF"
 risk_guard_node = "4JKazw3boeciANsXNDPk8eko2Q6RGBRNaDvUvShtodAQ"
+pyth_price_feed_node = "Cu4NttQKr68uxKpy5V2iMecj5EscruaBMZc9D8sbAMcN"
 
 [programs.localnet]
 strategy_runtime = "FBh8hmjZYZhrhi1ionZHCVxrBbjn6s9oSGnSu3gV4vkF"
 risk_guard_node = "4JKazw3boeciANsXNDPk8eko2Q6RGBRNaDvUvShtodAQ"
+pyth_price_feed_node = "Cu4NttQKr68uxKpy5V2iMecj5EscruaBMZc9D8sbAMcN"
 
 [registry]
 url = "https://api.apr.dev"

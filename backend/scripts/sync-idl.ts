@@ -48,6 +48,18 @@ const TARGETS: SyncTarget[] = [
       'risk_guard_node.json',
     ),
   },
+  {
+    name: 'pyth_price_feed_node',
+    source: path.join(REPO_ROOT, 'programs', 'target', 'idl', 'pyth_price_feed_node.json'),
+    destination: path.join(
+      REPO_ROOT,
+      'backend',
+      'src',
+      'onchain',
+      'anchor',
+      'pyth_price_feed_node.json',
+    ),
+  },
 ];
 
 const MODE = (process.argv[2] ?? 'sync').trim();

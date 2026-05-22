@@ -1,0 +1,327 @@
+{
+  "address": "Cu4NttQKr68uxKpy5V2iMecj5EscruaBMZc9D8sbAMcN",
+  "metadata": {
+    "name": "pyth_price_feed_node",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "On-chain Pyth price-condition node for the strategy_runtime workflow ecosystem"
+  },
+  "instructions": [
+    {
+      "name": "check_price",
+      "docs": [
+        "Keeper-submitted price reading. Latches `triggered = true` the first",
+        "time the condition is met; subsequent calls fail until `reset_trigger`.",
+        "V2 will replace the trusted reading with on-chain Pyth verification."
+      ],
+      "discriminator": [
+        167,
+        85,
+        209,
+        192,
+        115,
+        173,
+        239,
+        176
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Anyone can submit a reading — the feed is keyed by (creator, feed_id).",
+            "V2 will replace the keeper-trusted price with an on-chain Pyth verify."
+          ],
+          "signer": true
+        },
+        {
+          "name": "feed",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "current_price",
+          "type": "i64"
+        },
+        {
+          "name": "publish_time",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "initialize_feed",
+      "docs": [
+        "Initialize a per-(creator, feed_id) price-condition feed.",
+        "`condition`: 0 = above, 1 = below, 2 = equal (±EQUAL_TOLERANCE).",
+        "`exponent` is the Pyth exponent for `target_price` (typically -8).",
+        "`max_staleness_secs` rejects reports older than N seconds (0 = off)."
+      ],
+      "discriminator": [
+        167,
+        251,
+        140,
+        58,
+        66,
+        138,
+        187,
+        95
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "feed",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  121,
+                  116,
+                  104,
+                  95,
+                  102,
+                  101,
+                  101,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "arg",
+                "path": "feed_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "feed_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "target_price",
+          "type": "i64"
+        },
+        {
+          "name": "exponent",
+          "type": "i32"
+        },
+        {
+          "name": "condition",
+          "type": "u8"
+        },
+        {
+          "name": "max_staleness_secs",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "reset_trigger",
+      "docs": [
+        "Creator-only — clear the latched trigger so the feed can fire again."
+      ],
+      "discriminator": [
+        176,
+        58,
+        6,
+        182,
+        186,
+        38,
+        80,
+        61
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "signer": true,
+          "relations": [
+            "feed"
+          ]
+        },
+        {
+          "name": "feed",
+          "writable": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "PythFeedState",
+      "discriminator": [
+        182,
+        141,
+        30,
+        155,
+        230,
+        163,
+        135,
+        28
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidCondition",
+      "msg": "Condition discriminant must be 0 (above), 1 (below) or 2 (equal)"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidTargetPrice",
+      "msg": "Target price must be greater than zero"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidReportedPrice",
+      "msg": "Reported price must be greater than zero"
+    },
+    {
+      "code": 6003,
+      "name": "AlreadyTriggered",
+      "msg": "Feed has already been triggered — reset before reuse"
+    },
+    {
+      "code": 6004,
+      "name": "UnauthorizedCaller",
+      "msg": "Caller is not the creator of this feed"
+    },
+    {
+      "code": 6005,
+      "name": "StalePrice",
+      "msg": "Reported price is stale (timestamp older than max_staleness_secs)"
+    }
+  ],
+  "types": [
+    {
+      "name": "PythFeedState",
+      "docs": [
+        "Per-(creator, feed_id) price-condition state.",
+        "",
+        "`triggered` flips to true the first time `check_price` observes a value",
+        "satisfying the configured condition. While triggered, all subsequent",
+        "`check_price` calls fail until `reset_trigger` is invoked by the creator.",
+        "",
+        "`feed_id` is the 32-byte Pyth feed identifier (e.g. SOL/USD). It is",
+        "stored both for PDA derivation and so callers can sanity-check that the",
+        "keeper-supplied price comes from the right oracle.",
+        "",
+        "V1 follows the keeper-submits-price pattern (mirrors `risk_guard_node`).",
+        "V2 can wrap a `pyth-solana-receiver-sdk` price account read so the",
+        "program verifies the Pyth update itself, removing keeper trust."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "docs": [
+              "Pyth feed identifier (32-byte hex, e.g. SOL/USD feed)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "target_price",
+            "docs": [
+              "Target price in raw price units (apply `exponent` to interpret)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "exponent",
+            "docs": [
+              "Pyth exponent (negative — e.g. -8 means raw / 1e8 = human price)."
+            ],
+            "type": "i32"
+          },
+          {
+            "name": "condition",
+            "docs": [
+              "0 = above, 1 = below, 2 = equal (±EQUAL_TOLERANCE)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "max_staleness_secs",
+            "docs": [
+              "Max acceptable age (seconds) between Pyth publish_time and this slot.",
+              "0 = no staleness check (NOT recommended in production)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "last_price",
+            "docs": [
+              "Last reported price in raw units."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_publish_time",
+            "docs": [
+              "Pyth publish_time of `last_price` (unix seconds)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "triggered",
+            "docs": [
+              "Latched: true once the condition has been hit at least once."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved for future fields without re-deriving accounts."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

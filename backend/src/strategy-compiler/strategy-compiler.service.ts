@@ -140,10 +140,10 @@ export interface CompiledStrategyIR {
   };
 }
 
-const OFFCHAIN_OBSERVER_NODE_TYPES = new Set(['pythPriceFeed', 'heliusWebhook']);
+const OFFCHAIN_OBSERVER_NODE_TYPES = new Set(['heliusWebhook']);
 const ANCHOR_CANDIDATE_NODE_TYPES = new Set(['getBalance', 'transfer']);
 /** Nodes whose runtime lives in a dedicated sibling Anchor program. */
-const NATIVE_ANCHOR_NODE_TYPES = new Set(['riskGuard']);
+const NATIVE_ANCHOR_NODE_TYPES = new Set(['riskGuard', 'pythPriceFeed']);
 const HYBRID_ADAPTER_NODE_TYPES = new Set([
   'jupiterSwap',
   'orcaSwap',
@@ -347,7 +347,12 @@ export class StrategyCompilerService {
     return {
       requiresVault,
       requiresOffchainTrigger: classifications.some(
-        (node) => node.executionPlane === 'offchain_observer',
+        (node) =>
+          node.executionPlane === 'offchain_observer' ||
+          // A trigger backed by a native Anchor program (e.g. pythPriceFeed)
+          // still needs the off-chain keeper to watch the feed and decide when
+          // to submit its on-chain attestation.
+          (node.role === 'trigger' && node.executionPlane === 'native_anchor_program'),
       ),
       requiresAnchorCommit,
       requiresEr,
@@ -516,6 +521,12 @@ export class StrategyCompilerService {
     if (executionPlane === 'hybrid_adapter') {
       reasons.push(
         'This node still relies on protocol-specific routing and should stay behind a relayer or keeper.',
+      );
+    }
+
+    if (executionPlane === 'native_anchor_program') {
+      reasons.push(
+        'This node is backed by a dedicated sibling Anchor program; the keeper submits its instruction on-chain.',
       );
     }
 
