@@ -43,6 +43,50 @@ export function useOverview() {
   });
 }
 
+// ---------------------------------------------------------------- revenue ----
+
+export interface LamportAmount {
+  lamports: string;
+  sol: number;
+}
+
+export interface AdminRevenueSummary {
+  generatedAt: string;
+  currency: 'SOL';
+  windowDays: number;
+  mrr: LamportAmount & { activeSubscriptions: number };
+  collectedLast30d: LamportAmount & {
+    subscriptionsLamports: string;
+    buyoutsLamports: string;
+  };
+  lifetimeCollected: LamportAmount;
+  subscriptions: {
+    total: number;
+    byStatus: Record<'payment_required' | 'active' | 'cancelled' | 'expired', number>;
+  };
+  payments: {
+    confirmedLast30d: number;
+    rejectedLast30d: number;
+    rejectionRateBps: number;
+  };
+  buyouts: {
+    last30d: number;
+    lifetime: number;
+    lifetimeLamports: string;
+    lifetimeSol: number;
+  };
+  plans: { total: number; active: number; verified: number };
+  truncated: boolean;
+}
+
+export function useRevenueSummary() {
+  return useQuery({
+    queryKey: ['admin', 'revenue', 'summary'],
+    queryFn: () => proxyFetch<ApiEnvelope<AdminRevenueSummary>>('/admin/revenue/summary'),
+    refetchInterval: 60_000,
+  });
+}
+
 // ---------------------------------------------------------------- users ------
 
 export interface AdminUserListEntry {
@@ -726,10 +770,14 @@ export function useSystemHealth() {
 }
 
 export interface KeeperStatus {
-  publicKey: string | null;
+  configured: boolean;
   initialized: boolean;
+  publicKey: string | null;
+  source: 'env' | 'system_config' | null;
   balanceSol: number | null;
+  rpcUrl: string;
   warningLevel: 'ok' | 'low' | 'critical' | 'unknown';
+  warning: string | null;
 }
 
 export function useKeeperStatus() {
@@ -859,6 +907,9 @@ export interface AdminSubscriptionRow {
   vault_authority_pda: string | null;
   per_member_ref: string | null;
   umbra_identity_ref: string | null;
+  provisioning_state: string;
+  provisioning_error: string | null;
+  lifecycle_drift: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -968,14 +1019,18 @@ export function useSubscriptions(
     deploymentId?: string;
     follower?: string;
     status?: SubscriptionStatus;
+    provisioningState?: string;
+    problemsOnly?: boolean;
     limit?: number;
   } = {},
 ) {
+  const { problemsOnly, ...rest } = params;
+  const query = { ...rest, problemsOnly: problemsOnly ? 'true' : undefined };
   return useQuery({
     queryKey: ['admin', 'privacy', 'subscriptions', params],
     queryFn: () =>
       proxyFetch<ApiEnvelope<AdminSubscriptionRow[]>>(
-        `/admin/privacy/subscriptions${toQs(params)}`,
+        `/admin/privacy/subscriptions${toQs(query)}`,
       ),
     staleTime: 15_000,
   });
@@ -1143,5 +1198,192 @@ export function useRetryPrivateCycle() {
       toast.success(t('cycleRetried'));
     },
     onError: (err: ApiError) => toast.error(err.message),
+  });
+}
+
+// ---------------------------------------------------------------- runs -------
+
+export type StrategyRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type ExecutionLayer = 'offchain' | 'er' | 'per';
+
+export interface AdminRunRow {
+  id: string;
+  deployment_id: string;
+  execution_layer: ExecutionLayer;
+  status: StrategyRunStatus;
+  started_at: string;
+  completed_at: string | null;
+  error_message: string | null;
+  retry_count: number;
+  max_retries: number;
+  retry_of: string | null;
+  er_session_id: string | null;
+  per_session_id: string | null;
+}
+
+export interface RunsHealth {
+  generatedAt: string;
+  last24h: { total: number; completed: number; failed: number; cancelled: number };
+  successRateBps: number;
+  running: number;
+  stuck: number;
+  retryExhausted24h: number;
+}
+
+export function useRunsHealth() {
+  return useQuery({
+    queryKey: ['admin', 'runs', 'health'],
+    queryFn: () => proxyFetch<ApiEnvelope<RunsHealth>>('/admin/runs/health'),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useRuns(
+  params: {
+    status?: StrategyRunStatus;
+    executionLayer?: ExecutionLayer;
+    deploymentId?: string;
+    stuckOnly?: boolean;
+    limit?: number;
+  } = {},
+) {
+  const { stuckOnly, ...rest } = params;
+  const query = { ...rest, stuckOnly: stuckOnly ? 'true' : undefined };
+  return useQuery({
+    queryKey: ['admin', 'runs', params],
+    queryFn: () => proxyFetch<ApiEnvelope<AdminRunRow[]>>(`/admin/runs${toQs(query)}`),
+    staleTime: 10_000,
+  });
+}
+
+// ---------------------------------------------------------------- creators ---
+
+export interface AdminCreatorRosterRow {
+  creatorWallet: string;
+  displayName: string | null;
+  verified: boolean;
+  isActive: boolean;
+  monthlyPriceLamports: string;
+  monthlyPriceSol: number;
+  payoutWallet: string;
+  activeSubscribers: number;
+  mrrLamports: string;
+  mrrSol: number;
+  publishedStrategies: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function useAdminCreators() {
+  return useQuery({
+    queryKey: ['admin', 'creators'],
+    queryFn: () => proxyFetch<ApiEnvelope<AdminCreatorRosterRow[]>>('/admin/creators'),
+    staleTime: 30_000,
+  });
+}
+
+export function useSetCreatorVerified() {
+  const t = useTranslations('toast');
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { wallet: string; verified: boolean }) =>
+      proxyFetch(`/admin/creators/${encodeURIComponent(input.wallet)}/verified`, {
+        method: 'PATCH',
+        body: JSON.stringify({ verified: input.verified }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'creators'] });
+      toast.success(t('creatorVerifiedUpdated'));
+    },
+    onError: (err: ApiError) => toast.error(err.message),
+  });
+}
+
+// ---------------------------------------------------------------- revenue ledgers
+
+export interface SubscriptionPaymentRow {
+  id: string;
+  subscription_id: string;
+  creator_wallet: string;
+  subscriber_wallet: string;
+  tx_signature: string;
+  amount: string;
+  status: 'confirmed' | 'rejected';
+  period_start: string;
+  period_end: string;
+  created_at: string;
+}
+
+export interface StrategyBuyoutRow {
+  id: string;
+  strategy_id: string;
+  buyer_wallet: string;
+  price_amount: string;
+  payment_tx_signature: string;
+  payout_wallet: string;
+  created_at: string;
+}
+
+export function useRevenuePayments(
+  params: { status?: 'confirmed' | 'rejected'; creator?: string; subscriber?: string; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'revenue', 'payments', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<SubscriptionPaymentRow[]>>(`/admin/revenue/payments${toQs(params)}`),
+    staleTime: 20_000,
+  });
+}
+
+export function useRevenueBuyouts(
+  params: { strategyId?: string; buyer?: string; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['admin', 'revenue', 'buyouts', params],
+    queryFn: () =>
+      proxyFetch<ApiEnvelope<StrategyBuyoutRow[]>>(`/admin/revenue/buyouts${toQs(params)}`),
+    staleTime: 20_000,
+  });
+}
+
+// ---------------------------------------------------------------- treasury AUM
+
+export interface AumVaultEntry {
+  vaultId: string;
+  subscriptionId: string;
+  deploymentId: string;
+  lifecycleStatus: string;
+  custodyMode: string;
+  authorityPda: string;
+  vaultTokenAccount: string | null;
+  rawAmount: string;
+  uiAmount: number;
+  decimals: number;
+  exists: boolean;
+}
+
+export interface TreasuryAum {
+  generatedAt: string;
+  mint: string;
+  decimals: number;
+  vaultsRead: number;
+  fundedVaults: number;
+  totalRawAmount: string;
+  totalUiAmount: number;
+  byStatus: Record<string, string>;
+  vaults: AumVaultEntry[];
+  truncated: boolean;
+}
+
+export function useTreasuryAum(
+  params: { mint?: string; limit?: number; includeClosed?: boolean } = {},
+) {
+  const { mint, includeClosed, ...rest } = params;
+  const query = { mint, ...rest, includeClosed: includeClosed ? 'true' : undefined };
+  return useQuery({
+    queryKey: ['admin', 'treasury', 'aum', params],
+    queryFn: () => proxyFetch<ApiEnvelope<TreasuryAum>>(`/admin/treasury/aum${toQs(query)}`),
+    enabled: Boolean(mint && mint.trim()),
+    staleTime: 60_000,
   });
 }

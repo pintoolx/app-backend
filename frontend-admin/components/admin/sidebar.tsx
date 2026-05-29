@@ -13,6 +13,9 @@ import {
   ScrollText,
   Activity,
   Gift,
+  Coins,
+  BadgeCheck,
+  Gauge,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
@@ -21,9 +24,12 @@ const SECTIONS = [
   {
     items: [
       { href: '/overview', labelKey: 'overview', icon: LayoutDashboard },
+      { href: '/revenue', labelKey: 'revenue', icon: Coins },
       { href: '/users', labelKey: 'users', icon: Users },
+      { href: '/creators', labelKey: 'creators', icon: BadgeCheck },
       { href: '/strategies', labelKey: 'strategies', icon: Workflow },
       { href: '/deployments', labelKey: 'deployments', icon: Boxes },
+      { href: '/runs', labelKey: 'runs', icon: Gauge },
       { href: '/executions', labelKey: 'executions', icon: Activity },
       { href: '/referrals', labelKey: 'referrals', icon: Gift },
     ],

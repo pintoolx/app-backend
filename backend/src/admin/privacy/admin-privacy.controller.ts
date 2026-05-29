@@ -195,17 +195,28 @@ export class AdminPrivacyController {
     required: false,
     enum: ['pending_funding', 'active', 'paused', 'exiting', 'closed'],
   })
+  @ApiQuery({ name: 'provisioningState', required: false })
+  @ApiQuery({
+    name: 'problemsOnly',
+    required: false,
+    type: Boolean,
+    description: 'Only rows where provisioning_state=provisioning_failed OR lifecycle_drift=true',
+  })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async listSubscriptions(
     @Query('deploymentId') deploymentId?: string,
     @Query('follower') followerWallet?: string,
     @Query('status') status?: string,
+    @Query('provisioningState') provisioningState?: string,
+    @Query('problemsOnly') problemsOnly?: string,
     @Query('limit') limit?: string,
   ) {
     const data = await this.followerVaultsService.listSubscriptions({
       deploymentId,
       followerWallet,
       status,
+      provisioningState,
+      problemsOnly: problemsOnly === 'true' || problemsOnly === '1',
       limit: limit ? parseInt(limit, 10) : undefined,
     });
     return { success: true, count: data.length, data };

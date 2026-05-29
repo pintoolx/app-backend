@@ -8,6 +8,7 @@ import { UmbraModule } from '../umbra/umbra.module';
 import { MagicBlockModule } from '../magicblock/magicblock.module';
 import { StrategyDeploymentsModule } from '../strategy-deployments/strategy-deployments.module';
 import { FollowerVaultsModule } from '../follower-vaults/follower-vaults.module';
+import { CreatorSubscriptionsModule } from '../creator-subscriptions/creator-subscriptions.module';
 import { AdminMetricsService } from './admin-metrics.service';
 import { AdminAuthController } from './auth/admin-auth.controller';
 import { AdminAuthService } from './auth/admin-auth.service';
@@ -25,12 +26,20 @@ import { AdminOverviewController } from './overview/admin-overview.controller';
 import { AdminOverviewService } from './overview/admin-overview.service';
 import { AdminUsersController } from './users/admin-users.controller';
 import { AdminUsersService } from './users/admin-users.service';
+import { AdminCreatorsController } from './users/admin-creators.controller';
 import { AdminStrategiesController } from './strategies/admin-strategies.controller';
 import { AdminStrategiesService } from './strategies/admin-strategies.service';
 import { AdminDeploymentsController } from './deployments/admin-deployments.controller';
 import { AdminDeploymentsService } from './deployments/admin-deployments.service';
 import { AdminSystemController } from './system/admin-system.controller';
 import { AdminSystemService } from './system/admin-system.service';
+import { AdminRevenueController } from './revenue/admin-revenue.controller';
+import { AdminRevenueService } from './revenue/admin-revenue.service';
+import { AdminRunsController } from './runs/admin-runs.controller';
+import { AdminRunsService } from './runs/admin-runs.service';
+import { AdminTreasuryController } from './treasury/admin-treasury.controller';
+import { AdminTreasuryService } from './treasury/admin-treasury.service';
+import { AdminCreatorsService } from './users/admin-creators.service';
 import { AdminPrivacyController } from './privacy/admin-privacy.controller';
 import { AdminPrivacyService } from './privacy/admin-privacy.service';
 import { AdminFollowerVaultsService } from './privacy/admin-follower-vaults.service';
@@ -65,15 +74,20 @@ import { MaintenanceModeGuard } from './ops/maintenance-mode.guard';
     MagicBlockModule,
     StrategyDeploymentsModule,
     FollowerVaultsModule,
+    CreatorSubscriptionsModule,
   ],
   controllers: [
     AdminAuthController,
     AdminAuditController,
     AdminOverviewController,
     AdminUsersController,
+    AdminCreatorsController,
     AdminStrategiesController,
     AdminDeploymentsController,
     AdminSystemController,
+    AdminRevenueController,
+    AdminRunsController,
+    AdminTreasuryController,
     AdminPrivacyController,
     AdminDeploymentsOpsController,
     AdminPrivacyOpsController,
@@ -104,6 +118,10 @@ import { MaintenanceModeGuard } from './ops/maintenance-mode.guard';
     AdminStrategiesService,
     AdminDeploymentsService,
     AdminSystemService,
+    AdminRevenueService,
+    AdminRunsService,
+    AdminTreasuryService,
+    AdminCreatorsService,
     AdminPrivacyService,
     AdminFollowerVaultsService,
     // Phase 2 — Write ops

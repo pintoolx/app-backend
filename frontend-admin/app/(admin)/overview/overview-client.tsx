@@ -6,11 +6,15 @@ import {
   Activity,
   Boxes,
   CheckCircle2,
+  CircleDollarSign,
   Clock3,
+  Coins,
   EyeOff,
   KeyRound,
   Lightbulb,
   LockKeyhole,
+  Percent,
+  Receipt,
   ShieldCheck,
   Users,
   Workflow,
@@ -18,7 +22,19 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DATE_FNS_LOCALES, normalizeLocale } from '@/i18n/config';
-import { useDeployments, useOverview, usePrivacyOverview } from '@/lib/api-hooks';
+import {
+  useDeployments,
+  useOverview,
+  usePrivacyOverview,
+  useRevenueSummary,
+  useRunsHealth,
+} from '@/lib/api-hooks';
+
+/** Format a SOL amount for KPI display, or an em-dash when unavailable. */
+function fmtSol(sol?: number): string {
+  if (sol == null) return '—';
+  return `${sol.toLocaleString(undefined, { maximumFractionDigits: 3 })} SOL`;
+}
 
 export function OverviewClient() {
   const locale = useLocale();
@@ -27,6 +43,8 @@ export function OverviewClient() {
   const dateLocale = DATE_FNS_LOCALES[normalizeLocale(locale)];
   const overviewQuery = useOverview();
   const privacyQuery = usePrivacyOverview();
+  const revenueQuery = useRevenueSummary();
+  const runsHealthQuery = useRunsHealth();
   const deploymentsQuery = useDeployments({ limit: 200 });
 
   if (overviewQuery.isLoading) {
@@ -38,6 +56,8 @@ export function OverviewClient() {
 
   const overview = overviewQuery.data?.data;
   const privacy = privacyQuery.data?.data;
+  const revenue = revenueQuery.data?.data;
+  const runsHealth = runsHealthQuery.data?.data;
   const deployments = deploymentsQuery.data?.data ?? [];
 
   if (!overview) return null;
@@ -99,11 +119,90 @@ export function OverviewClient() {
         </Card>
       </header>
 
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Coins className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium tracking-tight">{t('revenueSectionTitle')}</h2>
+          {revenue?.truncated ? (
+            <Badge variant="warning" className="text-[10px]">
+              {t('revenueTruncated')}
+            </Badge>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <KPI
+            label={t('revenueMrr')}
+            value={fmtSol(revenue?.mrr.sol)}
+            hint={t('revenueMrrHint', { count: revenue?.mrr.activeSubscriptions ?? 0 })}
+            icon={<CircleDollarSign className="h-4 w-4 text-emerald-500" />}
+          />
+          <KPI
+            label={t('revenueCollected30d')}
+            value={fmtSol(revenue?.collectedLast30d.sol)}
+            hint={t('revenueBuyouts30d', { count: revenue?.buyouts.last30d ?? 0 })}
+            icon={<Coins className="h-4 w-4 text-muted-foreground" />}
+          />
+          <KPI
+            label={t('revenueActiveSubs')}
+            value={revenue?.subscriptions.byStatus.active ?? 0}
+            hint={t('revenuePlansActive', { count: revenue?.plans.active ?? 0 })}
+            icon={<Receipt className="h-4 w-4 text-muted-foreground" />}
+          />
+          <KPI
+            label={t('revenueRejectionRate')}
+            value={`${((revenue?.payments.rejectionRateBps ?? 0) / 100).toFixed(1)}%`}
+            hint={t('revenueRejectionHint', {
+              rejected: revenue?.payments.rejectedLast30d ?? 0,
+              confirmed: revenue?.payments.confirmedLast30d ?? 0,
+            })}
+            icon={<Percent className="h-4 w-4 text-muted-foreground" />}
+          />
+        </div>
+      </section>
+
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <KPI label={t('users')} value={overview.counts.users} icon={<Users className="h-4 w-4 text-muted-foreground" />} />
         <KPI label={t('strategies')} value={overview.counts.strategies.total} icon={<Workflow className="h-4 w-4 text-muted-foreground" />} />
         <KPI label={t('deployments')} value={deploymentTotal} icon={<Boxes className="h-4 w-4 text-muted-foreground" />} />
-        <KPI label={t('runningExecutions')} value={overview.counts.runningExecutions} highlight icon={<Activity className="h-4 w-4 text-emerald-500" />} />
+        <KPI label={t('runningRuns')} value={runsHealth?.running ?? 0} highlight icon={<Activity className="h-4 w-4 text-emerald-500" />} />
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium tracking-tight">{t('schedulerSectionTitle')}</h2>
+          <span className="text-xs text-muted-foreground">{t('schedulerWindow')}</span>
+          {(runsHealth?.stuck ?? 0) > 0 ? (
+            <Badge variant="destructive" className="text-[10px]">
+              {t('schedulerStuckBadge', { n: runsHealth?.stuck ?? 0 })}
+            </Badge>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <KPI
+            label={t('schedulerSuccessRate')}
+            value={`${((runsHealth?.successRateBps ?? 0) / 100).toFixed(1)}%`}
+            hint={t('schedulerRuns24h', { n: runsHealth?.last24h.total ?? 0 })}
+            icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+          />
+          <KPI
+            label={t('schedulerFailed')}
+            value={runsHealth?.last24h.failed ?? 0}
+            hint={t('schedulerRetryExhausted', { n: runsHealth?.retryExhausted24h ?? 0 })}
+            icon={<Activity className="h-4 w-4 text-destructive" />}
+          />
+          <KPI
+            label={t('schedulerRunning')}
+            value={runsHealth?.running ?? 0}
+            icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+          />
+          <KPI
+            label={t('schedulerStuck')}
+            value={runsHealth?.stuck ?? 0}
+            highlight={(runsHealth?.stuck ?? 0) > 0}
+            icon={<Clock3 className="h-4 w-4 text-amber-500" />}
+          />
+        </div>
       </section>
 
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -317,11 +416,13 @@ function KPI({
   value,
   highlight,
   icon,
+  hint,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   highlight?: boolean;
   icon?: React.ReactNode;
+  hint?: string;
 }) {
   return (
     <Card>
@@ -330,9 +431,14 @@ function KPI({
           {icon}
           <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
         </div>
-        <span className={highlight ? 'text-3xl font-semibold text-emerald-500' : 'text-3xl font-semibold'}>
-          {value.toLocaleString()}
+        <span
+          className={
+            highlight ? 'text-3xl font-semibold text-emerald-500' : 'text-3xl font-semibold'
+          }
+        >
+          {typeof value === 'number' ? value.toLocaleString() : value}
         </span>
+        {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
       </CardContent>
     </Card>
   );
