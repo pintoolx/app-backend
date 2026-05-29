@@ -97,6 +97,22 @@ const registrationVariant = (
   }
 };
 
+const provisioningVariant = (
+  state: string,
+): 'success' | 'warning' | 'secondary' | 'destructive' => {
+  switch (state) {
+    case 'provisioning_complete':
+      return 'success';
+    case 'provisioning_failed':
+      return 'destructive';
+    case 'legacy_placeholder':
+      return 'secondary';
+    default:
+      // db_inserted / *_queued / *_confirmed mid-flight states
+      return 'warning';
+  }
+};
+
 const formatTs = (value: string | null): string =>
   value ? format(new Date(value), 'MM-dd HH:mm') : '—';
 
@@ -105,6 +121,7 @@ interface FilterPillProps<T extends string | undefined> {
   current: T;
   onChange: (value: T) => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }
 
 function FilterPill<T extends string | undefined>({
@@ -112,12 +129,14 @@ function FilterPill<T extends string | undefined>({
   current,
   onChange,
   children,
+  disabled,
 }: FilterPillProps<T>) {
   return (
     <Button
       size="sm"
       variant={current === value ? 'default' : 'outline'}
       onClick={() => onChange(value)}
+      disabled={disabled}
     >
       {children}
     </Button>
@@ -275,7 +294,11 @@ export function FollowerVaultsTab({ role }: { role?: AdminRole } = {}) {
 export function SubscriptionsTab() {
   const t = useTranslations('privacy');
   const [status, setStatus] = React.useState<SubscriptionStatus | undefined>(undefined);
-  const { data, isLoading } = useSubscriptions({ status });
+  const [problemsOnly, setProblemsOnly] = React.useState(false);
+  const { data, isLoading } = useSubscriptions({
+    status: problemsOnly ? undefined : status,
+    problemsOnly,
+  });
   const rows = data?.data ?? [];
 
   return (
@@ -283,25 +306,37 @@ export function SubscriptionsTab() {
       <CardHeader className="space-y-2">
         <CardTitle className="text-base">{t('subscriptionsTitle')}</CardTitle>
         <p className="text-sm text-muted-foreground">{t('subscriptionsSubtitle')}</p>
-        <div className="flex flex-wrap gap-2 pt-2">
-          <FilterPill value={undefined} current={status} onChange={setStatus}>
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          <FilterPill value={undefined} current={status} onChange={setStatus} disabled={problemsOnly}>
             {t('filterAll')}
           </FilterPill>
-          <FilterPill value="active" current={status} onChange={setStatus}>
+          <FilterPill value="active" current={status} onChange={setStatus} disabled={problemsOnly}>
             {t('filterActive')}
           </FilterPill>
-          <FilterPill value="pending_funding" current={status} onChange={setStatus}>
+          <FilterPill
+            value="pending_funding"
+            current={status}
+            onChange={setStatus}
+            disabled={problemsOnly}
+          >
             {t('filterPendingFunding')}
           </FilterPill>
-          <FilterPill value="paused" current={status} onChange={setStatus}>
+          <FilterPill value="paused" current={status} onChange={setStatus} disabled={problemsOnly}>
             {t('filterPaused')}
           </FilterPill>
-          <FilterPill value="exiting" current={status} onChange={setStatus}>
+          <FilterPill value="exiting" current={status} onChange={setStatus} disabled={problemsOnly}>
             {t('filterExiting')}
           </FilterPill>
-          <FilterPill value="closed" current={status} onChange={setStatus}>
+          <FilterPill value="closed" current={status} onChange={setStatus} disabled={problemsOnly}>
             {t('filterClosed')}
           </FilterPill>
+          <Button
+            size="sm"
+            variant={problemsOnly ? 'destructive' : 'outline'}
+            onClick={() => setProblemsOnly((v) => !v)}
+          >
+            {t('filterProblems')}
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -315,6 +350,8 @@ export function SubscriptionsTab() {
               <TableHead>{t('deployment')}</TableHead>
               <TableHead>{t('colFollower')}</TableHead>
               <TableHead>{t('colLifecycle')}</TableHead>
+              <TableHead>{t('colProvisioning')}</TableHead>
+              <TableHead>{t('colDrift')}</TableHead>
               <TableHead>{t('colVisibility')}</TableHead>
               <TableHead>{t('colAllocation')}</TableHead>
               <TableHead>{t('colMaxCapital')}</TableHead>
@@ -324,7 +361,7 @@ export function SubscriptionsTab() {
           <TableBody>
             {isLoading ? null : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="py-6 text-center text-muted-foreground">
                   {t('emptySubscriptions')}
                 </TableCell>
               </TableRow>
@@ -340,6 +377,26 @@ export function SubscriptionsTab() {
                 </TableCell>
                 <TableCell>
                   <Badge variant={lifecycleVariant(row.status)}>{row.status}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={provisioningVariant(row.provisioning_state)}>
+                    {row.provisioning_state}
+                  </Badge>
+                  {row.provisioning_error ? (
+                    <span
+                      className="ml-1 block max-w-[160px] truncate text-[10px] text-destructive"
+                      title={row.provisioning_error}
+                    >
+                      {row.provisioning_error}
+                    </span>
+                  ) : null}
+                </TableCell>
+                <TableCell>
+                  {row.lifecycle_drift ? (
+                    <Badge variant="destructive">{t('driftYes')}</Badge>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-xs">{row.visibility_preset}</TableCell>
                 <TableCell className="text-xs">{row.allocation_mode}</TableCell>

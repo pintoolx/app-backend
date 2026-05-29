@@ -29,6 +29,11 @@ export interface AdminSubscriptionRow {
   vault_authority_pda: string | null;
   per_member_ref: string | null;
   umbra_identity_ref: string | null;
+  /** On-chain provisioning progress; non-terminal states = capital may be in limbo. */
+  provisioning_state: string;
+  provisioning_error: string | null;
+  /** True when the DB lifecycle has diverged from on-chain state (pause/recover may be a no-op). */
+  lifecycle_drift: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -110,6 +115,9 @@ const SUBSCRIPTION_COLUMNS = [
   'vault_authority_pda',
   'per_member_ref',
   'umbra_identity_ref',
+  'provisioning_state',
+  'provisioning_error',
+  'lifecycle_drift',
   'created_at',
   'updated_at',
 ].join(', ');
@@ -229,6 +237,10 @@ export class AdminFollowerVaultsService {
     deploymentId?: string;
     followerWallet?: string;
     status?: string;
+    provisioningState?: string;
+    lifecycleDrift?: boolean;
+    /** Shortcut for "needs attention": provisioning_failed OR lifecycle_drift. */
+    problemsOnly?: boolean;
     limit?: number;
   }): Promise<AdminSubscriptionRow[]> {
     let q = this.supabaseService.client
@@ -239,6 +251,11 @@ export class AdminFollowerVaultsService {
     if (params.deploymentId) q = q.eq('deployment_id', params.deploymentId);
     if (params.followerWallet) q = q.eq('follower_wallet', params.followerWallet);
     if (params.status) q = q.eq('status', params.status);
+    if (params.provisioningState) q = q.eq('provisioning_state', params.provisioningState);
+    if (params.lifecycleDrift !== undefined) q = q.eq('lifecycle_drift', params.lifecycleDrift);
+    if (params.problemsOnly) {
+      q = q.or('provisioning_state.eq.provisioning_failed,lifecycle_drift.eq.true');
+    }
     const { data, error } = await q;
     if (error) {
       this.logger.error('Failed to list subscriptions (admin)', error);
