@@ -444,5 +444,4 @@ export class StrategyDeploymentsController {
     const data = await this.deploymentsService.perGetPrivateState(id, token);
     return { success: true, data };
   }
-
 }

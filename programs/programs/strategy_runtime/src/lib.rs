@@ -186,6 +186,33 @@ pub mod strategy_runtime {
         instructions::close_follower_vault::handler(ctx)
     }
 
+    /// Phase 2 — subscriber deposits SPL tokens into the follower-vault token
+    /// account. First successful deposit transitions PendingFunding -> Active.
+    pub fn fund_follower_vault(ctx: Context<FundFollowerVault>, amount: u64) -> Result<()> {
+        instructions::fund_follower_vault::handler(ctx, amount)
+    }
+
+    /// Phase 2 — subscriber withdraws SPL tokens from the follower-vault
+    /// token account. Allowed in Active|Paused|Exiting; draining while
+    /// Exiting transitions to Closed.
+    pub fn withdraw_from_vault(ctx: Context<WithdrawFromVault>, amount: u64) -> Result<()> {
+        instructions::withdraw_from_vault::handler(ctx, amount)
+    }
+
+    /// Phase 2 — subscriber updates their per-subscription configuration
+    /// commitment. `expected_revision` must equal current `params_revision`.
+    pub fn adjust_subscription_params(
+        ctx: Context<AdjustSubscriptionParams>,
+        expected_revision: u64,
+        new_config_commitment: [u8; 32],
+    ) -> Result<()> {
+        instructions::adjust_subscription_params::handler(
+            ctx,
+            expected_revision,
+            new_config_commitment,
+        )
+    }
+
     // ---------- MagicBlock ER Delegation ----------
 
     /// Delegate the strategy_state PDA to an Ephemeral Rollups validator.

@@ -73,7 +73,8 @@ describe('Umbra — Devnet Integration', () => {
     process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
   const SKIP_INTEGRATION_TESTS =
     !RUN_EXTERNAL_INTEGRATION_TESTS ||
-    process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
+    process.env.SKIP_INTEGRATION_TESTS === '1' ||
+    process.env.SKIP_INTEGRATION_TESTS === 'true';
 
   beforeAll(async () => {
     if (SKIP_INTEGRATION_TESTS) return;

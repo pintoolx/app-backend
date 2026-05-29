@@ -109,4 +109,3 @@ export class MagicBlockPerNoopAdapter implements MagicBlockPerAdapterPort {
     return { state: null, logs: [], privateStateRevision: null };
   }
 }
-

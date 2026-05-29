@@ -28,7 +28,7 @@ counter.
 | | Count | Detail |
 |---|---|---|
 | PDAs | 8 | 5 deployment-side + 3 follower-side |
-| Instructions | 21 | Plus auto-injected `process_undelegation` (`#[ephemeral]`) |
+| Instructions | 24 | Plus auto-injected `process_undelegation` (`#[ephemeral]`). 21 originals + `fund_follower_vault`, `withdraw_from_vault`, `adjust_subscription_params` (added 2026-05-08). |
 | Lifecycle FSMs | 2 | Deployment (5 states) + follower vault (5 states) |
 | Custody encodings | 2 | ⚠️ Not 1:1 across creator vs follower (see Enums) |
 | Phase split | — | Phase 1 = creator/strategy lifecycle, Phase 2 = followers, ER block, Phase 4 = closure & emergency |
@@ -176,7 +176,9 @@ seeds: [b"strategy_subscription", deployment, follower]
 | `lifecycle_status` | u8 | See `FollowerVaultLifecycleStatus` |
 | `created_slot` | u64 | |
 | `bump` | u8 | |
-| `_reserved` | [u8; 64] | |
+| `config_commitment` | [u8; 32] | Hash over off-chain subscriber-level params (position size, risk, etc.). Updated via `adjust_subscription_params`. All-zero = unset. |
+| `params_revision` | u64 | Monotonic counter for `config_commitment`. Used as `expected_revision` for replay protection on adjust. |
+| `_reserved` | [u8; 24] | Was [u8; 64]; 40 bytes carved out for `config_commitment` + `params_revision` without changing total account size. Existing on-chain accounts decode the carved bytes as zero (= "unset"). | |
 
 #### `FollowerVault`
 
@@ -367,6 +369,29 @@ set_follower_vault_status(new_status)
 close_follower_vault()
   // follower only; closes follower_vault + authority + subscription
   // requires follower_vault.lifecycle_status == Closed
+
+fund_follower_vault(amount)
+  // follower only; SPL transfer follower_token_account -> vault_token_account
+  // vault_token_account = ATA(follower_vault_authority, mint), init_if_needed
+  // allowed lifecycle: PendingFunding | Active | Paused
+  // first deposit while PendingFunding flips lifecycle -> Active
+  //   (mirrors onto strategy_subscription.lifecycle_status)
+
+withdraw_from_vault(amount)
+  // follower only; SPL transfer_checked vault_token_account -> follower_token_account
+  // signed by follower_vault_authority PDA seeds
+  // allowed lifecycle: Active | Paused | Exiting
+  // if amount == pre_balance && lifecycle == Exiting → flips to Closed
+  //   (mirrors onto strategy_subscription.lifecycle_status)
+
+adjust_subscription_params(expected_revision, new_config_commitment)
+  // follower only; updates strategy_subscription.config_commitment
+  // expected_revision must equal current params_revision (replay protection)
+  // new revision = expected_revision + 1
+  // allowed lifecycle: Active | Paused
+  // off-chain holds cleartext params; on-chain stores only the hash so
+  //   keepers can verify the params they execute against match what the
+  //   subscriber signed
 ```
 
 ### MagicBlock ER
@@ -494,13 +519,18 @@ Integration: Mollusk SVM dev-dep (`programs/Cargo.toml`); workspace
 1. **Custody-mode encoding asymmetry** — `VaultAuthority` and
    `FollowerVault` use different `custody_mode` byte mappings (see
    the table in Enums). IDL consumers must not conflate them.
-2. **No transfer instructions yet** — both authorities only carry
-   routing fields; SPL/SOL movement (deposits, fee skim from protocol
-   vaults, exit flows) is still to be built. Phase 1 explicitly
-   defers this.
+2. **No transfer instructions on `VaultAuthority`** — the creator-side
+   `VaultAuthority` still only carries routing fields; protocol-vault
+   fee skims and creator-side deposit/withdraw flows are not built.
+   The follower side now has SPL transfer ramps via
+   `fund_follower_vault` / `withdraw_from_vault` (added 2026-05-08
+   for the demo).
 3. **`allowed_mint_config_hash` empty** — both `VaultAuthority` and
    `FollowerVaultAuthority` carry the field but no instruction sets
-   it today. Whitelist enforcement is currently off-chain.
+   it today. Whitelist enforcement is currently off-chain. The
+   follower-side fund/withdraw instructions accept any mint the caller
+   supplies — mint whitelisting will need to land before un-trusted
+   creators can publish.
 4. **No follower-side keeper** — only the creator's deployment has a
    keeper carve-out. If automated follower exits without the
    follower's hot key are ever required, a parallel `follower_keeper`

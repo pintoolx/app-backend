@@ -164,12 +164,17 @@ export class StrategyRunsRepository {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      this.logger.warn(`Failed to find active run for deployment ${deploymentId}: ${error.message}`);
+      this.logger.warn(
+        `Failed to find active run for deployment ${deploymentId}: ${error.message}`,
+      );
     }
     return data ? (data as unknown as StrategyRunRow) : null;
   }
 
-  async findFailedRetriableForDeployment(deploymentId: string, limit = 5): Promise<StrategyRunRow[]> {
+  async findFailedRetriableForDeployment(
+    deploymentId: string,
+    limit = 5,
+  ): Promise<StrategyRunRow[]> {
     const { data, error } = await this.supabaseService.client
       .from('strategy_runs')
       .select(RUN_COLUMNS)
@@ -180,7 +185,9 @@ export class StrategyRunsRepository {
       .limit(limit);
 
     if (error) {
-      this.logger.warn(`Failed to find retriable runs for deployment ${deploymentId}: ${error.message}`);
+      this.logger.warn(
+        `Failed to find retriable runs for deployment ${deploymentId}: ${error.message}`,
+      );
     }
     return (data ?? []) as unknown as StrategyRunRow[];
   }

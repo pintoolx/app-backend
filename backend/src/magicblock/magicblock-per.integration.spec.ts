@@ -75,7 +75,8 @@ describe('MagicBlock PER — Real Integration', () => {
     process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
   const SKIP_INTEGRATION_TESTS =
     !RUN_EXTERNAL_INTEGRATION_TESTS ||
-    process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
+    process.env.SKIP_INTEGRATION_TESTS === '1' ||
+    process.env.SKIP_INTEGRATION_TESTS === 'true';
 
   const perEndpoint = process.env.MAGICBLOCK_PER_ENDPOINT;
   const hasSupabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY;

@@ -64,7 +64,9 @@ pub fn handler(
     acc.lifecycle_status = FollowerVaultLifecycleStatus::PendingFunding as u8;
     acc.created_slot = clock.slot;
     acc.bump = ctx.bumps.subscription;
-    acc._reserved = [0u8; crate::constants::RESERVED_ACCOUNT_BYTES];
+    acc.config_commitment = [0u8; 32];
+    acc.params_revision = 0;
+    acc._reserved = [0u8; 24];
 
     msg!(
         "subscription initialized id={:?} deployment={} follower={}",

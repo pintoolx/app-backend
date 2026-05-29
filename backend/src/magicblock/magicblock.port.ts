@@ -147,4 +147,3 @@ export interface MagicBlockPerAdapterPort {
   ): Promise<PerWriteFollowerStateResult>;
   readFollowerPrivateState(params: PerReadFollowerStateParams): Promise<PerReadFollowerStateResult>;
 }
-

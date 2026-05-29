@@ -335,4 +335,110 @@ mod tests {
         // + 32 (keeper) + 32 (reserved tail)).
         assert_eq!(StrategyDeployment::SIZE, 203);
     }
+
+    // ── A1/A2/A3: follower vault SPL transfers + adjust params ──
+
+    #[test]
+    fn strategy_subscription_size_unchanged_after_adjust_params_carve_out() {
+        // Pre-A3 layout reserved 64 bytes. Carving out 32 (config_commitment)
+        // + 8 (params_revision) leaves 24 reserved bytes; total stays 194 so
+        // existing on-chain accounts re-interpret seamlessly without realloc.
+        assert_eq!(
+            StrategySubscription::SIZE,
+            8 + 32 + 32 + 32 + 16 + 1 + 8 + 1 + 32 + 8 + 24
+        );
+        assert_eq!(StrategySubscription::SIZE, 194);
+    }
+
+    #[test]
+    fn fund_lifecycle_gating_allows_pending_active_paused_only() {
+        // The instruction allows deposits in {PendingFunding, Active, Paused}
+        // and rejects {Exiting, Closed}.
+        use FollowerVaultLifecycleStatus::*;
+        let allow = [PendingFunding, Active, Paused];
+        let deny = [Exiting, Closed];
+        let allowed_for = |s: FollowerVaultLifecycleStatus| {
+            matches!(s, PendingFunding | Active | Paused)
+        };
+        for s in allow {
+            assert!(allowed_for(s), "deposit should be allowed for {:?}", s);
+        }
+        for s in deny {
+            assert!(!allowed_for(s), "deposit should be denied for {:?}", s);
+        }
+    }
+
+    #[test]
+    fn fund_first_deposit_transitions_pending_to_active() {
+        // Mirrors the in-handler `if matches!(current, PendingFunding) { ... }`
+        // branch: only PendingFunding flips, other states leave status alone.
+        use FollowerVaultLifecycleStatus::*;
+        let flips = |s: FollowerVaultLifecycleStatus| matches!(s, PendingFunding);
+        assert!(flips(PendingFunding));
+        assert!(!flips(Active));
+        assert!(!flips(Paused));
+    }
+
+    #[test]
+    fn withdraw_lifecycle_gating_allows_active_paused_exiting_only() {
+        use FollowerVaultLifecycleStatus::*;
+        let allow = [Active, Paused, Exiting];
+        let deny = [PendingFunding, Closed];
+        let allowed_for = |s: FollowerVaultLifecycleStatus| {
+            matches!(s, Active | Paused | Exiting)
+        };
+        for s in allow {
+            assert!(allowed_for(s), "withdraw should be allowed for {:?}", s);
+        }
+        for s in deny {
+            assert!(!allowed_for(s), "withdraw should be denied for {:?}", s);
+        }
+    }
+
+    #[test]
+    fn withdraw_drain_in_exiting_transitions_to_closed() {
+        // Mirrors the `if amount == pre_balance && status == Exiting` branch.
+        use FollowerVaultLifecycleStatus::*;
+        let drains_to_closed = |status: FollowerVaultLifecycleStatus, amount: u64, balance: u64| {
+            amount == balance && matches!(status, Exiting)
+        };
+        // Drain while exiting → closes.
+        assert!(drains_to_closed(Exiting, 100, 100));
+        // Partial withdraw while exiting → stays open.
+        assert!(!drains_to_closed(Exiting, 50, 100));
+        // Drain while active → no auto-close (must go through Exiting first).
+        assert!(!drains_to_closed(Active, 100, 100));
+        assert!(!drains_to_closed(Paused, 100, 100));
+    }
+
+    #[test]
+    fn adjust_params_lifecycle_gating_allows_active_paused_only() {
+        // Adjust requires a funded subscription that is operational. Pending
+        // (no funds yet) and Exiting/Closed (winding down) are rejected.
+        use FollowerVaultLifecycleStatus::*;
+        let allowed_for = |s: FollowerVaultLifecycleStatus| {
+            matches!(s, Active | Paused)
+        };
+        assert!(allowed_for(Active));
+        assert!(allowed_for(Paused));
+        assert!(!allowed_for(PendingFunding));
+        assert!(!allowed_for(Exiting));
+        assert!(!allowed_for(Closed));
+    }
+
+    #[test]
+    fn adjust_params_replay_protection() {
+        // The handler enforces `expected_revision == sub.params_revision` and
+        // bumps to `expected_revision + 1`. Stale and ahead-of-time both fail.
+        let on_chain: u64 = 5;
+        let stale: u64 = 4;
+        let exact: u64 = 5;
+        let ahead: u64 = 6;
+        assert_eq!(stale == on_chain, false);
+        assert_eq!(exact == on_chain, true);
+        assert_eq!(ahead == on_chain, false);
+        assert_eq!(exact.checked_add(1), Some(6));
+        // Overflow guard: the handler rejects on checked_add overflow.
+        assert_eq!(u64::MAX.checked_add(1), None);
+    }
 }

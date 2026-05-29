@@ -8,10 +8,7 @@ import {
   type MagicBlockErAdapterPort,
   type MagicBlockPerAdapterPort,
 } from './magicblock.port';
-import {
-  MagicBlockErNoopAdapter,
-  MagicBlockPerNoopAdapter,
-} from './magicblock-noop.service';
+import { MagicBlockErNoopAdapter, MagicBlockPerNoopAdapter } from './magicblock-noop.service';
 import { MagicBlockClientService } from './magicblock-client.service';
 import { MagicBlockErRealAdapter } from './magicblock-er-real.adapter';
 import { MagicBlockPerClientService } from './magicblock-per-client.service';

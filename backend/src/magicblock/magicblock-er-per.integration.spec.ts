@@ -58,7 +58,8 @@ const RUN_EXTERNAL_INTEGRATION_TESTS =
   process.env.RUN_EXTERNAL_INTEGRATION_TESTS === 'true';
 const SKIP_INTEGRATION_TESTS =
   !RUN_EXTERNAL_INTEGRATION_TESTS ||
-  process.env.SKIP_INTEGRATION_TESTS === '1' || process.env.SKIP_INTEGRATION_TESTS === 'true';
+  process.env.SKIP_INTEGRATION_TESTS === '1' ||
+  process.env.SKIP_INTEGRATION_TESTS === 'true';
 
 describe('MagicBlock ER + PER — Real Integration', () => {
   // Devnet RPC + Magic Router round-trips routinely take well over Jest's 5s
